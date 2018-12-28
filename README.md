@@ -1,4 +1,4 @@
-# BalanceRobotQT
+# BalanceRobot & Remote Control by Bluetooth BLE GATT Services
 The new qt c++ version of 
 https://github.com/takyonxxx/BalanceRobot-Raspberry-Pi
 
