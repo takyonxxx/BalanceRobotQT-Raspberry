@@ -8,7 +8,6 @@ SOURCES += main.cpp \
     balancerobot.cpp \
     gattserver.cpp \
     i2cdev.cpp \
-    main.cpp \
     message.cpp \
     mpu6050.cpp \
     pid.cpp
@@ -28,4 +27,3 @@ HEADERS += \
 
 LIBS += -L/usr/local/lib -lwiringPi
 LIBS +=  -lm -lcrypt -lasound
-
