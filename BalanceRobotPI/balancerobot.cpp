@@ -36,12 +36,12 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 50;
-    aggKi = 10;
-    aggKd = 0.8;
+    aggKp = 40;
+    aggKi = 20;
+    aggKd = 0.2;
 
     timeDiff = 0.0;
-    angleCorrection = 2.5;
+    angleCorrection = 0;
     aggVs = 3.0;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -174,7 +174,7 @@ bool BalanceRobot::initwiringPi()
 }
 
 void BalanceRobot::initPid()
-{   
+{
     //Specify the links and initial tuning parameters
     balancePID = new PID(&Input, &Output, &targetAngle, aggKp, aggKi, aggKd, DIRECT);
 
@@ -285,7 +285,7 @@ void BalanceRobot::controlRobot()
 }
 
 void BalanceRobot::calculateGyro()
-{ 
+{
     timeDiff = (micros() - timer)/1000;
     double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
     timer = micros();
@@ -445,7 +445,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPD: //Derivative constant
         {
-             sendData(mPD, (int)aggKd);
+             sendData(mPD, (int)10*aggKd);
             break;
         }
         case mAC://angle correction
@@ -479,7 +479,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPD:
         {
-            aggKd = value;
+            aggKd = (float) value / 10.0;
             break;
         }
         case mAC:
@@ -494,12 +494,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mForward:
         {
-            needSpeed = -1*value/2;
+            needSpeed = -1*value;
             break;
         }
         case mBackward:
         {
-            needSpeed = value/2;
+            needSpeed = value;
             break;
         }
         case mLeft:
@@ -519,8 +519,8 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
     }
 
-    qDebug() << QString::number(aggKp) << QString::number(aggKi) << QString::number(aggKd) << QString::number(aggVs)
-             << QString::number(angleCorrection)  << QString::number(needSpeed)
+    qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
+             << QString::number(angleCorrection, 'f', 1)  << QString::number(needSpeed)
              << QString::number(needTurnL) << QString::number(needTurnR)
              << QString::number(pwm_l)  << QString::number(pwm_r) ;
 }
@@ -549,6 +549,8 @@ void BalanceRobot::init()
     if(!initGyroMeter()) return;
     if(!initwiringPi()) return;
     initPid();
+
+    calculateGyro();
 
     m_MainEnableThread = true;
     timer = micros();
