@@ -337,7 +337,7 @@ void MainWindow::on_Exit()
 
 void MainWindow::on_ForwardPressed()
 {
-    sendData(mForward, 100);
+    sendData(mForward, 75);
 }
 
 void MainWindow::on_ForwardReleased()
@@ -347,7 +347,7 @@ void MainWindow::on_ForwardReleased()
 
 void MainWindow::on_BackwardPressed()
 {
-    sendData(mBackward, 100);
+    sendData(mBackward, 75);
 }
 
 void MainWindow::on_BackwardReleased()
@@ -357,7 +357,7 @@ void MainWindow::on_BackwardReleased()
 
 void MainWindow::on_RightPressed()
 {
-    sendData(mRight, 100);
+    sendData(mRight, 75);
 }
 
 void MainWindow::on_RightReleased()
@@ -367,7 +367,7 @@ void MainWindow::on_RightReleased()
 
 void MainWindow::on_LeftPressed()
 {
-    sendData(mLeft, 100);
+    sendData(mLeft, 75);
 }
 
 void MainWindow::on_LeftReleased()
