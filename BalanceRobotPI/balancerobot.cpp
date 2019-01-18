@@ -36,12 +36,12 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 40;
-    aggKi = 20;
+    aggKp = 42;
+    aggKi = 15;
     aggKd = 0.2;
 
     timeDiff = 0.0;
-    angleCorrection = 0;
+    angleCorrection = 2.0;
     aggVs = 3.0;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -335,7 +335,7 @@ void BalanceRobot::calculateGyro()
     //qDebug("currentAngle: %.1f  Time_Diff: %.1f", currentAngle, timeDiff);
 }
 
-void BalanceRobot::execCommand(const char* cmd)
+void execCommand(const char* cmd)
 {
     char buffer[128];
     std::string result = "";
@@ -353,23 +353,20 @@ void BalanceRobot::execCommand(const char* cmd)
     pclose(pipe);
 }
 
-void BalanceRobot::speakTurkish(std::string sound)
-{
-    std::string espeakBuff = std::string ("espeak -v tr+f5 ") + '"' + sound + '"' + " --stdout|aplay";
-    execCommand(espeakBuff.c_str());
-}
-
-void BalanceRobot::speakEnglish(std::string sound)
-{
-    std::string espeakBuff = std::string ("espeak -ven-us+f5 -s170  ") + '"' + sound + '"' + " --stdout|aplay";
-    execCommand(espeakBuff.c_str());
-}
-
 //slots
 
 void BalanceRobot::onConnectionStatedChanged(bool state)
 {
-    Q_UNUSED(state)
+    if(state)
+    {
+        char *sound = (char*)("Bağlantı kuruldu.");
+        pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+    }
+    else
+    {
+        char *sound = (char*)("Bağlantı koptu.");
+        pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+    }
 }
 
 void BalanceRobot::createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result)
@@ -445,17 +442,17 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPD: //Derivative constant
         {
-             sendData(mPD, (int)10*aggKd);
+            sendData(mPD, (int)10*aggKd);
             break;
         }
         case mAC://angle correction
         {
-             sendData(mAC, (int)angleCorrection);
+            sendData(mAC, (int)angleCorrection);
             break;
         }
         case mVS://speed diff constant wheel
         {
-             sendData(mVS, (int)angleCorrection);
+            sendData(mVS, (int)angleCorrection);
             break;
         }
 
@@ -492,26 +489,38 @@ void BalanceRobot::onDataReceived(QByteArray data)
             aggVs = value;
             break;
         }
+        case mSpeak:
+        {
+            char *sound = (char*)("Merhaba Türkay Biliyor. Nasılsın patron?");
+            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            break;
+        }
         case mForward:
         {
             needSpeed = -1*value;
+            char *sound = (char*)("İleri.");
+            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         case mBackward:
         {
             needSpeed = value;
+            char *sound = (char*)("Geri.");
+            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         case mLeft:
         {
-
             needTurnL = value;
+            char *sound = (char*)("Sol");
+            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         case mRight:
         {
-
             needTurnR = value;
+            char *sound = (char*)("Sağ");
+            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         default:
@@ -542,6 +551,30 @@ void* BalanceRobot::mainLoop( void* this_ptr )
     return nullptr;
 }
 
+void* BalanceRobot::speakTurkish(void *sound)
+{
+    char* currentSound;
+    if(sound)
+    {
+        currentSound = (char*)sound;
+        std::string espeakBuff = std::string ("espeak -v tr+f5 ") + '"' + currentSound + '"' + " --stdout|aplay";
+        execCommand(espeakBuff.c_str());
+    }
+    return nullptr;
+}
+
+void* BalanceRobot::speakEnglish(void *sound)
+{
+    char* currentSound;
+    if(sound)
+    {
+        currentSound = (char*)sound;
+        std::string espeakBuff = std::string ("espeak -ven-us+f5 -s170  ") + '"' + currentSound + '"' + " --stdout|aplay";
+        execCommand(espeakBuff.c_str());
+    }
+    return nullptr;
+}
+
 void BalanceRobot::init()
 {
     ResetValues();
@@ -555,11 +588,12 @@ void BalanceRobot::init()
     m_MainEnableThread = true;
     timer = micros();
 
-    pthread_create( &mainThread, nullptr, mainLoop, this );
-    qDebug("Main Thread Started.");
+    pthread_create( &mainThread, nullptr, mainLoop, this);
     SetAlsaMasterVolume(100);
-    /*currentSound = std::string("Türk Robot Başladı");
-    auto thread = std::async(std::launch::deferred, &BalanceRobot::speakTurkish, this, currentSound);
-    thread.get();
-    execCommand("aplay r2d2.wav");*/
+    execCommand("aplay r2d2.wav");
+
+    QThread::msleep(250);
+
+    char *sound = (char*)("Robot başladı. Uzaktan kontrolü başlat.");
+    pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
 }

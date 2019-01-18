@@ -62,14 +62,14 @@ private:
     void controlRobot();
     void SetAlsaMasterVolume(long volume);
     void ResetValues();
-    void execCommand(const char* cmd);
+    //void execCommand(const char* cmd);
     void createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result);
     void parseMessage(QByteArray *data, uint8_t &command, QByteArray &value, uint8_t &rw);
     void requestData(uint8_t command);
     void sendData(uint8_t command, uint8_t value);
-    void speakTurkish(std::string sound);
-    void speakEnglish(std::string sound);
-    static void* mainLoop(void* this_ptr);   
+    static void* mainLoop(void* this_ptr);
+    static void* speakTurkish(void *sound);
+    static void* speakEnglish(void *sound);
     static void encodeL(void);
     static void encodeR(void);
 
@@ -78,6 +78,7 @@ private:
 
     GattServer *gattServer;
     pthread_t mainThread;
+    pthread_t soundhread;
 
     MPU6050 gyroMPU;
     Kalman kalmanX;
