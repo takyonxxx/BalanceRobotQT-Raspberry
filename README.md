@@ -26,6 +26,7 @@ cd /home/pi/BalanceRobotPi
 Open a sample unit file using the command as shown below:
 
 sudo nano /lib/systemd/system/startrobot.service
+
 Add in the following text :
 
 [Unit]
