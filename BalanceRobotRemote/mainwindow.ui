@@ -27,7 +27,7 @@
        <widget class="QComboBox" name="m_cbDevicesFound">
         <property name="minimumSize">
          <size>
-          <width>106</width>
+          <width>124</width>
           <height>30</height>
          </size>
         </property>
@@ -179,7 +179,7 @@ QScrollBar::sub-line:horizontal {
 }</string>
           </property>
           <property name="maximum">
-           <number>255</number>
+           <number>100</number>
           </property>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -277,7 +277,7 @@ QScrollBar::sub-line:horizontal {
 }</string>
           </property>
           <property name="maximum">
-           <number>255</number>
+           <number>50</number>
           </property>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -375,7 +375,7 @@ QScrollBar::sub-line:horizontal {
 }</string>
           </property>
           <property name="maximum">
-           <number>25</number>
+           <number>10</number>
           </property>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -654,17 +654,11 @@ QScrollBar::sub-line:horizontal {
        </widget>
       </item>
       <item>
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+       <widget class="QPushButton" name="m_pBSpeak">
+        <property name="text">
+         <string>Speak</string>
         </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
+       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="m_pBRight">

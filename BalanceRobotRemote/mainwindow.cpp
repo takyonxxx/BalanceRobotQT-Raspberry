@@ -24,9 +24,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBLeft->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
     ui->m_pBRight->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
 
-    ui->m_pBSearch->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #336699;");
-    ui->m_pBConnect->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #336699;");
-    ui->m_pBExit->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #cc3300;");
+    ui->m_pBSearch->setStyleSheet("font-size: 14pt; font: bold; color: #ffffff; background-color: #336699;");
+    ui->m_pBConnect->setStyleSheet("font-size: 14pt; font: bold; color: #ffffff; background-color: #336699;");
+    ui->m_pBExit->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
+    ui->m_pBSpeak->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
 
     connect(&m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
     connect(&m_bleConnection, SIGNAL(changedState(BluetoothClient::bluetoothleState)),this,SLOT(changedState(BluetoothClient::bluetoothleState)));
@@ -128,10 +129,9 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     }
     case BluetoothClient::Connected:
     {
-        ui->m_pBConnect->setText("DisConnect");
+        ui->m_pBConnect->setText("Disconnect");
         connect(&m_bleConnection, SIGNAL(newData(QByteArray)), this, SLOT(DataHandler(QByteArray)));
         ui->m_pBConnect->setEnabled(true);
-        ui->m_pBConnect->setText("DisConnect");
 
         break;
     }
@@ -337,7 +337,7 @@ void MainWindow::on_Exit()
 
 void MainWindow::on_ForwardPressed()
 {
-    sendData(mForward, 75);
+    sendData(mForward, 60);
 }
 
 void MainWindow::on_ForwardReleased()
@@ -347,7 +347,7 @@ void MainWindow::on_ForwardReleased()
 
 void MainWindow::on_BackwardPressed()
 {
-    sendData(mBackward, 75);
+    sendData(mBackward, 60);
 }
 
 void MainWindow::on_BackwardReleased()
@@ -357,7 +357,7 @@ void MainWindow::on_BackwardReleased()
 
 void MainWindow::on_RightPressed()
 {
-    sendData(mRight, 75);
+    sendData(mRight, 50);
 }
 
 void MainWindow::on_RightReleased()
@@ -367,10 +367,15 @@ void MainWindow::on_RightReleased()
 
 void MainWindow::on_LeftPressed()
 {
-    sendData(mLeft, 75);
+    sendData(mLeft, 50);
 }
 
 void MainWindow::on_LeftReleased()
 {
     sendData(mLeft, 0);
+}
+
+void MainWindow::on_m_pBSpeak_clicked()
+{
+    sendData(mSpeak, 500);
 }

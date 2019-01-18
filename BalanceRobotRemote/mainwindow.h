@@ -55,6 +55,8 @@ private slots:
 
     void on_scrollAC_valueChanged(int value);
 
+    void on_m_pBSpeak_clicked();
+
 signals:
     void connectToDevice(int i);
 
