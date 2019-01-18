@@ -13,44 +13,39 @@ I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPi folder
 create a script start.sh on your home folder (home/pi)
 place below code in it.
 
-#!/bin/bash
+#!/bin/bash</br>
+sudo chown root.root /home/pi/BalanceRobotPi/BalanceRobotPi</br>
+sudo chmod 4755 /home/pi/BalanceRobotPi/BalanceRobotPi</br>
+cd /home/pi/BalanceRobotPi</br>
+./BalanceRobotPi</br>
 
-sudo chown root.root /home/pi/BalanceRobotPi/BalanceRobotPi
+Open a sample unit file using the command as shown below:</br>
+sudo nano /lib/systemd/system/startrobot.service</br>
+Add in the following text :</br>
 
-sudo chmod 4755 /home/pi/BalanceRobotPi/BalanceRobotPi
+[Unit]</br>
+Description=My Robot Service</br>
+After=multi-user.target</br>
+</br>
+[Service]</br>
+Type=idle</br>
+ExecStart=/home/pi/start.sh</br>
+</br>
+[Install]</br>
+WantedBy=multi-user.target</br>
+</br>
+You should save and exit the nano editor.</br>
 
-cd /home/pi/BalanceRobotPi
+The permission on the unit file needs to be set to 644 :</br>
+sudo chmod 644 /lib/systemd/system/startrobot.service</br>
 
-./BalanceRobotPi
-
-Open a sample unit file using the command as shown below:
-
-sudo nano /lib/systemd/system/startrobot.service
-
-Add in the following text :
-
-[Unit]
-Description=My Robot Service
-After=multi-user.target
-
-[Service]
-Type=idle
-ExecStart=/home/pi/start.sh
-
-[Install]
-WantedBy=multi-user.target
-
-You should save and exit the nano editor.
-
-The permission on the unit file needs to be set to 644 :
-sudo chmod 644 /lib/systemd/system/startrobot.service
-
-Configure systemd
-Now the unit file has been defined we can tell systemd to start it during the boot sequence :
-sudo systemctl daemon-reload
-sudo systemctl enable startrobot.service
-Reboot the Pi and your custom service should run:
-sudo reboot
+Configure systemd</br>
+</br>
+Now the unit file has been defined we can tell systemd to start it during the boot sequence :</br>
+sudo systemctl daemon-reload</br>
+sudo systemctl enable startrobot.service</br>
+Reboot the Pi and your custom service should run:</br>
+sudo reboot</br>
 
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg">
 		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg" 
