@@ -14,9 +14,13 @@ create a script start.sh on your home folder (home/pi)
 place below code in it.
 
 #!/bin/bash
+
 sudo chown root.root /home/pi/BalanceRobotPi/BalanceRobotPi
+
 sudo chmod 4755 /home/pi/BalanceRobotPi/BalanceRobotPi
+
 cd /home/pi/BalanceRobotPi
+
 ./BalanceRobotPi
 
 Open a sample unit file using the command as shown below:
