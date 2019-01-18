@@ -47,7 +47,7 @@ sudo systemctl enable startrobot.service
 Reboot the Pi and your custom service should run:
 sudo reboot
 
-<p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.JPG">
-		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.JPG" 
+<p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg">
+		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg" 
 		name="remote" width="480" height="800" align="bottom" border="1"></a></p>
 		
