@@ -377,5 +377,5 @@ void MainWindow::on_LeftReleased()
 
 void MainWindow::on_m_pBSpeak_clicked()
 {
-    sendData(mSpeak, 500);
+    sendData(mSpeak, 0);
 }
