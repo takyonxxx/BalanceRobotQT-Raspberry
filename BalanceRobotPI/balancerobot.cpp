@@ -36,12 +36,12 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 42;
-    aggKi = 15;
-    aggKd = 0.2;
+    aggKp = 30;
+    aggKi = 20;
+    aggKd = 0.45;
 
     timeDiff = 0.0;
-    angleCorrection = 2.0;
+    angleCorrection = 3.2;
     aggVs = 3.0;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -491,36 +491,38 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mSpeak:
         {
-            char *sound = (char*)("Merhaba Türkay Biliyor. Nasılsın patron?");
+            char *sound = (char*)("Merhaba Türkay Biliyor. Nasılsın? Senin için ne yapabilirim?");
             pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         case mForward:
         {
             needSpeed = -1*value;
-            char *sound = (char*)("İleri.");
-            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            if(needSpeed != 0)
+            {
+                char *sound = (char*)("İleri.");
+                pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            }
             break;
         }
         case mBackward:
         {
             needSpeed = value;
-            char *sound = (char*)("Geri.");
-            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            if(needSpeed != 0)
+            {
+                char *sound = (char*)("Geri.");
+                pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            }
             break;
         }
         case mLeft:
         {
             needTurnL = value;
-            char *sound = (char*)("Sol");
-            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         case mRight:
         {
             needTurnR = value;
-            char *sound = (char*)("Sağ");
-            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }
         default:
@@ -557,7 +559,7 @@ void* BalanceRobot::speakTurkish(void *sound)
     if(sound)
     {
         currentSound = (char*)sound;
-        std::string espeakBuff = std::string ("espeak -v tr+f5 ") + '"' + currentSound + '"' + " --stdout|aplay";
+        std::string espeakBuff = std::string ("espeak -vtr+f7 -s170 ") + '"' + currentSound + '"' + " --stdout|aplay";
         execCommand(espeakBuff.c_str());
     }
     return nullptr;
