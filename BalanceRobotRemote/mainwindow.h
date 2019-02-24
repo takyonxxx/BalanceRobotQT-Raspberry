@@ -31,7 +31,8 @@ public:
 private slots:
     void DataHandler(QByteArray data);
     void connectDevice();
-    void sendData(uint8_t command, uint8_t value);
+    void sendCommand(uint8_t command, uint8_t value);    
+    void sendString(uint8_t command, QByteArray value);
     void requestData(uint8_t command);
     void changedState(BluetoothClient::bluetoothleState state);
     void statusChanged(const QString &status);
@@ -64,6 +65,8 @@ private:
     void initButtons();   
     void createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result);
     void parseMessage(QByteArray *data, uint8_t &command, QByteArray &value,  uint8_t &rw);
+
+    int remoteConstant;
 
     Ui::MainWindow *ui;
     QList<QString> m_qlFoundDevices;

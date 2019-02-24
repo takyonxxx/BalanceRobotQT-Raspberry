@@ -4,5 +4,6 @@
         <file>icons/forward.png</file>
         <file>icons/left.png</file>
         <file>icons/right.png</file>
+        <file>icons/robot.png</file>
     </qresource>
 </RCC>

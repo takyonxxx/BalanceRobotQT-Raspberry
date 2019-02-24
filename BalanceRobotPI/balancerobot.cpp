@@ -36,12 +36,12 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 30;
-    aggKi = 20;
-    aggKd = 0.45;
+    aggKp = 40;
+    aggKi = 15;
+    aggKd = 0.3;
 
     timeDiff = 0.0;
-    angleCorrection = 3.2;
+    angleCorrection = 3.25;
     aggVs = 3.0;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -491,7 +491,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mSpeak:
         {
-            char *sound = (char*)("Merhaba Türkay Biliyor. Nasılsın? Senin için ne yapabilirim?");
+            char *sound = (char*)(parsedValue.data());
             pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
             break;
         }

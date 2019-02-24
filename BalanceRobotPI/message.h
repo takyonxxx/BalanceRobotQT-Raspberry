@@ -20,7 +20,7 @@
 #define mVS         0xd1 //speed diff constant wheel
 #define mSpeak      0xe0 //speak
 
-#define MaxPayload 0x38
+#define MaxPayload 1024
 
 //message len max is 256, header, command, rw and cheksum total len is 8, therefore payload max len is 248
 //max input bluetooth buffer in this chip allows a payload max 0x38

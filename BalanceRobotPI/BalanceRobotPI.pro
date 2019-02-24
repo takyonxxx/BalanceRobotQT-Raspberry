@@ -2,7 +2,7 @@ TEMPLATE = app
 TARGET = BalanceRobotPI
 
 QT += bluetooth
-CONFIG += c++11
+CONFIG += c++14
 
 SOURCES += main.cpp \
     balancerobot.cpp \

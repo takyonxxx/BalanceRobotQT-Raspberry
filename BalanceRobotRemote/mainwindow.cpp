@@ -7,6 +7,8 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    remoteConstant = 50;
+
     initButtons();
 
     setWindowTitle(tr("BalanceRobot Remote Control"));
@@ -18,6 +20,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->labelPD->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelVS->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelAC->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
+    ui->lineEdit_Speak->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
 
     ui->m_pBForward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
     ui->m_pBBackward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
@@ -260,7 +263,7 @@ void MainWindow::createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QB
 
     for (int i = 0; i < len; i++)
     {
-        result->append(buffer[i]);
+        result->append(static_cast<char>(buffer[i]));
     }
 }
 
@@ -270,13 +273,13 @@ void MainWindow::parseMessage(QByteArray *data, uint8_t &command, QByteArray &va
 
     uint8_t* dataToParse = reinterpret_cast<uint8_t*>(data->data());
     QByteArray returnValue;
-    if(message.parse(dataToParse, (uint8_t)data->length(), &parsedMessage))
+    if(message.parse(dataToParse, static_cast<uint8_t>(data->length()), &parsedMessage))
     {
         command = parsedMessage.command;
         rw = parsedMessage.rw;
         for(int i = 0; i< parsedMessage.len; i++)
         {
-            value.append(parsedMessage.data[i]);
+            value.append(static_cast<char>(parsedMessage.data[i]));
         }
     }
 }
@@ -289,10 +292,10 @@ void MainWindow::requestData(uint8_t command)
     m_bleConnection.writeData(sendData);
 }
 
-void MainWindow::sendData(uint8_t command, uint8_t value)
+void MainWindow::sendCommand(uint8_t command, uint8_t value)
 {
     QByteArray payload;
-    payload[0] = value;
+    payload[0] = static_cast<char>(value);
 
     QByteArray sendData;
     createMessage(command, mWrite, payload, &sendData);
@@ -300,33 +303,41 @@ void MainWindow::sendData(uint8_t command, uint8_t value)
     m_bleConnection.writeData(sendData);
 }
 
+void MainWindow::sendString(uint8_t command, QByteArray value)
+{
+    QByteArray sendData;
+    createMessage(command, mWrite, value, &sendData);
+
+    m_bleConnection.writeData(sendData);
+}
+
 void MainWindow::on_scrollPP_valueChanged(int value)
 {
-    sendData(mPP, value);
+    sendCommand(mPP, static_cast<uint8_t>(value));
     ui->labelPP->setText(QString::number(value));
 }
 
 void MainWindow::on_scrollPI_valueChanged(int value)
 {
-    sendData(mPI, value);
+    sendCommand(mPI, static_cast<uint8_t>(value));
     ui->labelPI->setText(QString::number(value));
 }
 
 void MainWindow::on_scrollPD_valueChanged(int value)
 {
-    sendData(mPD, value);
-    ui->labelPD->setText(QString::number(value));
+    sendCommand(mPD, static_cast<uint8_t>(value));
+    ui->labelPD->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 
 void MainWindow::on_scrollVS_valueChanged(int value)
 {
-    sendData(mVS, value);
+    sendCommand(mVS, static_cast<uint8_t>(value));
     ui->labelVS->setText(QString::number(value));
 }
 
 void MainWindow::on_scrollAC_valueChanged(int value)
 {
-    sendData(mAC, value);
+    sendCommand(mAC, static_cast<uint8_t>(value));
     ui->labelAC->setText(QString::number(value));
 }
 
@@ -337,45 +348,47 @@ void MainWindow::on_Exit()
 
 void MainWindow::on_ForwardPressed()
 {
-    sendData(mForward, 60);
+    sendCommand(mForward, static_cast<uint8_t>(remoteConstant));
 }
 
 void MainWindow::on_ForwardReleased()
 {
-    sendData(mForward, 0);
+    sendCommand(mForward, 0);
 }
 
 void MainWindow::on_BackwardPressed()
 {
-    sendData(mBackward, 60);
+    sendCommand(mBackward, static_cast<uint8_t>(remoteConstant));
 }
 
 void MainWindow::on_BackwardReleased()
 {
-    sendData(mBackward, 0);
+    sendCommand(mBackward, 0);
 }
 
 void MainWindow::on_RightPressed()
 {
-    sendData(mRight, 50);
+    sendCommand(mRight, static_cast<uint8_t>(remoteConstant));
 }
 
 void MainWindow::on_RightReleased()
 {
-    sendData(mRight, 0);
+    sendCommand(mRight, 0);
 }
 
 void MainWindow::on_LeftPressed()
 {
-    sendData(mLeft, 50);
+    sendCommand(mLeft, static_cast<uint8_t>(remoteConstant));
 }
 
 void MainWindow::on_LeftReleased()
 {
-    sendData(mLeft, 0);
+    sendCommand(mLeft, 0);
 }
 
 void MainWindow::on_m_pBSpeak_clicked()
 {
-    sendData(mSpeak, 0);
+    QByteArray data;
+    data.append(QString(ui->lineEdit_Speak->text()));
+    sendString(mSpeak, data);
 }

@@ -2,6 +2,9 @@ QT       += core gui bluetooth
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
+ICON += $$PWD\icons\robot.png
+win32:RC_ICONS += $$\PWD\icons\robot.png
+
 TARGET = BalanceRobotRemote
 TEMPLATE = app
 
