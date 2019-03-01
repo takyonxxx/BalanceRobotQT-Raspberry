@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBConnect->setStyleSheet("font-size: 14pt; font: bold; color: #ffffff; background-color: #336699;");
     ui->m_pBExit->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
     ui->m_pBSpeak->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
+    ui->m_pBFormat->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
 
     connect(&m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
     connect(&m_bleConnection, SIGNAL(changedState(BluetoothClient::bluetoothleState)),this,SLOT(changedState(BluetoothClient::bluetoothleState)));
@@ -391,4 +392,9 @@ void MainWindow::on_m_pBSpeak_clicked()
     QByteArray data;
     data.append(QString(ui->lineEdit_Speak->text()));
     sendString(mSpeak, data);
+}
+
+void MainWindow::on_m_pBFormat_clicked()
+{
+    ui->lineEdit_Speak->setText("espeak -vtr+f5");
 }
