@@ -68,8 +68,7 @@ private:
     void requestData(uint8_t command);
     void sendData(uint8_t command, uint8_t value);
     static void* mainLoop(void* this_ptr);
-    static void* speakTurkish(void *sound);
-    static void* speakEnglish(void *sound);
+    static void* speak(void* this_ptr);
     static void encodeL(void);
     static void encodeR(void);
 
@@ -85,6 +84,8 @@ private:
     Kalman kalmanY;
 
     std::string currentSound;
+    QString soundFormat;
+    QString soundText;
 
     double Input;
     double Output;

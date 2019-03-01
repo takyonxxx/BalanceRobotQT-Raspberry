@@ -21,6 +21,7 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
+    soundFormat = QString("espeak -vtr+f4");
     init();
 }
 
@@ -359,13 +360,13 @@ void BalanceRobot::onConnectionStatedChanged(bool state)
 {
     if(state)
     {
-        char *sound = (char*)("Bağlantı kuruldu.");
-        pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+        soundText = ("Bağlantı kuruldu.");
+        pthread_create( &soundhread, nullptr, speak, this);
     }
     else
     {
-        char *sound = (char*)("Bağlantı koptu.");
-        pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+        soundText = ("Bağlantı koptu.");
+        pthread_create( &soundhread, nullptr, speak, this);
     }
 }
 
@@ -491,28 +492,28 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mSpeak:
         {
-            char *sound = (char*)(parsedValue.data());
-            pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+            soundText = QString(parsedValue.data());
+            if(soundText.startsWith("espeak"))
+            {
+                soundFormat = soundText;
+                soundText = QString("Ses Formatı Değişti. Yeni sesimi beğendin mi?");
+                pthread_create( &soundhread, nullptr, speak, this);
+            }
+            else
+            {
+                pthread_create( &soundhread, nullptr, speak, this);
+            }
+
             break;
         }
         case mForward:
         {
             needSpeed = -1*value;
-            if(needSpeed != 0)
-            {
-                char *sound = (char*)("İleri.");
-                pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
-            }
             break;
         }
         case mBackward:
         {
             needSpeed = value;
-            if(needSpeed != 0)
-            {
-                char *sound = (char*)("Geri.");
-                pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
-            }
             break;
         }
         case mLeft:
@@ -553,25 +554,16 @@ void* BalanceRobot::mainLoop( void* this_ptr )
     return nullptr;
 }
 
-void* BalanceRobot::speakTurkish(void *sound)
+void* BalanceRobot::speak(void* this_ptr)
 {
-    char* currentSound;
-    if(sound)
-    {
-        currentSound = (char*)sound;
-        std::string espeakBuff = std::string ("espeak -vtr+f7 -s170 ") + '"' + currentSound + '"' + " --stdout|aplay";
-        execCommand(espeakBuff.c_str());
-    }
-    return nullptr;
-}
+    BalanceRobot* obj_ptr = static_cast<BalanceRobot *>(this_ptr);
+    std::string sound = obj_ptr->soundText.toStdString();
+    std::string format = obj_ptr->soundFormat.toStdString();
 
-void* BalanceRobot::speakEnglish(void *sound)
-{
-    char* currentSound;
-    if(sound)
+    if(obj_ptr)
     {
-        currentSound = (char*)sound;
-        std::string espeakBuff = std::string ("espeak -ven-us+f5 -s170  ") + '"' + currentSound + '"' + " --stdout|aplay";
+        std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
+
         execCommand(espeakBuff.c_str());
     }
     return nullptr;
@@ -596,6 +588,6 @@ void BalanceRobot::init()
 
     QThread::msleep(250);
 
-    char *sound = (char*)("Robot başladı. Uzaktan kontrolü başlat.");
-    pthread_create( &soundhread, nullptr, speakTurkish, (void*)sound);
+    soundText = ("Robot başladı. Uzaktan kontrolü başlat.");
+    pthread_create( &soundhread, nullptr, speak, this);
 }
