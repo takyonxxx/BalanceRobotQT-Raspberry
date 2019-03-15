@@ -7,7 +7,6 @@ The remote control can compile on all platforms that supports qt.
 https://www.youtube.com/watch?v=immSrXEHzQE&feature=youtu.be
 
 AutoStart the app on boot:
-
 I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPi folder.
 
 create a script start.sh on your home folder (home/pi)
