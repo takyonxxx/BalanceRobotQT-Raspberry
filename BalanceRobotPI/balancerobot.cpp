@@ -37,9 +37,9 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 40;
+    aggKp = 25;
     aggKi = 15;
-    aggKd = 0.3;
+    aggKd = 0.35;
 
     timeDiff = 0.0;
     angleCorrection = 3.25;
