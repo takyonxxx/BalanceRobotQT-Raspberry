@@ -1,6 +1,7 @@
 #ifndef BALANCEROBOT_H
 #define BALANCEROBOT_H
 #include <QObject>
+#include <QSettings>
 
 #include <gattserver.h>
 
@@ -71,6 +72,11 @@ private:
     static void* speak(void* this_ptr);
     static void encodeL(void);
     static void encodeR(void);
+
+    void loadSettings();
+    void saveSettings();
+
+    QString m_sSettingsFile;
 
     PID *balancePID;
     Message message;

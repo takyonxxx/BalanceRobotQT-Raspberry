@@ -396,5 +396,5 @@ void MainWindow::on_m_pBSpeak_clicked()
 
 void MainWindow::on_m_pBFormat_clicked()
 {
-    ui->lineEdit_Speak->setText("espeak -vtr+f5");
+    ui->lineEdit_Speak->setText("espeak -vtr+f6");
 }

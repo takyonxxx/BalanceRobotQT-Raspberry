@@ -21,7 +21,7 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-    soundFormat = QString("espeak -vtr+f4");
+    soundFormat = QString("espeak -vtr+f6");
     init();
 }
 
@@ -33,17 +33,38 @@ BalanceRobot::~BalanceRobot()
     softPwmWrite(PWMR, 0);
 }
 
+
+void BalanceRobot::loadSettings()
+{
+    QSettings settings(m_sSettingsFile, QSettings::IniFormat);
+    aggKp = settings.value("aggKp", "").toString().toDouble();
+    aggKi = settings.value("aggKi", "").toString().toDouble();
+    aggKd = settings.value("aggKd", "").toString().toDouble();
+    aggVs = settings.value("aggVs", "").toString().toDouble();
+    angleCorrection = settings.value("angleCorrection", "").toString().toDouble();
+}
+
+void BalanceRobot::saveSettings()
+{
+    QSettings settings(m_sSettingsFile, QSettings::IniFormat);
+    settings.setValue("aggKp", QString::number(aggKp));
+    settings.setValue("aggKi", QString::number(aggKi));
+    settings.setValue("aggKd", QString::number(aggKd));
+    settings.setValue("aggVs", QString::number(aggVs));
+    settings.setValue("angleCorrection", QString::number(angleCorrection));
+}
+
 void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 25;
+    aggKp = 40;
     aggKi = 15;
-    aggKd = 0.35;
+    aggKd = 0.4;
 
     timeDiff = 0.0;
     angleCorrection = 3.25;
-    aggVs = 3.0;
+    aggVs = 15;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
     currentAngle = 0.0;
@@ -531,6 +552,8 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
     }
 
+    saveSettings();
+
     qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
              << QString::number(angleCorrection, 'f', 1)  << QString::number(needSpeed)
              << QString::number(needTurnL) << QString::number(needTurnR)
@@ -572,6 +595,9 @@ void* BalanceRobot::speak(void* this_ptr)
 void BalanceRobot::init()
 {
     ResetValues();
+
+    m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
+    loadSettings();
 
     if(!initGyroMeter()) return;
     if(!initwiringPi()) return;
