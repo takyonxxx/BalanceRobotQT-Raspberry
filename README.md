@@ -56,29 +56,29 @@ Reboot the Pi and your custom service should run:</br>
 sudo reboot</br>
 
 <b>Building code: </b></br>
-Please install build-essential, alsa , qmake and espeak before compile.
+Please install build-essential, alsa , qmake and espeak before compile.</br>
 
-sudo apt-get update 
-sudo apt-get install build-essential 
-sudo apt-get install alsa-utils 
-sudo apt-get install qt5-default 
-sudo apt-get install espeak 
-sudo apt-get install libasound2-dev 
-sudo apt-get install libbluetooth-dev 
-sudo apt-get install bluetooth blueman bluez python-gobject python-gobject-2 
-sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev 
-sudo apt-get install i2c-tools 
-sudo apt-get install qtconnectivity5-dev 
-
-<b>Enable the I2C protocol feature in raspberry pi:</b>
-sudo raspi-config
-Enable the I2C
-Reboot your system
-
-Building code: 
-cd BalanceRobotPi 
-qmake, make 
-
+sudo apt-get update </br>
+sudo apt-get install build-essential </br>
+sudo apt-get install alsa-utils </br>
+sudo apt-get install qt5-default </br>
+sudo apt-get install espeak </br>
+sudo apt-get install libasound2-dev </br>
+sudo apt-get install libbluetooth-dev </br>
+sudo apt-get install bluetooth blueman bluez python-gobject python-gobject-2 </br>
+sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev </br>
+sudo apt-get install i2c-tools </br>
+sudo apt-get install qtconnectivity5-dev </br>
+</br>
+<b>Enable the I2C protocol feature in raspberry pi:</b></br>
+sudo raspi-config</br>
+Enable the I2C</br>
+Reboot your system</br>
+</br>
+Building code: </br>
+cd BalanceRobotPi </br>
+qmake, make </br>
+</br>
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg">
 		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote.jpg" 
 		name="remote" width="480" height="800" align="bottom" border="1"></a></p>
