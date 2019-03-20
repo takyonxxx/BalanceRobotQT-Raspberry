@@ -39,9 +39,9 @@ PID::PID(double* Input, double* Output, double* Setpoint,
 unsigned int PID::millis()
 {
     struct timeval timer;
-    gettimeofday(&timer, NULL);
+    gettimeofday(&timer, nullptr);
     double time_in_mill = (timer.tv_sec) * 1000 + (timer.tv_usec) / 1000 ; // convert tv_sec & tv_usec to millisecond
-    return (unsigned int)time_in_mill;
+    return static_cast<unsigned int>(time_in_mill);
 }
 
 
@@ -106,12 +106,10 @@ void PID::SetTunings(double Kp, double Ki, double Kd, int POn)
 
    dispKp = Kp; dispKi = Ki; dispKd = Kd;
 
-   //double SampleTimeInSec = ((double)SampleTime)/1000;
-   //ki = Ki * SampleTimeInSec;
-   // kd = Kd / SampleTimeInSec;
+   double SampleTimeInSec = (static_cast<double>(SampleTime))/1000;
    kp = Kp;
-   ki = Ki / 10;
-   kd = Kd * 100;
+   ki = Ki * SampleTimeInSec;
+   kd = Kd / SampleTimeInSec;
 
   if(controllerDirection ==REVERSE)
    {
@@ -135,11 +133,11 @@ void PID::SetSampleTime(int NewSampleTime)
 {
    if (NewSampleTime > 0)
    {
-      double ratio  = (double)NewSampleTime
-                      / (double)SampleTime;
+      double ratio  = static_cast<double>(NewSampleTime)
+                      / static_cast<double>(SampleTime);
       ki *= ratio;
       kd /= ratio;
-      SampleTime = (unsigned long)NewSampleTime;
+      SampleTime = static_cast<unsigned long>(NewSampleTime);
    }
 }
 
