@@ -14,7 +14,7 @@ The integral term lets the controller handle errors that are accumulating over t
 <b>Derivative Term (KD)</b></br>
 The derivative term is looking at how your system is behaving between time intervals. This helps dampen your system to improve stability. Many motor controllers will only let you configure a PI controller.
 </br></br>
-<b>How AutoStart the app on boot?</b>
+<b>How AutoStart the app on boot?</b></br>
 I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPi folder.
 
 create a script start.sh on your home folder (home/pi)
