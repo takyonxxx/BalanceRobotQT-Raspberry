@@ -58,13 +58,13 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 40;
-    aggKi = 15;
-    aggKd = 0.4;
+    aggKp = 35;
+    aggKi = 5;
+    aggKd = 0.8;
 
     timeDiff = 0.0;
-    angleCorrection = 3.25;
-    aggVs = 15;
+    angleCorrection = 3.0;
+    aggVs = 3;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
     currentAngle = 0.0;
@@ -224,6 +224,7 @@ void BalanceRobot::calculatePwm()
 
     targetAngle = angleCorrection +  (needSpeed / 10);
     Input = currentAngle;
+    //qDebug() << currentAngle;
     errorAngle = abs(targetAngle - Input); //distance away from setpoint
 
     float ftmp = 0;
@@ -236,13 +237,13 @@ void BalanceRobot::calculatePwm()
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
 
-    if (errorAngle < 10)
+    if (errorAngle <= 6)
     {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/3, aggKi/3, aggKd/3);
+        balancePID->SetTunings(aggKp/2.5, aggKi/25, aggKd/2.5);
     }
     else
     {   //we're far from setpoint, use aggressive tuning parameters
-        balancePID->SetTunings(aggKp,   aggKi,  aggKd);
+        balancePID->SetTunings(aggKp,   aggKi*0.1,  aggKd);
     }
 
     balancePID->Compute();
@@ -262,7 +263,7 @@ void BalanceRobot::calculatePwm()
     pwm_l =int(pwm + aggVs * speedAdjust - needTurnL);
 
 
-    if( currentAngle > 45 || currentAngle < -45)
+    if( currentAngle > 44 || currentAngle < -44)
     {
         pwm_l = 0;
         pwm_r = 0;
@@ -469,7 +470,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mAC://angle correction
         {
-            sendData(mAC, (int)angleCorrection);
+            sendData(mAC, (int)10*angleCorrection);
             break;
         }
         case mVS://speed diff constant wheel
@@ -498,12 +499,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPD:
         {
-            aggKd = (float) value / 10.0;
+            aggKd = static_cast<float>(value / 10.0);
             break;
         }
         case mAC:
         {
-            angleCorrection = value;
+            angleCorrection = static_cast<float>(value / 10.0);
             break;
         }
         case mVS:
@@ -555,9 +556,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
     saveSettings();
 
     qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
-             << QString::number(angleCorrection, 'f', 1)  << QString::number(needSpeed)
-             << QString::number(needTurnL) << QString::number(needTurnR)
-             << QString::number(pwm_l)  << QString::number(pwm_r) ;
+             << QString::number(angleCorrection, 'f', 1) ;
 }
 
 //loops
@@ -597,6 +596,7 @@ void BalanceRobot::init()
     ResetValues();
 
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
+    if (QFile(m_sSettingsFile).exists())
     loadSettings();
 
     if(!initGyroMeter()) return;

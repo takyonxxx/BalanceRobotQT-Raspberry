@@ -20,7 +20,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->labelPD->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelVS->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelAC->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->lineEdit_Speak->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
+    //ui->lineEdit_Speak->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
 
     ui->m_pBForward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
     ui->m_pBBackward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
@@ -339,7 +339,7 @@ void MainWindow::on_scrollVS_valueChanged(int value)
 void MainWindow::on_scrollAC_valueChanged(int value)
 {
     sendCommand(mAC, static_cast<uint8_t>(value));
-    ui->labelAC->setText(QString::number(value));
+    ui->labelAC->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 
 void MainWindow::on_Exit()
