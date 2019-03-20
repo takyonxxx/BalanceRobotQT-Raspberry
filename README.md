@@ -75,7 +75,7 @@ sudo raspi-config</br>
 Enable the I2C</br>
 Reboot your system</br>
 </br>
-Building code: </br>
+<b>Compile code: </b></br>
 cd BalanceRobotPi </br>
 qmake, make </br>
 </br>
