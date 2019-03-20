@@ -1,4 +1,4 @@
-# BalanceRobot & Remote Control by Bluetooth BLE GATT Services
+# BalanceRobot & Remote Control with Bluetooth BLE GATT Services
 This is a Balance Robot Project developed with QT 5</br>
 
 The remote control can compile on all platforms that supports qt.</br>
