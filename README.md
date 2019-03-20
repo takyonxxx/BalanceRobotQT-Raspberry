@@ -1,7 +1,5 @@
 # BalanceRobot & Remote Control by Bluetooth BLE GATT Services
-This is the new qt c++ version of 
-https://github.com/takyonxxx/BalanceRobot-Raspberry-Pi
-
+This is a Balance Robot Project developed with QT 5</br>
 The remote control can compile on all platforms that supports qt.</br>
 https://www.youtube.com/watch?v=immSrXEHzQE&feature=youtu.be</br>
 
