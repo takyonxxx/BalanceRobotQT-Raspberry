@@ -47,7 +47,7 @@ You should save and exit the nano editor.</br>
 The permission on the unit file needs to be set to 644 :</br>
 sudo chmod 644 /lib/systemd/system/startrobot.service</br>
 
-Configure systemd</br>
+<b>Configure Systemd</b></br>
 </br>
 Now the unit file has been defined we can tell systemd to start it during the boot sequence :</br>
 sudo systemctl daemon-reload</br>
