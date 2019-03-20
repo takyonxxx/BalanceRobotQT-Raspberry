@@ -2,8 +2,8 @@
 This is the new qt c++ version of 
 https://github.com/takyonxxx/BalanceRobot-Raspberry-Pi
 
-The remote control can compile on all platforms that supports qt.
-https://www.youtube.com/watch?v=immSrXEHzQE&feature=youtu.be
+The remote control can compile on all platforms that supports qt.</br>
+https://www.youtube.com/watch?v=immSrXEHzQE&feature=youtu.be</br>
 
 <b>Proportional Term (KP)</b></br>
 The proportional term is your primary term for controlling the error. this directly scales your error, so with a small KP the controller will make small attempts to minimize the error, and with a large KP the controller will make a larger attempt. If the KP is too small you might never minimize the error (unless you are using D and I terms) and not be able to respond to changes affecting your system, and if KP is too large you can have an unstable (ie. weird oscillations) filter that severely overshoot the desired value.
