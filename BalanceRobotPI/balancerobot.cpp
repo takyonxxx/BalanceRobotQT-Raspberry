@@ -7,6 +7,24 @@ double RAD_TO_DEG = 57.2958;
 static int Speed_L = 0;
 static int Speed_R = 0;
 
+// Initialize
+int out_balancer = 0;							// Out regulator AP control Motor balancer
+int out_yaw = 0;
+
+double yr[PmA+2] = {0};								// Array out incremental y(k), y(k-1), y(k-2), y(k-3)
+double ur[PmB+3] = {0};								// Array process input incremental u(k), u(k-1), u(k-2), u(k-3), u(k-4)
+double tr_ak[5] = {0.50, 0.49, 0.032, 0.04, 0.034};	// Array parameters adaptive mechanism a1k, a2k, b1k, b2k, b3k
+//double tr[5] = {0, 0, 0, 0, 0};
+double spr[2] = {0};								// Set point process sp(k)
+double yrp[2] = {0};								// Array process out yp(k)
+
+double yy[PmA+2] = {0};								// Array out incremental y(k), y(k-1), y(k-2), y(k-3)
+double uy[PmB+3] = {0};								// Array process input incremental u(k), u(k-1), u(k-2), u(k-3), u(k-4)
+double ty[5] = {0.5, 0.5, 0.035, 0.042, 0.039};		// Array parameters adaptive mechanism a1k, a2k, b1k, b2k, b3k
+//double ty[5] = {0, 0, 0, 0, 0};
+double spy[2] = {0};								// Set point process sp(k)
+double yyp[2] = {0};								// Array process out yp(k)
+
 BalanceRobot* BalanceRobot::getInstance()
 {
     if (theInstance_ == nullptr)
@@ -58,8 +76,8 @@ void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 35;
-    aggKi = 5;
+    aggKp = 30;
+    aggKi = 10;
     aggKd = 0.8;
 
     timeDiff = 0.0;
@@ -237,6 +255,15 @@ void BalanceRobot::calculatePwm()
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
 
+    //Adaptive predictive balancer process
+    /*spr[0] = 0;														// Set point
+    yrp[0] = currentAngle;											// Process out y(k).
+    adaptive_.adaptive(spr, tr_ak, yr, ur, yrp, MaxOut_Roll);			// Call adaptive function
+    out_balancer = ur[0] * GainT_Roll;								// Out Controller adaptive
+    if (out_balancer > UP_Roll) out_balancer = UP_Roll;				// Upper limit out
+    else if (out_balancer < -UP_Roll) out_balancer = -UP_Roll;
+   */
+
     if (errorAngle <= 6)
     {   //we're close to setpoint, use conservative tuning parameters
         balancePID->SetTunings(aggKp/2.5, aggKi/25, aggKd/2.5);
@@ -248,8 +275,7 @@ void BalanceRobot::calculatePwm()
 
     balancePID->Compute();
 
-    pwm = -(int)(Output - (currentGyro * aggKd / 5) - (addPosition / 5));
-    //pwm = -(int)(Output);
+    pwm = -static_cast<int>(Output - (currentGyro * aggKd / 5) - (addPosition / 5));
 
     if(needTurnR != 0 || needTurnL != 0)
     {
@@ -597,13 +623,14 @@ void BalanceRobot::init()
 
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
     if (QFile(m_sSettingsFile).exists())
-    loadSettings();
+        loadSettings();
 
     if(!initGyroMeter()) return;
     if(!initwiringPi()) return;
     initPid();
 
     calculateGyro();
+    adaptive_.conductor_block();
 
     m_MainEnableThread = true;
     timer = micros();
