@@ -155,6 +155,8 @@ void BalanceRobot::encodeL(void)
     else
         Speed_L -= 1;
 
+    //qDebug() << "L: " << Speed_L;
+
 }
 
 void BalanceRobot::encodeR(void)
@@ -163,6 +165,8 @@ void BalanceRobot::encodeR(void)
         Speed_R += 1;
     else
         Speed_R -= 1;
+
+    //qDebug() << "R: " << Speed_R;
 }
 
 bool BalanceRobot::initwiringPi()
