@@ -3,11 +3,15 @@
 
 int main(int argc, char *argv[])
 {
-    //QLoggingCategory::setFilterRules(QStringLiteral("qt.bluetooth* = true"));
+    int result = 0;
 
-    QCoreApplication app(argc, argv);
+    do
+    {
+        QCoreApplication app(argc, argv);
+        BalanceRobot robot;
+        result = app.exec();
 
-    BalanceRobot robot;
+    } while( result == 1111 );
 
-    return app.exec();
+    return result;
 }

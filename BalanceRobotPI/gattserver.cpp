@@ -23,6 +23,10 @@ GattServer* GattServer::getInstance()
 
 GattServer::GattServer(QObject *parent) : QObject(parent)
 {
+    qRegisterMetaType<QLowEnergyController::ControllerState>();
+    qRegisterMetaType<QLowEnergyController::Error>();
+    qRegisterMetaType<QLowEnergyConnectionParameters>();
+
     bleController.reset(QLowEnergyController::createPeripheral());
 
     addService();
@@ -54,21 +58,20 @@ void GattServer::controllerError(QLowEnergyController::Error error)
 void GattServer::handleConnected()
 {
     remoteDevice = bleController.data()->remoteAddress();
-    m_ConnectionState = true;   
+    m_ConnectionState = true;
     emit connectionState(m_ConnectionState);
     qDebug() << "Connected to " <<  remoteDevice;
 }
 
 void GattServer::handleDisconnected()
 {
-    m_ConnectionState = false;    
+    m_ConnectionState = false;
     emit connectionState(m_ConnectionState);
     qDebug() << "Disconnected from " <<  remoteDevice;
 
     if(bleController && services.count() != 0)
     {
-        startAdvertising();
-        qDebug() << "Listening for Ble connection.";
+        qApp->exit(1111);
     }
 }
 
@@ -109,10 +112,9 @@ void GattServer::startAdvertising()
     QLowEnergyAdvertisingParameters params;
     params.setMode(QLowEnergyAdvertisingParameters::AdvInd);
     QLowEnergyAdvertisingData data;
-    data.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityGeneral);
-    data.setIncludePowerLevel(true);
+    data.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityLimited);
     data.setServices(services.keys());
-    //bleController->setRemoteAddressType(QLowEnergyController::RandomAddress);
+    data.setIncludePowerLevel(true);
     bleController->startAdvertising(params, data);
 }
 
@@ -129,7 +131,7 @@ void GattServer::readValue()
 void GattServer::writeValue(const QByteArray &value)
 {
     const ServicePtr service = services.value(QBluetoothUuid(QUuid(SERVICEUUID)));
-    Q_ASSERT(service);    
+    Q_ASSERT(service);
 
     QLowEnergyCharacteristic cCharacteristic = service->characteristic(QBluetoothUuid(QUuid(RXUUID)));
     Q_ASSERT(cCharacteristic.isValid());
