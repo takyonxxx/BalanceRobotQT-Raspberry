@@ -39,7 +39,7 @@ class Message
 {
 public:
     Message();
-    uint8_t parse(uint8_t *dataUART, uint8_t size, MessagePack *message);
+    bool parse(uint8_t *dataUART, uint8_t size, MessagePack *message);
     uint8_t create_pack(uint8_t RW,uint8_t command, QByteArray dataSend, uint8_t *dataUART);
 
 };

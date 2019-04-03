@@ -110,7 +110,6 @@ void GattServer::startAdvertising()
     params.setMode(QLowEnergyAdvertisingParameters::AdvInd);
     QLowEnergyAdvertisingData data;
     data.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityGeneral);
-    //data.setLocalName("BalanceRobotServer");    
     data.setIncludePowerLevel(true);
     data.setServices(services.keys());
     //bleController->setRemoteAddressType(QLowEnergyController::RandomAddress);

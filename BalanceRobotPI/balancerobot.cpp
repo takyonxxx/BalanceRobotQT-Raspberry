@@ -435,21 +435,27 @@ void BalanceRobot::createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, 
     }
 }
 
-void BalanceRobot::parseMessage(QByteArray *data, uint8_t &command, QByteArray &value,  uint8_t &rw)
+bool BalanceRobot::parseMessage(QByteArray *data, uint8_t &command, QByteArray &value,  uint8_t &rw)
 {
     MessagePack parsedMessage;
 
     uint8_t* dataToParse = reinterpret_cast<uint8_t*>(data->data());
     QByteArray returnValue;
+
     if(message.parse(dataToParse, (uint8_t)data->length(), &parsedMessage))
     {
         command = parsedMessage.command;
         rw = parsedMessage.rw;
+
         for(int i = 0; i< parsedMessage.len; i++)
         {
             value.append(parsedMessage.data[i]);
         }
+
+        return true;
     }
+
+    return false;
 }
 
 void BalanceRobot::requestData(uint8_t command)
@@ -475,7 +481,10 @@ void BalanceRobot::onDataReceived(QByteArray data)
     uint8_t parsedCommand;
     uint8_t rw;
     QByteArray parsedValue;
-    parseMessage(&data, parsedCommand, parsedValue, rw);
+    auto parsed = parseMessage(&data, parsedCommand, parsedValue, rw);
+
+    if(!parsed)return;
+
     bool ok;
     int value =  parsedValue.toHex().toInt(&ok, 16);
 
@@ -581,12 +590,13 @@ void BalanceRobot::onDataReceived(QByteArray data)
         default:
             break;
         }
+
+        qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
+                 << QString::number(angleCorrection, 'f', 1) ;
     }
 
     saveSettings();
 
-    qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
-             << QString::number(angleCorrection, 'f', 1) ;
 }
 
 //loops

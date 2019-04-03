@@ -85,7 +85,7 @@ private:
     void ResetValues();
     //void execCommand(const char* cmd);
     void createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result);
-    void parseMessage(QByteArray *data, uint8_t &command, QByteArray &value, uint8_t &rw);
+    bool parseMessage(QByteArray *data, uint8_t &command, QByteArray &value, uint8_t &rw);
     void requestData(uint8_t command);
     void sendData(uint8_t command, uint8_t value);
     static void* mainLoop(void* this_ptr);
