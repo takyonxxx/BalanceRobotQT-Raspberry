@@ -1,25 +1,4 @@
 #include "message.h"
-#include "iostream"
-#include "QDebug"
-#include <QBuffer>
-#include <QDataStream>
-#include <type_traits>
-
-class SerialSize {
-public:
-    SerialSize() : stream(&data) { data.open(QIODevice::WriteOnly); }
-
-    template <typename T>
-    quint64 operator ()(const T & t) {
-        data.seek(0);
-        stream << t;
-        return data.pos();
-    }
-
-private:
-    QBuffer data;
-    QDataStream stream;
-};
 
 Message::Message()
 {
