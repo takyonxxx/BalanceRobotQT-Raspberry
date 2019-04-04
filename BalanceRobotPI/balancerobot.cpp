@@ -7,6 +7,24 @@ double RAD_TO_DEG = 57.2958;
 static int Speed_L = 0;
 static int Speed_R = 0;
 
+void execCommand(const char* cmd)
+{
+    char buffer[128];
+    std::string result = "";
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) throw std::runtime_error("popen() failed!");
+    try {
+        while (!feof(pipe)) {
+            if (fgets(buffer, 128, pipe) != nullptr)
+                result += buffer;
+        }
+    } catch (...) {
+        pclose(pipe);
+        throw;
+    }
+    pclose(pipe);
+}
+
 BalanceRobot* BalanceRobot::getInstance()
 {
     if (theInstance_ == nullptr)
@@ -57,14 +75,15 @@ void BalanceRobot::saveSettings()
 void BalanceRobot::ResetValues()
 {
     Input = 0.0;
-    targetAngle = 0.0;
-    aggKp = 10;
-    aggKi = 3;
-    aggKd = 0.8;
-
     timeDiff = 0.0;
-    aggAC = 3.25;
+    targetAngle = 0.0;
+
+    aggKp = 10;
+    aggKi = 5;
+    aggKd = 1.0;
     aggSD = 5.0;
+    aggAC = 3.25;
+
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
     currentAngle = 0.0;
@@ -357,24 +376,6 @@ void BalanceRobot::calculateGyro()
     currentGyro = gyroXrate;
     currentTemp = (double)gyroMPU.getTemperature() / 340.0 + 36.53;
     //qDebug("currentAngle: %.1f  Time_Diff: %.1f", currentAngle, timeDiff);
-}
-
-void execCommand(const char* cmd)
-{
-    char buffer[128];
-    std::string result = "";
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    try {
-        while (!feof(pipe)) {
-            if (fgets(buffer, 128, pipe) != NULL)
-                result += buffer;
-        }
-    } catch (...) {
-        pclose(pipe);
-        throw;
-    }
-    pclose(pipe);
 }
 
 //slots

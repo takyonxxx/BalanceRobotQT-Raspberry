@@ -71,7 +71,7 @@ void GattServer::handleDisconnected()
 
     if(bleController && services.count() != 0)
     {
-        qApp->exit(1111);
+        startAdvertising();
     }
 }
 
@@ -143,3 +143,4 @@ void GattServer::onCharacteristicChanged(const QLowEnergyCharacteristic &c, cons
     Q_UNUSED(c)
     emit dataReceived(value);
 }
+
