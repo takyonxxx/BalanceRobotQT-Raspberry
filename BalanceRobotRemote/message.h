@@ -17,7 +17,7 @@
 #define mPI         0xc1 //Integral control
 #define mPD         0xc2 //Derivative constant
 #define mAC         0xd0 //angle correction
-#define mVS         0xd1 //speed diff constant wheel
+#define mDS         0xd1 //speed diff constant wheel
 #define mSpeak      0xe0 //speak
 
 #define MaxPayload 1024

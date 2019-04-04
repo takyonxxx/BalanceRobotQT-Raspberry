@@ -7,24 +7,6 @@ double RAD_TO_DEG = 57.2958;
 static int Speed_L = 0;
 static int Speed_R = 0;
 
-// Initialize
-int out_balancer = 0;							// Out regulator AP control Motor balancer
-int out_yaw = 0;
-
-double yr[PmA+2] = {0};								// Array out incremental y(k), y(k-1), y(k-2), y(k-3)
-double ur[PmB+3] = {0};								// Array process input incremental u(k), u(k-1), u(k-2), u(k-3), u(k-4)
-double tr_ak[5] = {0.50, 0.49, 0.032, 0.04, 0.034};	// Array parameters adaptive mechanism a1k, a2k, b1k, b2k, b3k
-//double tr[5] = {0, 0, 0, 0, 0};
-double spr[2] = {0};								// Set point process sp(k)
-double yrp[2] = {0};								// Array process out yp(k)
-
-double yy[PmA+2] = {0};								// Array out incremental y(k), y(k-1), y(k-2), y(k-3)
-double uy[PmB+3] = {0};								// Array process input incremental u(k), u(k-1), u(k-2), u(k-3), u(k-4)
-double ty[5] = {0.5, 0.5, 0.035, 0.042, 0.039};		// Array parameters adaptive mechanism a1k, a2k, b1k, b2k, b3k
-//double ty[5] = {0, 0, 0, 0, 0};
-double spy[2] = {0};								// Set point process sp(k)
-double yyp[2] = {0};								// Array process out yp(k)
-
 BalanceRobot* BalanceRobot::getInstance()
 {
     if (theInstance_ == nullptr)
@@ -258,15 +240,6 @@ void BalanceRobot::calculatePwm()
 
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
-
-    //Adaptive predictive balancer process
-    /*spr[0] = 0;														// Set point
-    yrp[0] = currentAngle;											// Process out y(k).
-    adaptive_.adaptive(spr, tr_ak, yr, ur, yrp, MaxOut_Roll);			// Call adaptive function
-    out_balancer = ur[0] * GainT_Roll;								// Out Controller adaptive
-    if (out_balancer > UP_Roll) out_balancer = UP_Roll;				// Upper limit out
-    else if (out_balancer < -UP_Roll) out_balancer = -UP_Roll;
-   */
 
     if (errorAngle <= 6)
     {   //we're close to setpoint, use conservative tuning parameters
@@ -512,9 +485,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
             sendData(mAC, (int)10*angleCorrection);
             break;
         }
-        case mVS://speed diff constant wheel
+        case mDS://speed diff constant wheel
         {
-            sendData(mVS, (int)angleCorrection);
+            sendData(mDS, (int)10*angleCorrection);
             break;
         }
 
@@ -546,9 +519,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
             angleCorrection = static_cast<float>(value / 10.0);
             break;
         }
-        case mVS:
+        case mDS:
         {
-            aggVs = value;
+            aggVs = static_cast<float>(value / 10.0);
             break;
         }
         case mSpeak:
@@ -557,7 +530,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
             if(soundText.startsWith("espeak"))
             {
                 soundFormat = soundText;
-                soundText = QString("Ses Formatı Değişti. Yeni sesimi beğendin mi?");
+                soundText = QString("Ses Formatı Değiştirildi. Yeni sesimi beğendiniz mi?");
                 pthread_create( &soundhread, nullptr, speak, this);
             }
             else
@@ -644,7 +617,6 @@ void BalanceRobot::init()
     initPid();
 
     calculateGyro();
-    adaptive_.conductor_block();
 
     m_MainEnableThread = true;
     timer = micros();
@@ -655,6 +627,6 @@ void BalanceRobot::init()
 
     QThread::msleep(250);
 
-    soundText = ("Robot başladı. Uzaktan kontrolü başlat.");
+    soundText = ("Uzaktan kontrol bağlantısını kurunuz.");
     pthread_create( &soundhread, nullptr, speak, this);
 }

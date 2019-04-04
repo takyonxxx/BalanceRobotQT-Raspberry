@@ -52,7 +52,7 @@ private slots:
     void on_LeftReleased();    
     void on_Exit();
 
-    void on_scrollVS_valueChanged(int value);
+    void on_scrollDS_valueChanged(int value);
 
     void on_scrollAC_valueChanged(int value);
 

@@ -27,7 +27,7 @@
        <widget class="QComboBox" name="m_cbDevicesFound">
         <property name="minimumSize">
          <size>
-          <width>124</width>
+          <width>106</width>
           <height>30</height>
          </size>
         </property>
@@ -430,7 +430,7 @@ QScrollBar::sub-line:horizontal {
            </font>
           </property>
           <property name="text">
-           <string>VS:</string>
+           <string>DS:</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -438,7 +438,7 @@ QScrollBar::sub-line:horizontal {
          </widget>
         </item>
         <item>
-         <widget class="QScrollBar" name="scrollVS">
+         <widget class="QScrollBar" name="scrollDS">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -473,7 +473,7 @@ QScrollBar::sub-line:horizontal {
 }</string>
           </property>
           <property name="maximum">
-           <number>25</number>
+           <number>100</number>
           </property>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -481,7 +481,7 @@ QScrollBar::sub-line:horizontal {
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="labelVS">
+         <widget class="QLabel" name="labelDS">
           <property name="maximumSize">
            <size>
             <width>30</width>

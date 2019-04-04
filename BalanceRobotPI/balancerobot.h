@@ -17,9 +17,8 @@
 #include <math.h>
 #include <iostream>
 #include <message.h>
-#include "adaptive.h"
 
-#define SLEEP_PERIOD 1000 //us;
+#define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
 #define SAMPLE_TIME  1//ms
 
@@ -96,8 +95,7 @@ private:
     void loadSettings();
     void saveSettings();    
 
-    QString m_sSettingsFile;
-    Adaptive adaptive_;
+    QString m_sSettingsFile;s
 
     PID *balancePID;
     Message message;

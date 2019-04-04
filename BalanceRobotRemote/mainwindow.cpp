@@ -18,7 +18,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->labelPP->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelPI->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelPD->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->labelVS->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
+    ui->labelDS->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     ui->labelAC->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
     //ui->lineEdit_Speak->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
 
@@ -155,7 +155,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
         requestData(mPP);
         requestData(mPI);
         requestData(mPD);
-        requestData(mVS);
+        requestData(mDS);
         requestData(mAC);
 
         break;
@@ -203,9 +203,9 @@ void MainWindow::DataHandler(QByteArray data)
             ui->scrollPD->setValue(value);
             break;
         }
-        case mVS:
+        case mDS:
         {
-            ui->scrollVS->setValue(value);
+            ui->scrollDS->setValue(value);
             break;
         }
         case mAC:
@@ -330,10 +330,10 @@ void MainWindow::on_scrollPD_valueChanged(int value)
     ui->labelPD->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 
-void MainWindow::on_scrollVS_valueChanged(int value)
+void MainWindow::on_scrollDS_valueChanged(int value)
 {
-    sendCommand(mVS, static_cast<uint8_t>(value));
-    ui->labelVS->setText(QString::number(value));
+    sendCommand(mDS, static_cast<uint8_t>(value));
+    ui->labelDS->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 
 void MainWindow::on_scrollAC_valueChanged(int value)
