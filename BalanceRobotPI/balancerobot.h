@@ -95,7 +95,7 @@ private:
     void loadSettings();
     void saveSettings();    
 
-    QString m_sSettingsFile;s
+    QString m_sSettingsFile;
 
     PID *balancePID;
     Message message;
@@ -120,8 +120,8 @@ private:
     double compAngleX, compAngleY; // Calculated angle using a complementary filter
     double kalAngleX, kalAngleY; // Calculated angle using a Kalman filter
     double timeDiff;
-    double angleCorrection;
-    double aggVs; //Velocity wheel    
+    double aggAC;
+    double aggSD; //Velocity wheel
     double currentAngle;
     double currentGyro;
     double currentTemp;

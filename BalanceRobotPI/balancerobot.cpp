@@ -40,8 +40,8 @@ void BalanceRobot::loadSettings()
     aggKp = settings.value("aggKp", "").toString().toDouble();
     aggKi = settings.value("aggKi", "").toString().toDouble();
     aggKd = settings.value("aggKd", "").toString().toDouble();
-    aggVs = settings.value("aggVs", "").toString().toDouble();
-    angleCorrection = settings.value("angleCorrection", "").toString().toDouble();
+    aggSD = settings.value("aggVs", "").toString().toDouble();
+    aggAC = settings.value("angleCorrection", "").toString().toDouble();
 }
 
 void BalanceRobot::saveSettings()
@@ -50,21 +50,21 @@ void BalanceRobot::saveSettings()
     settings.setValue("aggKp", QString::number(aggKp));
     settings.setValue("aggKi", QString::number(aggKi));
     settings.setValue("aggKd", QString::number(aggKd));
-    settings.setValue("aggVs", QString::number(aggVs));
-    settings.setValue("angleCorrection", QString::number(angleCorrection));
+    settings.setValue("aggVs", QString::number(aggSD));
+    settings.setValue("angleCorrection", QString::number(aggAC));
 }
 
 void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     targetAngle = 0.0;
-    aggKp = 30;
-    aggKi = 10;
+    aggKp = 10;
+    aggKi = 3;
     aggKd = 0.8;
 
     timeDiff = 0.0;
-    angleCorrection = 3.0;
-    aggVs = 3;
+    aggAC = 3.25;
+    aggSD = 5.0;
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
     currentAngle = 0.0;
@@ -226,7 +226,7 @@ void BalanceRobot::calculatePwm()
     diffSpeed = Speed_R + Speed_L;
     diffAllSpeed += diffSpeed;
 
-    targetAngle = angleCorrection +  (needSpeed / 10);
+    targetAngle = aggAC +  (needSpeed / 10);
     Input = currentAngle;
     //qDebug() << currentAngle;
     errorAngle = abs(targetAngle - Input); //distance away from setpoint
@@ -241,7 +241,7 @@ void BalanceRobot::calculatePwm()
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
 
-    if (errorAngle <= 6)
+    if (errorAngle <= 2.5)
     {   //we're close to setpoint, use conservative tuning parameters
         balancePID->SetTunings(aggKp/2.5, aggKi/25, aggKd/2.5);
     }
@@ -262,17 +262,15 @@ void BalanceRobot::calculatePwm()
 
     correctSpeedDiff() ;
 
-    pwm_r =int(pwm - aggVs * speedAdjust - needTurnR);
-    pwm_l =int(pwm + aggVs * speedAdjust - needTurnL);
+    pwm_r =int(pwm - aggSD * speedAdjust - needTurnR);
+    pwm_l =int(pwm + aggSD * speedAdjust - needTurnL);
 
 
-    if( currentAngle > 44 || currentAngle < -44)
+    if( currentAngle > 45 || currentAngle < -45)
     {
         pwm_l = 0;
         pwm_r = 0;
     }
-
-    //qDebug() << QString::number(aggKp) << QString::number(aggKi) << QString::number(aggKd) << QString::number(angleCorrection);
 
     Speed_L = 0;
     Speed_R = 0;
@@ -482,12 +480,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mAC://angle correction
         {
-            sendData(mAC, (int)10*angleCorrection);
+            sendData(mAC, (int)10*aggAC);
             break;
         }
         case mDS://speed diff constant wheel
         {
-            sendData(mDS, (int)10*angleCorrection);
+            sendData(mDS, (int)10*aggSD);
             break;
         }
 
@@ -516,12 +514,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mAC:
         {
-            angleCorrection = static_cast<float>(value / 10.0);
+            aggAC = static_cast<float>(value / 10.0);
             break;
         }
         case mDS:
         {
-            aggVs = static_cast<float>(value / 10.0);
+            aggSD = static_cast<float>(value / 10.0);
             break;
         }
         case mSpeak:
@@ -563,12 +561,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         default:
             break;
         }
-
-        qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggVs, 'f', 1)
-                 << QString::number(angleCorrection, 'f', 1) ;
     }
 
     saveSettings();
+
+    qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggSD, 'f', 1)
+             << QString::number(aggAC, 'f', 1) ;
 
 }
 
@@ -624,9 +622,4 @@ void BalanceRobot::init()
     pthread_create( &mainThread, nullptr, mainLoop, this);
     SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
-
-    QThread::msleep(250);
-
-    soundText = ("Uzaktan kontrol bağlantısını kurunuz.");
-    pthread_create( &soundhread, nullptr, speak, this);
 }
