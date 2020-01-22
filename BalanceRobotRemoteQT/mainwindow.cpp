@@ -33,10 +33,33 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBSpeak->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
     ui->m_pBFormat->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
 
-    connect(&m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
-    connect(&m_bleConnection, SIGNAL(changedState(BluetoothClient::bluetoothleState)),this,SLOT(changedState(BluetoothClient::bluetoothleState)));
+#if defined (Q_OS_ANDROID)
+    //Request requiered permissions at runtime
+    for(const QString &permission : permissions){
+        auto result = QtAndroid::checkPermission(permission);
 
-    connect(ui->m_pBSearch, SIGNAL(clicked()),&m_bleConnection, SLOT(startScan()));
+        if(result == QtAndroid::PermissionResult::Denied)
+        {
+            auto resultHash = QtAndroid::requestPermissionsSync(QStringList({permission}));
+            if(resultHash[permission] == QtAndroid::PermissionResult::Denied)
+                ui->m_textStatus->append(permission + " denied!");
+            else
+                ui->m_textStatus->append(permission + " granted!");
+        }
+        else if(result == QtAndroid::PermissionResult::Granted)
+        {
+            ui->m_textStatus->append(permission + " granted!");
+        }
+    }
+    keep_screen_on(true);
+#endif
+
+    m_bleConnection = new BluetoothClient();
+
+    connect(m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
+    connect(m_bleConnection, SIGNAL(changedState(BluetoothClient::bluetoothleState)),this,SLOT(changedState(BluetoothClient::bluetoothleState)));
+
+    connect(ui->m_pBSearch, SIGNAL(clicked()),m_bleConnection, SLOT(startScan()));
     connect(ui->m_pBConnect, SIGNAL(clicked()),this, SLOT(on_ConnectClicked()));
 
     connect(ui->m_pBForward, SIGNAL(pressed()),this, SLOT(on_ForwardPressed()));
@@ -78,7 +101,22 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBRight->setFixedSize(pixmapr.scaled(128, 64).rect().size());
 
     statusChanged("No Device Connected.");
+
 }
+
+#ifdef Q_OS_ANDROID
+bool MainWindow::setScreenOrientation(int orientation)
+{
+    QAndroidJniObject activity = QtAndroid::androidActivity();
+
+    if(activity.isValid())
+    {
+        activity.callMethod<void>("setRequestedOrientation", "(I)V", orientation);
+        return true;
+    }
+    return false;
+}
+#endif
 
 void MainWindow::changedState(BluetoothClient::bluetoothleState state){
 
@@ -96,7 +134,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     }
     case BluetoothClient::ScanFinished:
     {
-        m_bleConnection.getDeviceList(m_qlFoundDevices);
+        m_bleConnection->getDeviceList(m_qlFoundDevices);
 
         if(!m_qlFoundDevices.empty()){
 
@@ -107,7 +145,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
             }
 
             /* Initialise Slot startConnect(int) -> button press m_pBConnect */
-            connect(this, SIGNAL(connectToDevice(int)),&m_bleConnection,SLOT(startConnect(int)));
+            connect(this, SIGNAL(connectToDevice(int)),m_bleConnection,SLOT(startConnect(int)));
 
             ui->m_pBConnect->setEnabled(true);
             ui->m_pBSearch->setEnabled(true);
@@ -134,7 +172,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     case BluetoothClient::Connected:
     {
         ui->m_pBConnect->setText("Disconnect");
-        connect(&m_bleConnection, SIGNAL(newData(QByteArray)), this, SLOT(DataHandler(QByteArray)));
+        connect(m_bleConnection, SIGNAL(newData(QByteArray)), this, SLOT(DataHandler(QByteArray)));
         ui->m_pBConnect->setEnabled(true);
 
         break;
@@ -251,7 +289,7 @@ void MainWindow::on_ConnectClicked()
     else
     {
         ui->m_textStatus->clear();
-        m_bleConnection.disconnectFromDevice();
+        m_bleConnection->disconnectFromDevice();
     }
 }
 
@@ -290,7 +328,7 @@ void MainWindow::requestData(uint8_t command)
     QByteArray payload;
     QByteArray sendData;
     createMessage(command, mRead, payload, &sendData);
-    m_bleConnection.writeData(sendData);
+    m_bleConnection->writeData(sendData);
 }
 
 void MainWindow::sendCommand(uint8_t command, uint8_t value)
@@ -301,7 +339,7 @@ void MainWindow::sendCommand(uint8_t command, uint8_t value)
     QByteArray sendData;
     createMessage(command, mWrite, payload, &sendData);
 
-    m_bleConnection.writeData(sendData);
+    m_bleConnection->writeData(sendData);
 }
 
 void MainWindow::sendString(uint8_t command, QByteArray value)
@@ -309,7 +347,7 @@ void MainWindow::sendString(uint8_t command, QByteArray value)
     QByteArray sendData;
     createMessage(command, mWrite, value, &sendData);
 
-    m_bleConnection.writeData(sendData);
+    m_bleConnection->writeData(sendData);
 }
 
 void MainWindow::on_scrollPP_valueChanged(int value)

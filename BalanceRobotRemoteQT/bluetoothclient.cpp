@@ -1,9 +1,9 @@
 #include "bluetoothclient.h"
 
-BluetoothClient::BluetoothClient() :
+BluetoothClient::BluetoothClient() :    
+    m_control(nullptr),
     m_currentDevice(QBluetoothDeviceInfo()),
-    m_control(0),
-    m_service(0),
+    m_service(nullptr),
     m_state(bluetoothleState::Idle)
 {
     /* 1 Step: Bluetooth LE Device Discovery */
