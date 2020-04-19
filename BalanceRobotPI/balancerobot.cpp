@@ -39,7 +39,7 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-    soundFormat = QString("espeak -vtr+f6");
+    soundFormat = QString("espeak -vtr+f2");
     init();
 }
 
@@ -82,7 +82,7 @@ void BalanceRobot::ResetValues()
     aggKi = 5;
     aggKd = 1.0;
     aggSD = 5.0;
-    aggAC = 3.25;
+    aggAC = 3.1;
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
