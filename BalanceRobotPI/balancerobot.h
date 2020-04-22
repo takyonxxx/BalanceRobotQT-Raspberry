@@ -65,7 +65,7 @@ public:
     void init();
 
     static BalanceRobot* getInstance();
-    static BalanceRobot *theInstance_;      
+    static BalanceRobot *theInstance_;
 
 private slots:
     void onConnectionStatedChanged(bool state);
@@ -93,7 +93,7 @@ private:
     static void encodeR(void);
 
     void loadSettings();
-    void saveSettings();    
+    void saveSettings();
 
     QString m_sSettingsFile;
 
@@ -104,7 +104,8 @@ private:
     pthread_t mainThread;
     pthread_t soundhread;
 
-    MPU6050 gyroMPU;
+    MPU6050 *gyroMPU{};
+    bool mpu_test{false};
     Kalman kalmanX;
     Kalman kalmanY;
 
@@ -130,12 +131,12 @@ private:
     double targetAngle;
     double aggKp;
     double aggKi;
-    double aggKd;    
+    double aggKd;
     double lastSpeedError;
     double speedAdjust;
     double errorSpeed;
     double SKp ,SKi ,SKd;
-    double DataAvg[3];   
+    double DataAvg[3];
     int pwmLimit;
     int pwm, pwm_l, pwm_r;
     int needSpeed;

@@ -1,4 +1,5 @@
 #include "balancerobot.h"
+#define MPU6050_I2C_ADDRESS 0x68
 
 BalanceRobot *BalanceRobot::theInstance_= nullptr;
 static std::atomic<bool> m_MainEnableThread(false);
@@ -6,6 +7,7 @@ static std::atomic<bool> m_MainEnableThread(false);
 double RAD_TO_DEG = 57.2958;
 static int Speed_L = 0;
 static int Speed_R = 0;
+
 
 void execCommand(const char* cmd)
 {
@@ -82,11 +84,11 @@ void BalanceRobot::ResetValues()
     aggKi = 5;
     aggKd = 1.0;
     aggSD = 5.0;
-    aggAC = 3.1;
+    aggAC = 4.3;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
-    currentAngle = 0.0;
+    currentAngle = 90.0;
     currentGyro = 0.0;
     currentTemp = 0.0;
     pwmLimit = 100;
@@ -132,18 +134,20 @@ void BalanceRobot::SetAlsaMasterVolume(long volume)
 
 bool BalanceRobot::initGyroMeter()
 {
-    // initialize MPU6050 device
-    qDebug("Initializing I2C devices.");
-    gyroMPU.initialize();
-
-    if(gyroMPU.testConnection())
+    qDebug("Initializing MPU6050 device...");
+    gyroMPU = new MPU6050(MPU6050_I2C_ADDRESS);
+    if(gyroMPU)
     {
-        qDebug("MPU6050 connection successful." );
+        gyroMPU->initialize();
+        while(!mpu_test)
+        {
+            mpu_test = gyroMPU->testConnection();
+            qDebug(mpu_test? "MPU6050 connection successful" : "MPU6050 connection failed");
+        }
     }
     else
     {
-        qDebug("MPU6050 connection failed.");
-        return false;
+        return true;
     }
 
     return true;
@@ -329,11 +333,15 @@ void BalanceRobot::controlRobot()
 
 void BalanceRobot::calculateGyro()
 {
+    mpu_test = gyroMPU->testConnection();
+    if(!mpu_test)
+        return;
+
     timeDiff = (micros() - timer)/1000;
     double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
     timer = micros();
 
-    gyroMPU.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    gyroMPU->getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
     accX = (int16_t)(ax);
     accY = (int16_t)(ay);
@@ -374,7 +382,7 @@ void BalanceRobot::calculateGyro()
     currentAngle = (DataAvg[0]+DataAvg[1]+DataAvg[2])/3;
 
     currentGyro = gyroXrate;
-    currentTemp = (double)gyroMPU.getTemperature() / 340.0 + 36.53;
+    currentTemp = (double)gyroMPU->getTemperature() / 340.0 + 36.53;
     //qDebug("currentAngle: %.1f  Time_Diff: %.1f", currentAngle, timeDiff);
 }
 
