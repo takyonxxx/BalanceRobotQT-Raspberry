@@ -147,10 +147,10 @@ bool BalanceRobot::initGyroMeter()
     }
     else
     {
-        return true;
+        return false;
     }
 
-    return true;
+    return mpu_test;
 }
 
 void BalanceRobot::encodeL(void)
