@@ -81,10 +81,10 @@ void BalanceRobot::ResetValues()
     targetAngle = 0.0;
 
     aggKp = 10;
-    aggKi = 5;
+    aggKi = 4;
     aggKd = 1.0;
-    aggSD = 5.0;
-    aggAC = 4.3;//defaulf 1.0
+    aggSD = 3.0;
+    aggAC = 4.4;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
