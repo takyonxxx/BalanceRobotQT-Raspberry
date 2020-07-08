@@ -54,7 +54,6 @@
 #define Kp_ROLLPITCH 0.2		// Pitch&Roll Proportional Gain
 #define Ki_ROLLPITCH 0.000001	// Pitch&Roll Integrator Gain
 
-
 class BalanceRobot : public QObject
 {
     Q_OBJECT
@@ -87,6 +86,7 @@ private:
     bool parseMessage(QByteArray *data, uint8_t &command, QByteArray &value, uint8_t &rw);
     void requestData(uint8_t command);
     void sendData(uint8_t command, uint8_t value);
+    void sendString(uint8_t command, QString value);
     static void* mainLoop(void* this_ptr);
     static void* speak(void* this_ptr);
     static void encodeL(void);

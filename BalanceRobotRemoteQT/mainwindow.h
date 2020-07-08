@@ -70,7 +70,6 @@ public:
 
 private slots:
     void DataHandler(QByteArray data);
-    void connectDevice();
     void sendCommand(uint8_t command, uint8_t value);    
     void sendString(uint8_t command, QByteArray value);
     void requestData(uint8_t command);

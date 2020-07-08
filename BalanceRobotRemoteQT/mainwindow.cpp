@@ -15,23 +15,22 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->m_textStatus->setStyleSheet("font-size: 12pt; color: #cccccc; background-color: #003333;");
 
-    ui->labelPP->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->labelPI->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->labelPD->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->labelDS->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    ui->labelAC->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
-    //ui->lineEdit_Speak->setStyleSheet("font-size: 12pt; color: #ffffff; background-color: #006666;");
+    ui->labelPP->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
+    ui->labelPI->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
+    ui->labelPD->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
+    ui->labelDS->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
+    ui->labelAC->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
+    ui->lineEdit_Speak->setStyleSheet("font-size: 18pt; color: #ffffff; background-color: #239566;");
 
-    ui->m_pBForward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBBackward->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBLeft->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBRight->setStyleSheet("font-size: 12pt; color: #ffffff; rgba(255, 255, 255, 0);");
+    ui->m_pBForward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
+    ui->m_pBBackward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
+    ui->m_pBLeft->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
+    ui->m_pBRight->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
 
-    ui->m_pBSearch->setStyleSheet("font-size: 14pt; font: bold; color: #ffffff; background-color: #336699;");
-    ui->m_pBConnect->setStyleSheet("font-size: 14pt; font: bold; color: #ffffff; background-color: #336699;");
-    ui->m_pBExit->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
-    ui->m_pBSpeak->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
-    ui->m_pBFormat->setStyleSheet("font-size: 16pt; font: bold; color: #ffffff; background-color: #cc3300;");
+
+    ui->m_pBConnect->setStyleSheet("font-size: 32pt; font: bold; color: #ffffff; background-color: #336699;");
+    ui->m_pBExit->setStyleSheet("font-size: 32pt; font: bold; color: #ffffff; background-color: #239566;");
+    ui->m_pBSpeak->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #239566;");
 
 #if defined (Q_OS_ANDROID)
     //Request requiered permissions at runtime
@@ -59,7 +58,6 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
     connect(m_bleConnection, SIGNAL(changedState(BluetoothClient::bluetoothleState)),this,SLOT(changedState(BluetoothClient::bluetoothleState)));
 
-    connect(ui->m_pBSearch, SIGNAL(clicked()),m_bleConnection, SLOT(startScan()));
     connect(ui->m_pBConnect, SIGNAL(clicked()),this, SLOT(on_ConnectClicked()));
 
     connect(ui->m_pBForward, SIGNAL(pressed()),this, SLOT(on_ForwardPressed()));
@@ -77,28 +75,28 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->m_pBExit, SIGNAL(clicked()),this, SLOT(on_Exit()));
 
     QPixmap pixmapf(":/icons/forward.png");
-    QIcon ForwardIcon(pixmapf.scaled(128, 64));
+    QIcon ForwardIcon(pixmapf.scaled(256, 128));
     ui->m_pBForward->setIcon(ForwardIcon);
-    ui->m_pBForward->setIconSize(pixmapf.scaled(128, 64).rect().size());
-    ui->m_pBForward->setFixedSize(pixmapf.scaled(128, 64).rect().size());
+    ui->m_pBForward->setIconSize(pixmapf.scaled(256, 128).rect().size());
+    ui->m_pBForward->setFixedSize(pixmapf.scaled(256, 128).rect().size());
 
     QPixmap pixmapb(":/icons/back.png");
-    QIcon BackwardIcon(pixmapb.scaled(128, 64));
+    QIcon BackwardIcon(pixmapb.scaled(256, 128));
     ui->m_pBBackward->setIcon(BackwardIcon);
-    ui->m_pBBackward->setIconSize(pixmapb.scaled(128, 64).rect().size());
-    ui->m_pBBackward->setFixedSize(pixmapb.scaled(128, 64).rect().size());
+    ui->m_pBBackward->setIconSize(pixmapb.scaled(256, 128).rect().size());
+    ui->m_pBBackward->setFixedSize(pixmapb.scaled(256, 128).rect().size());
 
     QPixmap pixmapl(":/icons/left.png");
-    QIcon LeftIcon(pixmapl.scaled(128, 64));
+    QIcon LeftIcon(pixmapl.scaled(256, 128));
     ui->m_pBLeft->setIcon(LeftIcon);
-    ui->m_pBLeft->setIconSize(pixmapl.scaled(128, 64).rect().size());
-    ui->m_pBLeft->setFixedSize(pixmapl.scaled(128, 64).rect().size());
+    ui->m_pBLeft->setIconSize(pixmapl.scaled(256, 128).rect().size());
+    ui->m_pBLeft->setFixedSize(pixmapl.scaled(256, 128).rect().size());
 
     QPixmap pixmapr(":/icons/right.png");
-    QIcon RightIcon(pixmapr.scaled(128, 64));
+    QIcon RightIcon(pixmapr.scaled(256, 128));
     ui->m_pBRight->setIcon(RightIcon);
-    ui->m_pBRight->setIconSize(pixmapr.scaled(128, 64).rect().size());
-    ui->m_pBRight->setFixedSize(pixmapr.scaled(128, 64).rect().size());
+    ui->m_pBRight->setIconSize(pixmapr.scaled(256, 128).rect().size());
+    ui->m_pBRight->setFixedSize(pixmapr.scaled(256, 128).rect().size());
 
     statusChanged("No Device Connected.");
 
@@ -123,50 +121,18 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     switch(state){
 
     case BluetoothClient::Scanning:
-    {
-        ui->m_cbDevicesFound->clear();
-
+    {       
         ui->m_pBConnect->setEnabled(false);
-        ui->m_pBSearch->setEnabled(false);
-        ui->m_cbDevicesFound->setEnabled(false);
         statusChanged("Searching for low energy devices...");
         break;
     }
     case BluetoothClient::ScanFinished:
     {
-        m_bleConnection->getDeviceList(m_qlFoundDevices);
-
-        if(!m_qlFoundDevices.empty()){
-
-            for (int i = 0; i < m_qlFoundDevices.size(); i++)
-            {
-                ui->m_cbDevicesFound->addItem(m_qlFoundDevices.at(i));
-                qDebug() << ui->m_cbDevicesFound->itemText(i);
-            }
-
-            /* Initialise Slot startConnect(int) -> button press m_pBConnect */
-            connect(this, SIGNAL(connectToDevice(int)),m_bleConnection,SLOT(startConnect(int)));
-
-            ui->m_pBConnect->setEnabled(true);
-            ui->m_pBSearch->setEnabled(true);
-            ui->m_cbDevicesFound->setEnabled(true);
-
-            statusChanged("Please select BLE device");
-        }
-        else
-        {
-            statusChanged("No Low Energy devices found");
-            ui->m_pBSearch->setEnabled(true);
-        }
-
         break;
     }
 
     case BluetoothClient::Connecting:
     {
-        ui->m_pBConnect->setEnabled(false);
-        ui->m_pBSearch->setEnabled(false);
-        ui->m_cbDevicesFound->setEnabled(false);
         break;
     }
     case BluetoothClient::Connected:
@@ -251,6 +217,11 @@ void MainWindow::DataHandler(QByteArray data)
             ui->scrollAC->setValue(value);
             break;
         }
+        case mData:
+        {
+            ui->m_textStatus->append(parsedValue.toStdString().c_str());
+            break;
+        }
         default:
             //nothing for now
             break;
@@ -263,16 +234,10 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::connectDevice(){
-
-    emit connectToDevice(ui->m_cbDevicesFound->currentIndex());
-}
 
 void MainWindow::initButtons(){
     /* Init Buttons */
-    ui->m_pBSearch->setText("Search");
     ui->m_pBConnect->setText("Connect");
-    ui->m_pBConnect->setEnabled(false);
 }
 
 void MainWindow::statusChanged(const QString &status)
@@ -284,7 +249,7 @@ void MainWindow::on_ConnectClicked()
 {
     if(ui->m_pBConnect->text() == QString("Connect"))
     {
-        connectDevice();
+        m_bleConnection->startScan();
     }
     else
     {
@@ -359,7 +324,7 @@ void MainWindow::on_scrollPP_valueChanged(int value)
 void MainWindow::on_scrollPI_valueChanged(int value)
 {
     sendCommand(mPI, static_cast<uint8_t>(value));
-    ui->labelPI->setText(QString::number(value));
+    ui->labelPI->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 
 void MainWindow::on_scrollPD_valueChanged(int value)
@@ -379,6 +344,7 @@ void MainWindow::on_scrollAC_valueChanged(int value)
     sendCommand(mAC, static_cast<uint8_t>(value));
     ui->labelAC->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
+
 
 void MainWindow::on_Exit()
 {

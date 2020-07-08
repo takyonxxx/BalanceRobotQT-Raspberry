@@ -59,12 +59,12 @@ private slots:
     void serviceStateChanged(QLowEnergyService::ServiceState s);
     void updateData(const QLowEnergyCharacteristic &c, const QByteArray &value);
     void confirmedDescriptorWrite(const QLowEnergyDescriptor &d, const QByteArray &value);
+    void searchCharacteristic();
 
+public slots:
     /* Slots for user */
     void startScan();
     void startConnect(int i);
-
-    void searchCharacteristic();
 
 signals:
     /* Signals for user */

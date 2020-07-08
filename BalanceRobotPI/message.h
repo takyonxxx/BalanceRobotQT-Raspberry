@@ -19,6 +19,7 @@
 #define mAC         0xd0 //angle correction
 #define mDS         0xd1 //speed diff constant wheel
 #define mSpeak      0xe0 //speak
+#define mData       0xe1 //data
 
 #define MaxPayload 1024
 

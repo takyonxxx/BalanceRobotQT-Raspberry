@@ -14,8 +14,7 @@ PID::PID(double* Input, double* Output, double* Setpoint,
     mySetpoint = Setpoint;
     inAuto = false;
 
-    PID::SetOutputLimits(0, 255);				//default output limit corresponds to
-    //the arduino pwm limits
+    PID::SetOutputLimits(0, 100);				//default output limit corresponds to
 
     SampleTime = 100;							//default Controller Sample Time is 0.1 seconds
 
@@ -106,10 +105,10 @@ void PID::SetTunings(double Kp, double Ki, double Kd, int POn)
 
     dispKp = Kp; dispKi = Ki; dispKd = Kd;
 
-    //double SampleTimeInSec = (static_cast<double>(SampleTime))/1000;
-    //kp = Kp;
-    //ki = Ki * SampleTimeInSec;
-    //kd = Kd / SampleTimeInSec;
+    /*double SampleTimeInSec = (static_cast<double>(SampleTime))/1000;
+    kp = Kp;
+    ki = Ki * SampleTimeInSec;
+    kd = Kd / SampleTimeInSec;*/
     kp = Kp;
     ki = Ki;
     kd = Kd;

@@ -40,16 +40,18 @@ void BluetoothClient::addDevice(const QBluetoothDeviceInfo &device)
     {
         if(device.name().isEmpty()) return;
 
-        QString info = "Discovered Device: " + device.name() + "\nAddress: "
-                + device.address().toString();
-
-        emit statusChanged(info);
 
         if(device.name().startsWith("BCM"))
         {
+            QString info = "Discovered Device: " + device.name() + "\nAddress: "
+                    + device.address().toString();
+
+            emit statusChanged(info);
             DeviceInfo *dev = new DeviceInfo(device);
             m_qlDevices.append(dev);
-            //emit m_deviceDiscoveryAgent->finished();
+            m_deviceDiscoveryAgent->stop();
+            emit m_deviceDiscoveryAgent->finished();
+            startConnect(0);
         }
     }
 }
@@ -98,6 +100,9 @@ void BluetoothClient::startScan(){
 
     m_qlFoundDevices.clear();
     m_deviceDiscoveryAgent->start();   
+    QString info = "Searching Balance Robot Ble Device...";
+
+    emit statusChanged(info);
 }
 
 void BluetoothClient::startConnect(int i){

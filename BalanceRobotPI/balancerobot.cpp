@@ -80,11 +80,11 @@ void BalanceRobot::ResetValues()
     timeDiff = 0.0;
     targetAngle = 0.0;
 
-    aggKp = 12;
-    aggKi = 6;
-    aggKd = 1.2;
-    aggSD = 4.0;
-    aggAC = 4.0;//defaulf 1.0
+    aggKp = 10;
+    aggKi = 0.5;
+    aggKd = 0.3;
+    aggSD = 5.0;
+    aggAC = 6.0;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -106,6 +106,7 @@ void BalanceRobot::ResetValues()
     SKi = 0.5;
     SKd = 0.3;
     DataAvg[0]=0; DataAvg[1]=0; DataAvg[2]=0;
+    mpu_test = false;
 }
 
 void BalanceRobot::SetAlsaMasterVolume(long volume)
@@ -135,6 +136,7 @@ void BalanceRobot::SetAlsaMasterVolume(long volume)
 bool BalanceRobot::initGyroMeter()
 {
     qDebug("Initializing MPU6050 device...");
+
     gyroMPU = new MPU6050(MPU6050_I2C_ADDRESS);
     if(gyroMPU)
     {
@@ -142,14 +144,10 @@ bool BalanceRobot::initGyroMeter()
         while(!mpu_test)
         {
             mpu_test = gyroMPU->testConnection();
-            qDebug(mpu_test? "MPU6050 connection successful" : "MPU6050 connection failed");
         }
     }
-    else
-    {
-        return false;
-    }
 
+    qDebug(mpu_test? "MPU6050 connection successful" : "MPU6050 connection failed");
     return mpu_test;
 }
 
@@ -266,16 +264,16 @@ void BalanceRobot::calculatePwm()
 
     if (errorAngle <= 2.5)
     {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/2.5, aggKi/25, aggKd/2.5);
+        balancePID->SetTunings(aggKp/2.5, aggKi/2.5, aggKd/2.5);
     }
     else
     {   //we're far from setpoint, use aggressive tuning parameters
-        balancePID->SetTunings(aggKp,   aggKi*0.1,  aggKd);
+        balancePID->SetTunings(aggKp,   aggKi,  aggKd);
     }
 
     balancePID->Compute();
 
-    pwm = -static_cast<int>(Output - (currentGyro * aggKd / 5) - (addPosition / 5));
+    pwm = -static_cast<int>(Output - (currentGyro + addPosition) * aggKd);
 
     if(needTurnR != 0 || needTurnL != 0)
     {
@@ -289,7 +287,7 @@ void BalanceRobot::calculatePwm()
     pwm_l =int(pwm + aggSD * speedAdjust - needTurnL);
 
 
-    if( currentAngle > 45 || currentAngle < -45)
+    if( currentAngle > 60 || currentAngle < -60)
     {
         pwm_l = 0;
         pwm_r = 0;
@@ -333,11 +331,7 @@ void BalanceRobot::controlRobot()
 
 void BalanceRobot::calculateGyro()
 {
-    mpu_test = gyroMPU->testConnection();
-    if(!mpu_test)
-        return;
-
-    timeDiff = (micros() - timer)/1000;
+    //timeDiff = (double)(micros() - timer)/1000000;
     double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
     timer = micros();
 
@@ -350,6 +344,8 @@ void BalanceRobot::calculateGyro()
     gyroX = (int16_t)(gx);
     gyroY = (int16_t)(gy);
     gyroZ = (int16_t)(gz);
+
+    //qDebug("accX: %.1f  accY: %.1f accZ %.1f  gyroX: %.1f gyroY: %.1f  gyroZ: %.1f\n", accX, accY, accZ, gyroX, gyroY, gyroZ);
 
     double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
     double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
@@ -382,8 +378,8 @@ void BalanceRobot::calculateGyro()
     currentAngle = (DataAvg[0]+DataAvg[1]+DataAvg[2])/3;
 
     currentGyro = gyroXrate;
-    currentTemp = (double)gyroMPU->getTemperature() / 340.0 + 36.53;
-    //qDebug("currentAngle: %.1f  Time_Diff: %.1f", currentAngle, timeDiff);
+    /*currentTemp = (double)gyroMPU->getTemperature() / 340.0 + 36.53;
+    qDebug("currentAngle: %.1f  currentTemp: %.1f  Time_Diff: %f", currentAngle, currentTemp, timeDiff);*/
 }
 
 //slots
@@ -456,6 +452,15 @@ void BalanceRobot::sendData(uint8_t command, uint8_t value)
     gattServer->writeValue(sendData);
 }
 
+void BalanceRobot::sendString(uint8_t command, QString value)
+{
+    QByteArray sendData;
+    QByteArray bytedata;
+    bytedata.append(value);
+    createMessage(command, mWrite, bytedata, &sendData);
+    gattServer->writeValue(sendData);
+}
+
 void BalanceRobot::onDataReceived(QByteArray data)
 {
     uint8_t parsedCommand;
@@ -479,7 +484,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPI: //Integral control
         {
-            sendData(mPI, (int)aggKi);
+            sendData(mPI, (int)10*aggKi);
             break;
         }
         case mPD: //Derivative constant
@@ -513,7 +518,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mPI:
         {
-            aggKi = value;
+            aggKi = static_cast<float>(value / 10.0);
             break;
         }
         case mPD:
@@ -534,17 +539,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mSpeak:
         {
             soundText = QString(parsedValue.data());
-            if(soundText.startsWith("espeak"))
-            {
-                soundFormat = soundText;
-                soundText = QString("Ses Formatı Değiştirildi. Yeni sesimi beğendiniz mi?");
-                pthread_create( &soundhread, nullptr, speak, this);
-            }
-            else
-            {
-                pthread_create( &soundhread, nullptr, speak, this);
-            }
-
+            pthread_create( &soundhread, nullptr, speak, this);
             break;
         }
         case mForward:
@@ -574,8 +569,25 @@ void BalanceRobot::onDataReceived(QByteArray data)
 
     saveSettings();
 
-    qDebug() << QString::number(aggKp, 'f', 1) << QString::number(aggKi, 'f', 1) << QString::number(aggKd, 'f', 1) << QString::number(aggSD, 'f', 1)
-             << QString::number(aggAC, 'f', 1) ;
+
+    auto pidInfo = QString("P:")
+            + QString::number(aggKp, 'f', 1)
+            + QString(" ")
+            + QString("I:")
+            + QString::number(aggKi, 'f', 1)
+            + QString(" ")
+            + QString("D:")
+            + QString::number(aggKd, 'f', 1)
+            + QString(" ")
+            + QString("SD")
+            + QString::number(aggSD, 'f', 1)
+            + QString(" ")
+            + QString("AC")
+            + QString::number(aggAC, 'f', 1) ;
+
+    sendString(mData, pidInfo);
+
+    qDebug() << pidInfo;
 
 }
 
@@ -586,11 +598,15 @@ void* BalanceRobot::mainLoop( void* this_ptr )
 
     while (m_MainEnableThread)
     {
+        obj_ptr->mpu_test = obj_ptr->gyroMPU->testConnection();
+        if(!obj_ptr->mpu_test)
+            continue;
+
         obj_ptr->calculateGyro();
         obj_ptr->calculatePwm();
         obj_ptr->controlRobot();
 
-        QThread::usleep(SLEEP_PERIOD * SAMPLE_TIME);
+        //QThread::usleep(SLEEP_PERIOD * SAMPLE_TIME);
     }
 
     return nullptr;
@@ -619,8 +635,8 @@ void BalanceRobot::init()
     if (QFile(m_sSettingsFile).exists())
         loadSettings();
 
-    if(!initGyroMeter()) return;
     if(!initwiringPi()) return;
+    if(!initGyroMeter()) return;
     initPid();
 
     calculateGyro();
@@ -628,7 +644,8 @@ void BalanceRobot::init()
     m_MainEnableThread = true;
     timer = micros();
 
-    pthread_create( &mainThread, nullptr, mainLoop, this);
     SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
+
+    pthread_create( &mainThread, nullptr, mainLoop, this);
 }

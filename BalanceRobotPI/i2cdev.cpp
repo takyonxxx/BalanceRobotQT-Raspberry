@@ -1,25 +1,11 @@
 // I2Cdev library collection - Main I2C device class
 // Abstracts bit and byte I2C R/W functions into a convenient class
-// 6/9/2012 by Jeff Rowberg <jeff@rowberg.net>
-//
-// Changelog:
-//     2012-06-09 - fix major issue with reading > 32 bytes at a time with Arduino Wire
-//                - add compiler warnings when using outdated or IDE or limited I2Cdev implementation
-//     2011-11-01 - fix write*Bits mask calculation (thanks sasquatch @ Arduino forums)
-//     2011-10-03 - added automatic Arduino version detection for ease of use
-//     2011-10-02 - added Gene Knight's NBWire TwoWire class implementation with small modifications
-//     2011-08-31 - added support for Arduino 1.0 Wire library (methods are different from 0.x)
-//     2011-08-03 - added optional timeout parameter to read* methods to easily change from default
-//     2011-08-02 - added support for 16-bit registers
-//                - fixed incorrect Doxygen comments on some methods
-//                - added timeout value for read operations (thanks mem @ Arduino forums)
-//     2011-07-30 - changed read/write function structures to return success or byte counts
-//                - made all methods static for multi-device memory savings
-//     2011-07-28 - initial release
+// 03/24/2013 by Veshnu Ramakrishnan(veshnu@gmail.com)
+//     2013-03-24 - initial release
 
 /* ============================================
 I2Cdev device library code is placed under the MIT license
-Copyright (c) 2012 Jeff Rowberg
+Copyright (c) 2013 Veshnu Ramakrishnan
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -40,21 +26,64 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ===============================================
 */
+#define PI_VERSION 1
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <linux/i2c-dev.h>
 #include "i2cdev.h"
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+#include <unistd.h>
 
-const char* i2cPath = (char*)("/dev/i2c-1");
+class I2CSMBUS {
+public:
+    I2CSMBUS(int devAddress, int bus) {
+        char* device;
+        if (bus == 1) {
+            device = "/dev/i2c-1";
+        } else {
+            device = "/dev/i2c-0";
+        }
+
+        if((d_fd = open(device, O_RDWR)) < 0) {
+            throw 1;
+        }
+
+        if(ioctl(d_fd, I2C_SLAVE, devAddress) < 0) {
+            throw 2;
+        }
+
+    }
+
+    int readReg8(int reg) {
+        return i2c_smbus_read_byte_data(d_fd, reg);
+    }
+
+    int readReg16(int reg) {
+        return i2c_smbus_read_word_data(d_fd, reg);
+    }
+
+    int write(int data) {
+        return i2c_smbus_write_byte(d_fd, data);
+    }
+
+    int writeReg8(int reg, int data) {
+        return i2c_smbus_write_byte_data(d_fd, reg, data);
+    }
+
+    int writeReg16(int reg, int data) {
+        return i2c_smbus_write_word_data(d_fd, reg, data);
+    }
+
+    ~I2CSMBUS() {
+        close(d_fd);
+    }
+private:
+    int d_fd;
+};
+
 /** Default constructor.
  */
 I2Cdev::I2Cdev() {
@@ -172,37 +201,16 @@ int8_t I2Cdev::readWord(uint8_t devAddr, uint8_t regAddr, uint16_t *data, uint16
  * @return Number of bytes read (-1 indicates failure)
  */
 int8_t I2Cdev::readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t *data, uint16_t timeout) {
-    int8_t count = 0;
-    (void)timeout;
-    int fd = open(i2cPath, O_RDWR);
-
-    if (fd < 0) {
-        fprintf(stderr, "Failed to open device: %s\n", strerror(errno));
-        return(-1);
+    I2CSMBUS bus(devAddr, PI_VERSION);
+    int ret = 0;
+    for(int i = 0; i < length; ++i) {
+       ret = bus.readReg8(regAddr++);
+       if (0 > ret) {
+           return -1;
+       }
+       data[i] = ret;
     }
-    if (ioctl(fd, I2C_SLAVE, devAddr) < 0) {
-        fprintf(stderr, "Failed to select device: %s\n", strerror(errno));
-        close(fd);
-        return(-1);
-    }
-    if (write(fd, &regAddr, 1) != 1) {
-        fprintf(stderr, "Failed to write reg: %s\n", strerror(errno));
-        close(fd);
-        return(-1);
-    }
-    count = read(fd, data, length);
-    if (count < 0) {
-        fprintf(stderr, "Failed to read device(%d): %s\n", count, ::strerror(errno));
-        close(fd);
-        return(-1);
-    } else if (count != length) {
-        fprintf(stderr, "Short read  from device, expected %d, got %d\n", length, count);
-        close(fd);
-        return(-1);
-    }
-    close(fd);
-
-    return count;
+    return length;
 }
 
 /** Read multiple words from a 16-bit device register.
@@ -214,18 +222,17 @@ int8_t I2Cdev::readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8
  * @return Number of words read (0 indicates failure)
  */
 int8_t I2Cdev::readWords(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint16_t *data, uint16_t timeout) {
-    (void)timeout;
-    (void)length;
-    (void)regAddr;
-    (void)devAddr;
-
-    int8_t count = 0;
-
-    printf("ReadWords() not implemented\n");
-    // Use readBytes() and potential byteswap
-    *data = 0; // keep the compiler quiet
-
-    return count;
+    I2CSMBUS bus(devAddr, PI_VERSION);
+    int ret = 0;
+    for(int i = 0; i < length; ++i) {
+       ret = bus.readReg16(regAddr);
+       regAddr += 2;
+       if (0 > ret) {
+           return -1;
+       }
+       data[i] = ret;
+    }
+    return length;
 }
 
 /** write a single bit in an 8-bit device register.
@@ -342,40 +349,15 @@ bool I2Cdev::writeWord(uint8_t devAddr, uint8_t regAddr, uint16_t data) {
  * @return Status of operation (true = success)
  */
 bool I2Cdev::writeBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t* data) {
-    int8_t count = 0;
-    uint8_t buf[128];
-    int fd;
-
-    if (length > 127) {
-        fprintf(stderr, "Byte write count (%d) > 127\n", length);
-        return(FALSE);
+    I2CSMBUS bus(devAddr, PI_VERSION);
+    int ret = 0;
+    for(int i = 0; i < length; ++i) {
+        ret = bus.writeReg8(regAddr++, data[i]);
+        if (0 != ret) {
+            return false;
+        }
     }
-
-    fd = open(i2cPath, O_RDWR);
-    if (fd < 0) {
-        fprintf(stderr, "Failed to open device: %s\n", strerror(errno));
-        return(FALSE);
-    }
-    if (ioctl(fd, I2C_SLAVE, devAddr) < 0) {
-        fprintf(stderr, "Failed to select device: %s\n", strerror(errno));
-        close(fd);
-        return(FALSE);
-    }
-    buf[0] = regAddr;
-    memcpy(buf+1,data,length);
-    count = write(fd, buf, length+1);
-    if (count < 0) {
-        fprintf(stderr, "Failed to write device(%d): %s\n", count, ::strerror(errno));
-        close(fd);
-        return(FALSE);
-    } else if (count != length+1) {
-        fprintf(stderr, "Short write to device, expected %d, got %d\n", length+1, count);
-        close(fd);
-        return(FALSE);
-    }
-    close(fd);
-
-    return TRUE;
+    return true;
 }
 
 /** Write multiple words to a 16-bit device register.
@@ -386,49 +368,19 @@ bool I2Cdev::writeBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_
  * @return Status of operation (true = success)
  */
 bool I2Cdev::writeWords(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint16_t* data) {
-    int8_t count = 0;
-    uint8_t buf[128];
-    int i, fd;
-
-    // Should do potential byteswap and call writeBytes() really, but that
-    // messes with the callers buffer
-
-    if (length > 63) {
-        fprintf(stderr, "Word write count (%d) > 63\n", length);
-        return(FALSE);
+    I2CSMBUS bus(devAddr, PI_VERSION);
+    int ret = 0;
+    for(int i = 0; i < length; ++i) {
+        ret = bus.writeReg16(regAddr, data[i]);
+        regAddr += 2;
+        if (0 != ret) {
+            return false;
+        }
     }
-
-    fd = open(i2cPath, O_RDWR);
-    if (fd < 0) {
-        fprintf(stderr, "Failed to open device: %s\n", strerror(errno));
-        return(FALSE);
-    }
-    if (ioctl(fd, I2C_SLAVE, devAddr) < 0) {
-        fprintf(stderr, "Failed to select device: %s\n", strerror(errno));
-        close(fd);
-        return(FALSE);
-    }
-    buf[0] = regAddr;
-    for (i = 0; i < length; i++) {
-        buf[i*2+1] = data[i] >> 8;
-        buf[i*2+2] = data[i];
-    }
-    count = write(fd, buf, length*2+1);
-    if (count < 0) {
-        fprintf(stderr, "Failed to write device(%d): %s\n", count, ::strerror(errno));
-        close(fd);
-        return(FALSE);
-    } else if (count != length*2+1) {
-        fprintf(stderr, "Short write to device, expected %d, got %d\n", length+1, count);
-        close(fd);
-        return(FALSE);
-    }
-    close(fd);
-    return TRUE;
+    return true;
 }
 
 /** Default timeout value for read operations.
  * Set this to 0 to disable timeout detection.
  */
-uint16_t I2Cdev::readTimeout = 0;
-
+uint16_t I2Cdev::readTimeout = I2CDEV_DEFAULT_READ_TIMEOUT;
