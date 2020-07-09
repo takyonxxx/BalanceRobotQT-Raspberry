@@ -220,16 +220,6 @@ void BluetoothClient::searchCharacteristic()
                         m_writeMode = QLowEnergyService::WriteWithoutResponse;
                     else
                         m_writeMode = QLowEnergyService::WriteWithResponse;
-
-                    m_notificationDescTx = c.descriptor(QBluetoothUuid::ClientCharacteristicConfiguration);
-                    if (m_notificationDescTx.isValid())
-                    {
-                        m_service->writeDescriptor(m_notificationDescTx, QByteArray::fromHex("0100"));
-
-                        QString info =  "Write Tx Descriptor ok.\n" + c.uuid().toString();
-                        emit statusChanged(info);
-                    }
-
                 }
                 if (c.properties() & QLowEnergyCharacteristic::Notify || c.properties() & QLowEnergyCharacteristic::Read)
                 {

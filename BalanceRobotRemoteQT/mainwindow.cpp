@@ -121,8 +121,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     switch(state){
 
     case BluetoothClient::Scanning:
-    {       
-        ui->m_pBConnect->setEnabled(false);
+    {
         statusChanged("Searching for low energy devices...");
         break;
     }
@@ -139,7 +138,6 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     {
         ui->m_pBConnect->setText("Disconnect");
         connect(m_bleConnection, SIGNAL(newData(QByteArray)), this, SLOT(DataHandler(QByteArray)));
-        ui->m_pBConnect->setEnabled(true);
 
         break;
     }
@@ -148,6 +146,11 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
         statusChanged("Device disconnected.");
         ui->m_pBConnect->setEnabled(true);
         ui->m_pBConnect->setText("Connect");
+        ui->scrollAC->setValue(0);
+        ui->scrollDS->setValue(0);
+        ui->scrollPD->setValue(0);
+        ui->scrollPI->setValue(0);
+        ui->scrollPP->setValue(0);
         break;
     }
     case BluetoothClient::ServiceFound:

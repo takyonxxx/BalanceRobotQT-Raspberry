@@ -27,8 +27,13 @@ public:
 
 private:
     void addService(const QLowEnergyServiceData &serviceData);
-    void addService();
-    static void startAdvertising();
+    void startBleService();
+    void resetBluetoothService();
+    void reconnect();
+
+    QLowEnergyServiceData serviceData{};
+    QLowEnergyAdvertisingParameters params{};
+    QLowEnergyAdvertisingData advertisingData{};
 
     static GattServer *theInstance_;
 
@@ -39,7 +44,7 @@ signals:
 
 private slots:
 
-    //QLowEnergyService    
+    //QLowEnergyService
     void onCharacteristicChanged(const QLowEnergyCharacteristic &c, const QByteArray &value);
 
     void handleConnected();

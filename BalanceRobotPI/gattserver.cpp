@@ -27,22 +27,7 @@ GattServer::GattServer(QObject *parent) : QObject(parent)
     qRegisterMetaType<QLowEnergyController::Error>();
     qRegisterMetaType<QLowEnergyConnectionParameters>();
 
-    bleController.reset(QLowEnergyController::createPeripheral());
-
-    addService();
-    startAdvertising();
-
-    const ServicePtr service = services.value(QBluetoothUuid(QUuid(SERVICEUUID)));
-    Q_ASSERT(service);
-
-    QObject::connect(bleController.data(), &QLowEnergyController::connected, this, &GattServer::handleConnected);
-    QObject::connect(bleController.data(), &QLowEnergyController::disconnected, this, &GattServer::handleDisconnected);
-    QObject::connect(bleController.data(), SIGNAL(error(QLowEnergyController::Error)), this, SLOT(controllerError(QLowEnergyController::Error)));
-
-    QObject::connect(service.data(), &QLowEnergyService::characteristicChanged, this, &GattServer::onCharacteristicChanged);
-    QObject::connect(service.data(), &QLowEnergyService::characteristicRead, this, &GattServer::onCharacteristicChanged);
-
-    qDebug() << "Listening for Ble connection.";
+    startBleService();
 }
 
 GattServer::~GattServer()
@@ -67,12 +52,15 @@ void GattServer::handleDisconnected()
 {
     m_ConnectionState = false;
     emit connectionState(m_ConnectionState);
-    qDebug() << "Disconnected from " <<  remoteDevice;
 
-    if(bleController && services.count() != 0)
-    {
-        startAdvertising();
+    while (bleController->state() != QLowEnergyController::UnconnectedState) {
+        bleController->disconnectFromDevice();
     }
+
+    if(bleController->state() == QLowEnergyController::UnconnectedState)
+        qDebug() << "Disconnected from " <<  remoteDevice;
+
+    reconnect();
 }
 
 void GattServer::addService(const QLowEnergyServiceData &serviceData)
@@ -82,15 +70,16 @@ void GattServer::addService(const QLowEnergyServiceData &serviceData)
 
     services.insert(service->serviceUuid(), service);
 }
-void GattServer::addService()
+void GattServer::startBleService()
 {
-    QLowEnergyServiceData serviceData;
+    bleController.reset(QLowEnergyController::createPeripheral());
+
     serviceData.setUuid(QBluetoothUuid(QUuid(SERVICEUUID)));
     serviceData.setType(QLowEnergyServiceData::ServiceTypePrimary);
 
     QLowEnergyCharacteristicData charRxData;
     charRxData.setUuid(QBluetoothUuid(QUuid(RXUUID)));
-    charRxData.setProperties(QLowEnergyCharacteristic::Notify) ;
+    charRxData.setProperties(QLowEnergyCharacteristic::Read | QLowEnergyCharacteristic::Notify) ;
     charRxData.setValue(QByteArray(2, 0));
     const QLowEnergyDescriptorData rxClientConfig(QBluetoothUuid::ClientCharacteristicConfiguration, QByteArray(2, 0));
     charRxData.addDescriptor(rxClientConfig);
@@ -105,17 +94,94 @@ void GattServer::addService()
     serviceData.addCharacteristic(charTxData);
 
     addService(serviceData);
+
+    const ServicePtr service = services.value(QBluetoothUuid(QUuid(SERVICEUUID)));
+    Q_ASSERT(service);
+
+    QObject::connect(bleController.data(), &QLowEnergyController::connected, this, &GattServer::handleConnected);
+    QObject::connect(bleController.data(), &QLowEnergyController::disconnected, this, &GattServer::handleDisconnected);
+    QObject::connect(bleController.data(), SIGNAL(error(QLowEnergyController::Error)), this, SLOT(controllerError(QLowEnergyController::Error)));
+
+
+    QObject::connect(service.data(), &QLowEnergyService::characteristicChanged, this, &GattServer::onCharacteristicChanged);
+    QObject::connect(service.data(), &QLowEnergyService::characteristicRead, this, &GattServer::onCharacteristicChanged);
+
+    params.setMode(QLowEnergyAdvertisingParameters::AdvInd);
+    advertisingData.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityLimited);
+    advertisingData.setServices(services.keys());
+    advertisingData.setIncludePowerLevel(true);
+    bleController->startAdvertising(params, advertisingData);
+
+    // We have to check if advertising succeeded ot not. If there was an advertising error we will
+    // try to reinitialize our bluetooth service
+    while (bleController->state()!= QLowEnergyController::AdvertisingState){
+        resetBluetoothService();
+        bleController->startAdvertising(params, advertisingData);
+    }
+
+    qDebug() << "Listening for Ble connection.";
 }
 
-void GattServer::startAdvertising()
+void GattServer::reconnect()
 {
-    QLowEnergyAdvertisingParameters params;
-    params.setMode(QLowEnergyAdvertisingParameters::AdvInd);
-    QLowEnergyAdvertisingData data;
-    data.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityLimited);
-    data.setServices(services.keys());
-    data.setIncludePowerLevel(true);
-    bleController->startAdvertising(params, data);
+    try{
+        if(bleController->state()== QLowEnergyController::UnconnectedState){
+
+            bleController.reset(QLowEnergyController::createPeripheral());
+
+            services.clear();
+            bleController->services().clear();
+            addService(serviceData);
+
+            const ServicePtr service = services.value(QBluetoothUuid(QUuid(SERVICEUUID)));
+
+            if (!service.isNull())
+            {
+                qDebug() << "Trying to reconnect Bluetooth.";
+
+                QObject::connect(bleController.data(), &QLowEnergyController::connected, this, &GattServer::handleConnected);
+                QObject::connect(bleController.data(), &QLowEnergyController::disconnected, this, &GattServer::handleDisconnected);
+                QObject::connect(bleController.data(), SIGNAL(error(QLowEnergyController::Error)), this, SLOT(controllerError(QLowEnergyController::Error)));
+
+                QObject::connect(service.data(), &QLowEnergyService::characteristicChanged, this, &GattServer::onCharacteristicChanged);
+                QObject::connect(service.data(), &QLowEnergyService::characteristicRead, this, &GattServer::onCharacteristicChanged);
+
+
+                if(bleController->state()!=QLowEnergyController::AdvertisingState){
+                    bleController->startAdvertising(params, advertisingData);
+                }
+
+                // We have to check if advertising succeeded ot not. If there was an advertising error we will
+                // try to reinitialize our bluetooth service
+                while (bleController->state()!= QLowEnergyController::AdvertisingState){
+                    resetBluetoothService();
+                    bleController->startAdvertising(params, advertisingData);
+                }
+
+                qDebug() << "Listening for Ble connection.";
+            }
+        }
+    }
+    catch(std::exception e){
+        qDebug() << "Error reconnect: " << e.what();
+    }
+}
+
+
+void GattServer::resetBluetoothService()
+{
+    try{
+
+        if(bleController->state()==QLowEnergyController::AdvertisingState)
+            bleController->stopAdvertising();
+
+        system("sudo service bluetooth stop");
+        QThread::sleep(1);
+        system("sudo service bluetooth start");
+        QThread::sleep(1);
+    }
+    catch(std::exception e){
+    }
 }
 
 void GattServer::readValue()
@@ -143,4 +209,3 @@ void GattServer::onCharacteristicChanged(const QLowEnergyCharacteristic &c, cons
     Q_UNUSED(c)
     emit dataReceived(value);
 }
-

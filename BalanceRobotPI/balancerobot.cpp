@@ -273,7 +273,7 @@ void BalanceRobot::calculatePwm()
 
     balancePID->Compute();
 
-    pwm = -static_cast<int>(Output - (currentGyro + addPosition) * aggKd);
+    pwm = -static_cast<int>(Output - (currentGyro + addPosition) * aggKd / 2);
 
     if(needTurnR != 0 || needTurnL != 0)
     {
