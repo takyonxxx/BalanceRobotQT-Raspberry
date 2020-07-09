@@ -81,14 +81,14 @@ void BalanceRobot::ResetValues()
     targetAngle = 0.0;
 
     aggKp = 10;
-    aggKi = 0.5;
-    aggKd = 0.3;
-    aggSD = 5.0;
-    aggAC = 6.0;//defaulf 1.0
+    aggKi = 0.4;
+    aggKd = 0.4;
+    aggSD = 4.0;
+    aggAC = 6.1;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
-    currentAngle = 90.0;
+    currentAngle = 0.0;
     currentGyro = 0.0;
     currentTemp = 0.0;
     pwmLimit = 100;
@@ -107,6 +107,9 @@ void BalanceRobot::ResetValues()
     SKd = 0.3;
     DataAvg[0]=0; DataAvg[1]=0; DataAvg[2]=0;
     mpu_test = false;
+
+    pwm_l = 0;
+    pwm_r = 0;
 }
 
 void BalanceRobot::SetAlsaMasterVolume(long volume)
@@ -287,7 +290,7 @@ void BalanceRobot::calculatePwm()
     pwm_l =int(pwm + aggSD * speedAdjust - needTurnL);
 
 
-    if( currentAngle > 60 || currentAngle < -60)
+    if( currentAngle > 45 || currentAngle < -45)
     {
         pwm_l = 0;
         pwm_r = 0;
@@ -331,9 +334,6 @@ void BalanceRobot::controlRobot()
 
 void BalanceRobot::calculateGyro()
 {
-    mpu_test = gyroMPU->testConnection();
-    if(!mpu_test)
-        return;
 
     //timeDiff = (double)(micros() - timer)/1000000;
     double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
@@ -622,6 +622,10 @@ void* BalanceRobot::mainLoop( void* this_ptr )
 
     while (m_MainEnableThread)
     {
+        obj_ptr->mpu_test = obj_ptr->gyroMPU->testConnection();
+        if(!obj_ptr->mpu_test)
+            continue;
+
         obj_ptr->calculateGyro();
         obj_ptr->calculatePwm();
         obj_ptr->controlRobot();
@@ -659,14 +663,19 @@ void BalanceRobot::init()
     if(!initGyroMeter()) return;
     initPid();
 
-    m_MainEnableThread = true;
-    timer = micros();
     calculateGyro();
     calculatePwm();
+
+    pwm_l = 0;
+    pwm_r = 0;
+
     controlRobot();
 
+    m_MainEnableThread = true;
+    timer = micros();
+
     SetAlsaMasterVolume(100);
-    execCommand("aplay r2d2.wav");    
+    execCommand("aplay r2d2.wav");
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
 
