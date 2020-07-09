@@ -14,29 +14,29 @@ The integral term lets the controller handle errors that are accumulating over t
 The derivative term is looking at how your system is behaving between time intervals. This helps dampen your system to improve stability. Many motor controllers will only let you configure a PI controller.
 </br></br>
 <b>How AutoStart the app on boot?</b></br>
-I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPi folder.
+I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPI folder.
 
 create a script start.sh on your home folder (home/pi)
 place below code in it.
 
 #!/bin/bash</br>
-sudo chown root.root /home/pi/BalanceRobotPi/BalanceRobotPi</br>
-sudo chmod 4755 /home/pi/BalanceRobotPi/BalanceRobotPi</br>
-cd /home/pi/BalanceRobotPi</br>
-./BalanceRobotPi</br>
+sudo chown root.root /home/pi/BalanceRobotPI/BalanceRobotPI</br>
+sudo chmod 4755 /home/pi/BalanceRobotPI/BalanceRobotPI</br>
+cd /home/pi/BalanceRobotPI</br>
+sudo ./BalanceRobotPI</br>
 
 Open a sample unit file using the command as shown below:</br>
-sudo nano /lib/systemd/system/startrobot.service</br>
+sudo nano /lib/systemd/system/balancerobot.service</br>
 
 Add in the following text :</br>
 
 [Unit]</br>
-Description=My Robot Service</br>
+Description=Balance Robot Service</br>
 After=multi-user.target</br>
 </br>
 [Service]</br>
 Type=idle</br>
-ExecStart=/home/pi/start.sh</br>
+ExecStart=/home/pi/start_robot.sh</br>
 </br>
 [Install]</br>
 WantedBy=multi-user.target</br>
@@ -44,13 +44,13 @@ WantedBy=multi-user.target</br>
 You should save and exit the nano editor.</br>
 
 The permission on the unit file needs to be set to 644 :</br>
-sudo chmod 644 /lib/systemd/system/startrobot.service</br>
+sudo chmod 644 /lib/systemd/system/balancerobot.service</br>
 
 <b>Configure Systemd</b></br>
 </br>
 Now the unit file has been defined we can tell systemd to start it during the boot sequence :</br>
 sudo systemctl daemon-reload</br>
-sudo systemctl enable startrobot.service</br>
+sudo systemctl enable balancerobot.service</br>
 Reboot the Pi and your custom service should run:</br>
 sudo reboot</br>
 
@@ -76,7 +76,7 @@ Enable the I2C</br>
 Reboot your system</br>
 </br>
 <b>Compile code: </b></br>
-cd BalanceRobotPi </br>
+cd BalanceRobotPI </br>
 qmake, make </br>
 </br>
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_control.jpg">
