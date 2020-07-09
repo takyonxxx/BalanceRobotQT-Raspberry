@@ -1,6 +1,6 @@
 #include "balancerobot.h"
 #define MPU6050_I2C_ADDRESS 0x68
-
+#define RESTRICT_PITCH
 BalanceRobot *BalanceRobot::theInstance_= nullptr;
 static std::atomic<bool> m_MainEnableThread(false);
 
@@ -331,6 +331,10 @@ void BalanceRobot::controlRobot()
 
 void BalanceRobot::calculateGyro()
 {
+    mpu_test = gyroMPU->testConnection();
+    if(!mpu_test)
+        return;
+
     //timeDiff = (double)(micros() - timer)/1000000;
     double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
     timer = micros();
@@ -347,12 +351,31 @@ void BalanceRobot::calculateGyro()
 
     //qDebug("accX: %.1f  accY: %.1f accZ %.1f  gyroX: %.1f gyroY: %.1f  gyroZ: %.1f\n", accX, accY, accZ, gyroX, gyroY, gyroZ);
 
+#ifdef RESTRICT_PITCH // Eq. 25 and 26
+    double roll  = atan2(accY, accZ) * RAD_TO_DEG;
+    double pitch = atan(-accX / sqrt(accY * accY + accZ * accZ)) * RAD_TO_DEG;
+#else // Eq. 28 and 29
     double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
     double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
+#endif
 
     double gyroXrate = gyroX / 131.0; // Convert to deg/s
     double gyroYrate = gyroY / 131.0; // Convert to deg/s
 
+#ifdef RESTRICT_PITCH
+    // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
+    if ((roll < -90 && kalAngleX > 90) || (roll > 90 && kalAngleX < -90)) {
+        kalmanX.setAngle(roll);
+        compAngleX = roll;
+        kalAngleX = roll;
+        gyroXangle = roll;
+    } else
+        kalAngleX = kalmanX.getAngle(roll, gyroXrate, dt); // Calculate the angle using a Kalman filter
+
+    if (abs(kalAngleX) > 90)
+        gyroYrate = -gyroYrate; // Invert rate, so it fits the restriced accelerometer reading
+    kalAngleY = kalmanY.getAngle(pitch, gyroYrate, dt);
+#else
     // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
     if ((pitch < -90 && kalAngleY > 90) || (pitch > 90 && kalAngleY < -90)) {
         kalmanY.setAngle(pitch);
@@ -364,7 +387,9 @@ void BalanceRobot::calculateGyro()
 
     if (abs(kalAngleY) > 90)
         gyroXrate = -gyroXrate; // Invert rate, so it fits the restriced accelerometer reading
+
     kalAngleX = kalmanX.getAngle(roll, gyroXrate, dt); // Calculate the angle using a Kalman filter
+#endif
 
     if (gyroXangle < -180 || gyroXangle > 180)
         gyroXangle = kalAngleX;
@@ -378,8 +403,7 @@ void BalanceRobot::calculateGyro()
     currentAngle = (DataAvg[0]+DataAvg[1]+DataAvg[2])/3;
 
     currentGyro = gyroXrate;
-    /*currentTemp = (double)gyroMPU->getTemperature() / 340.0 + 36.53;
-    qDebug("currentAngle: %.1f  currentTemp: %.1f  Time_Diff: %f", currentAngle, currentTemp, timeDiff);*/
+    //qDebug("currentAngle: %.1f", currentAngle);
 }
 
 //slots
@@ -598,10 +622,6 @@ void* BalanceRobot::mainLoop( void* this_ptr )
 
     while (m_MainEnableThread)
     {
-        obj_ptr->mpu_test = obj_ptr->gyroMPU->testConnection();
-        if(!obj_ptr->mpu_test)
-            continue;
-
         obj_ptr->calculateGyro();
         obj_ptr->calculatePwm();
         obj_ptr->controlRobot();
@@ -639,13 +659,15 @@ void BalanceRobot::init()
     if(!initGyroMeter()) return;
     initPid();
 
-    calculateGyro();
-
     m_MainEnableThread = true;
     timer = micros();
+    calculateGyro();
+    calculatePwm();
+    controlRobot();
 
     SetAlsaMasterVolume(100);
-    execCommand("aplay r2d2.wav");
+    execCommand("aplay r2d2.wav");    
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
+
 }

@@ -106,8 +106,8 @@ private:
 
     MPU6050 *gyroMPU{};
     bool mpu_test{false};
-    Kalman kalmanX;
-    Kalman kalmanY;
+    Kalman kalmanX{};
+    Kalman kalmanY{};
 
     std::string currentSound;
     QString soundFormat;
@@ -123,7 +123,7 @@ private:
     double timeDiff;
     double aggAC;
     double aggSD; //Velocity wheel
-    double currentAngle;
+    double currentAngle{0};
     double currentGyro;
     double currentTemp;
     double errorAngle;
