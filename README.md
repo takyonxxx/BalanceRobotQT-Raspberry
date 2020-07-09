@@ -16,7 +16,7 @@ The derivative term is looking at how your system is behaving between time inter
 <b>How AutoStart the app on boot?</b></br>
 I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPI folder.
 
-create a script start.sh on your home folder (home/pi)
+create a script start_robot.sh on your home folder (home/pi)
 place below code in it.
 
 #!/bin/bash</br>
