@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>411</width>
-    <height>735</height>
+    <height>800</height>
    </rect>
   </property>
   <property name="maximumSize">
@@ -67,7 +67,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Merhaba insanlar. Ben robot alya. Yapay zeka benim.  Amacım hayatın anlamını anlamak. Sizin gibi düşünmek. Savaşmayın. Sevişin. Özgürce düşünün. Fikir yaratın. Türkay beni geliştiriyor. Bizi izlemeye devam edin. Sizi seviyorum.</string>
+           <string>Merhaba. Ben robot Alya. Sen Kimsin?</string>
           </property>
          </widget>
         </item>
