@@ -112,6 +112,8 @@ private:
     std::string currentSound;
     QString soundFormat;
     QString soundText;
+    bool robotActive{true};
+    bool soundActive{false};
 
     double Input;
     double Output;
@@ -123,7 +125,7 @@ private:
     double timeDiff;
     double aggAC;
     double aggSD; //Velocity wheel
-    double currentAngle{0};
+    double currentAngle{90};
     double currentGyro;
     double currentTemp;
     double errorAngle;

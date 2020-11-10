@@ -1,8 +1,9 @@
 TEMPLATE = app
-TARGET = BalanceRobotPI
-
+QT -= gui
 QT += bluetooth
-CONFIG += c++14
+CONFIG += c++11 console
+CONFIG -= app_bundle
+TARGET = BalanceRobot
 
 SOURCES += main.cpp \
     balancerobot.cpp \
@@ -11,10 +12,6 @@ SOURCES += main.cpp \
     message.cpp \
     mpu6050.cpp \
     pid.cpp
-
-## Install directory
-target.path = /home/pi/BalanceRobotPI
-INSTALLS += target
 
 HEADERS += \
     balancerobot.h \

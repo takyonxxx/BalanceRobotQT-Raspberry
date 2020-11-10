@@ -80,8 +80,8 @@ void BalanceRobot::ResetValues()
     timeDiff = 0.0;
     targetAngle = 0.0;
 
-    aggKp = 10.0;
-    aggKi = 1.0;
+    aggKp = 12.0;
+    aggKi = 0.8;
     aggKd = 0.6;
     aggSD = 4.0;
     aggAC = 5.0;//defaulf 1.0
@@ -302,6 +302,24 @@ void BalanceRobot::calculatePwm()
     {
         pwm_l = 0;
         pwm_r = 0;
+
+        if(robotActive && !soundActive)
+        {
+            robotActive = false;
+            soundText = "Mevcut Açı " + QString::number(int(currentAngle)) + " derece. Robot kontrolü, devre dışı.";
+            pthread_create( &soundhread, nullptr, speak, this);
+        }
+
+    }
+    else if(!robotActive && !soundActive)
+    {
+        robotActive = true;
+
+        if(!soundActive)
+        {
+            soundText = "Mevcut Açı " + QString::number(int(currentAngle)) + " derece. Robot dengede.";
+            pthread_create( &soundhread, nullptr, speak, this);
+        }
     }
 
     Speed_L = 0;
@@ -628,6 +646,9 @@ void* BalanceRobot::mainLoop( void* this_ptr )
 {
     BalanceRobot* obj_ptr = (BalanceRobot *)this_ptr;
 
+    obj_ptr->soundText = ("Robot başladı. Lütfen uzaktan kumanda uygulamasını yükleyin.");
+    pthread_create( &obj_ptr->soundhread, nullptr, speak, obj_ptr);
+
     while (m_MainEnableThread)
     {
         obj_ptr->mpu_test = obj_ptr->gyroMPU->testConnection();
@@ -638,15 +659,16 @@ void* BalanceRobot::mainLoop( void* this_ptr )
         obj_ptr->calculatePwm();
         obj_ptr->controlRobot();
 
-        //QThread::usleep(SLEEP_PERIOD * SAMPLE_TIME);
+        QThread::usleep(SLEEP_PERIOD * SAMPLE_TIME);
     }
 
     return nullptr;
 }
 
 void* BalanceRobot::speak(void* this_ptr)
-{
+{    
     BalanceRobot* obj_ptr = static_cast<BalanceRobot *>(this_ptr);
+    obj_ptr->soundActive = true;
     std::string sound = obj_ptr->soundText.toStdString();
     std::string format = obj_ptr->soundFormat.toStdString();
 
@@ -656,6 +678,7 @@ void* BalanceRobot::speak(void* this_ptr)
 
         execCommand(espeakBuff.c_str());
     }
+    obj_ptr->soundActive = false;
     return nullptr;
 }
 
@@ -666,6 +689,8 @@ void BalanceRobot::init()
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
     if (QFile(m_sSettingsFile).exists())
         loadSettings();
+    else
+        saveSettings();
 
     if(!initwiringPi()) return;
     if(!initGyroMeter()) return;
@@ -673,21 +698,22 @@ void BalanceRobot::init()
 
     calculateGyro();
     calculatePwm();
+    calculateGyro();
+    calculatePwm();
 
     pwm_l = 0;
     pwm_r = 0;
+    Speed_L = 0;
+    Speed_R = 0;
 
     controlRobot();
-
-    m_MainEnableThread = true;
-    timer = micros();
+    controlRobot();
 
     SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
 
-    soundText = ("Robot başladı. Lütfen kumanda arayüzünü telefonunuza yükleyin ve beni kontrol edin.");
-    pthread_create( &soundhread, nullptr, speak, this);
+    m_MainEnableThread = true;
+    timer = micros();
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
-
 }
