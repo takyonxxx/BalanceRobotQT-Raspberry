@@ -41,7 +41,7 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-    soundFormat = QString("espeak -vtr+f2");
+    soundFormat = QString("espeak -vtr+f3");
     init();
 }
 
@@ -80,11 +80,11 @@ void BalanceRobot::ResetValues()
     timeDiff = 0.0;
     targetAngle = 0.0;
 
-    aggKp = 11.0;
-    aggKi = 0.8;
-    aggKd = 0.5;
-    aggSD = 5.0;
-    aggAC = 6.0;//defaulf 1.0
+    aggKp = 10.0;
+    aggKi = 1.0;
+    aggKd = 0.6;
+    aggSD = 4.0;
+    aggAC = 5.0;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -265,9 +265,17 @@ void BalanceRobot::calculatePwm()
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
 
-    if (errorAngle <= 2.5)
+    if (errorAngle <= 1.0)
     {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/2.5, aggKi/2.5, aggKd/2.5);
+        balancePID->SetTunings(aggKp/5, aggKi/5, aggKd/5);
+    }
+    else if (errorAngle > 1.0 && errorAngle <= 2.0)
+    {   //we're close to setpoint, use conservative tuning parameters
+        balancePID->SetTunings(aggKp/3.5, aggKi/3.5, aggKd/3.5);
+    }
+    else if (errorAngle > 2.0 && errorAngle <= 3.0)
+    {   //we're close to setpoint, use conservative tuning parameters
+        balancePID->SetTunings(aggKp/1.5, aggKi/1.5, aggKd/1.5);
     }
     else
     {   //we're far from setpoint, use aggressive tuning parameters
@@ -676,6 +684,9 @@ void BalanceRobot::init()
 
     SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
+
+    soundText = ("Robot başladı. Lütfen kumanda arayüzünü telefonunuza yükleyin ve beni kontrol edin.");
+    pthread_create( &soundhread, nullptr, speak, this);
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
 
