@@ -34,7 +34,10 @@ THE SOFTWARE.
 #include <iostream>
 #include <fcntl.h>
 #include <sys/ioctl.h>
-#include <linux/i2c-dev.h>
+extern "C" {
+    #include <linux/i2c-dev.h>
+    #include <i2c/smbus.h>
+}
 #include <unistd.h>
 
 class I2CSMBUS {

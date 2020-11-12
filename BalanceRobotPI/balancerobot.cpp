@@ -80,7 +80,7 @@ void BalanceRobot::ResetValues()
     timeDiff = 0.0;
     targetAngle = 0.0;
 
-    aggKp = 12.0;
+    aggKp = 10.0;
     aggKi = 0.8;
     aggKd = 0.6;
     aggSD = 4.0;
@@ -709,7 +709,7 @@ void BalanceRobot::init()
     controlRobot();
     controlRobot();
 
-    SetAlsaMasterVolume(100);
+    //SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
 
     m_MainEnableThread = true;

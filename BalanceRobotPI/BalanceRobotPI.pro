@@ -22,4 +22,5 @@ HEADERS += \
     mpu6050.h \
     pid.h
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi
+LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c
+
