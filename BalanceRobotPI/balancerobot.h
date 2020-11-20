@@ -17,6 +17,8 @@
 #include <math.h>
 #include <iostream>
 #include <message.h>
+#include "constants.h"
+#include "alsadevices.h"
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -79,7 +81,6 @@ private:
     void calculatePwm();
     void calculateGyro();
     void controlRobot();
-    void SetAlsaMasterVolume(long volume);
     void ResetValues();
     //void execCommand(const char* cmd);
     void createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result);
@@ -88,7 +89,8 @@ private:
     void sendData(uint8_t command, uint8_t value);
     void sendString(uint8_t command, QString value);
     static void* mainLoop(void* this_ptr);
-    static void* speak(void* this_ptr);
+    static void* speakTr(void* this_ptr);
+    static void* speakEn(void* this_ptr);
     static void encodeL(void);
     static void encodeR(void);
 
@@ -96,6 +98,7 @@ private:
     void saveSettings();
 
     QString m_sSettingsFile;
+    ALSAPCMDevice *alsa_device{};
 
     PID *balancePID;
     Message message;
@@ -110,7 +113,8 @@ private:
     Kalman kalmanY{};
 
     std::string currentSound;
-    QString soundFormat;
+    QString soundFormatTr;
+    QString soundFormatEn;
     QString soundText;
     bool robotActive{true};
     bool soundActive{false};
@@ -180,6 +184,9 @@ private:
         unsigned int time_in_micros = 1000000 * timer.tv_sec + timer.tv_usec;
         return time_in_micros;
     }
+
+private slots:
+    void decodedSpeech(QString speech);
 
 };
 

@@ -1,4 +1,5 @@
 #include "balancerobot.h"
+
 #define MPU6050_I2C_ADDRESS 0x68
 #define RESTRICT_PITCH
 BalanceRobot *BalanceRobot::theInstance_= nullptr;
@@ -41,7 +42,8 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-    soundFormat = QString("espeak -vtr+f3");
+    soundFormatTr = QString("espeak -vtr+f2");
+    soundFormatEn = QString("espeak -ven+f2");
     init();
 }
 
@@ -51,6 +53,8 @@ BalanceRobot::~BalanceRobot()
 
     softPwmWrite(PWML, 0);
     softPwmWrite(PWMR, 0);
+
+    delete alsa_device;
 }
 
 
@@ -74,17 +78,62 @@ void BalanceRobot::saveSettings()
     settings.setValue("angleCorrection", QString::number(aggAC));
 }
 
+void BalanceRobot::decodedSpeech(QString speech)
+{
+    std::cout << "Decoded Speech: "<< speech.toStdString() << std::endl;
+
+    if (speech.compare(KEY_ROBOT) == 0)
+    {
+        soundText = QString("Efendim.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_START) == 0)
+    {
+        soundText = QString("Şu an aktifim.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_STOP) == 0)
+    {
+        soundText = QString("Durdurmak için, beni yan yatırın.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_FORWARD) == 0)
+    {
+        soundText = QString("İleri.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_BACKWARD) == 0)
+    {
+        soundText = QString("Geri.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_LEFT) == 0)
+    {
+        soundText = QString("Sol.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_RIGHT) == 0)
+    {
+        soundText = QString("Sağ.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else if (speech.compare(KEY_GOODBYE) == 0)
+    {
+        soundText = QString("Güle güle. Hoşçakal.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+    else
+    {
+        soundText = QString("Anlaşılmadı.");
+        pthread_create(&soundhread, nullptr, speakTr, this);
+    }
+}
+
 void BalanceRobot::ResetValues()
 {
     Input = 0.0;
     timeDiff = 0.0;
     targetAngle = 0.0;
-
-    aggKp = 10.0;
-    aggKi = 0.8;
-    aggKd = 0.6;
-    aggSD = 4.0;
-    aggAC = 5.0;//defaulf 1.0
 
     errorAngle = 0.0;
     oldErrorAngle = 0.0;
@@ -102,6 +151,7 @@ void BalanceRobot::ResetValues()
     lastSpeedError = 0;
     speedAdjust = 0;
     errorSpeed = 0;
+
     SKp = 1.0;
     SKi = 0.5;
     SKd = 0.3;
@@ -110,30 +160,13 @@ void BalanceRobot::ResetValues()
 
     pwm_l = 0;
     pwm_r = 0;
-}
 
-void BalanceRobot::SetAlsaMasterVolume(long volume)
-{
-    long min, max;
-    snd_mixer_t *handle;
-    snd_mixer_selem_id_t *sid;
-    const char *card = "default";
-    const char *selem_name = "PCM";
+    aggKp = 10.0;
+    aggKi = 0.8;
+    aggKd = 0.6;
+    aggSD = 4.0;
+    aggAC = 5.0;//defaulf 1.0
 
-    snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, card);
-    snd_mixer_selem_register(handle, NULL, NULL);
-    snd_mixer_load(handle);
-
-    snd_mixer_selem_id_alloca(&sid);
-    snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
-
-    snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
-    snd_mixer_selem_set_playback_volume_all(elem, volume * max / 100);
-
-    snd_mixer_close(handle);
 }
 
 bool BalanceRobot::initGyroMeter()
@@ -307,7 +340,7 @@ void BalanceRobot::calculatePwm()
         {
             robotActive = false;
             soundText = "Mevcut Açı " + QString::number(int(currentAngle)) + " derece. Robot kontrolü, devre dışı.";
-            pthread_create( &soundhread, nullptr, speak, this);
+            pthread_create( &soundhread, nullptr, speakTr, this);
         }
 
     }
@@ -318,7 +351,7 @@ void BalanceRobot::calculatePwm()
         if(!soundActive)
         {
             soundText = "Mevcut Açı " + QString::number(int(currentAngle)) + " derece. Robot dengede.";
-            pthread_create( &soundhread, nullptr, speak, this);
+            pthread_create( &soundhread, nullptr, speakTr, this);
         }
     }
 
@@ -439,12 +472,12 @@ void BalanceRobot::onConnectionStatedChanged(bool state)
     if(state)
     {
         soundText = ("Bağlantı kuruldu.");
-        pthread_create( &soundhread, nullptr, speak, this);
+        pthread_create( &soundhread, nullptr, speakTr, this);
     }
     else
     {
         soundText = ("Bağlantı koptu.");
-        pthread_create( &soundhread, nullptr, speak, this);
+        pthread_create( &soundhread, nullptr, speakTr, this);
     }
 }
 
@@ -589,7 +622,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mSpeak:
         {
             soundText = QString(parsedValue.data());
-            pthread_create( &soundhread, nullptr, speak, this);
+            pthread_create( &soundhread, nullptr, speakTr, this);
             break;
         }
         case mForward:
@@ -646,9 +679,6 @@ void* BalanceRobot::mainLoop( void* this_ptr )
 {
     BalanceRobot* obj_ptr = (BalanceRobot *)this_ptr;
 
-    obj_ptr->soundText = ("Robot başladı. Lütfen uzaktan kumanda uygulamasını yükleyin.");
-    pthread_create( &obj_ptr->soundhread, nullptr, speak, obj_ptr);
-
     while (m_MainEnableThread)
     {
         obj_ptr->mpu_test = obj_ptr->gyroMPU->testConnection();
@@ -665,12 +695,16 @@ void* BalanceRobot::mainLoop( void* this_ptr )
     return nullptr;
 }
 
-void* BalanceRobot::speak(void* this_ptr)
+void* BalanceRobot::speakTr(void* this_ptr)
 {    
     BalanceRobot* obj_ptr = static_cast<BalanceRobot *>(this_ptr);
     obj_ptr->soundActive = true;
+
+    if (obj_ptr->alsa_device)
+        obj_ptr->alsa_device->pause_recognize();
+
     std::string sound = obj_ptr->soundText.toStdString();
-    std::string format = obj_ptr->soundFormat.toStdString();
+    std::string format = obj_ptr->soundFormatTr.toStdString();
 
     if(obj_ptr)
     {
@@ -678,12 +712,40 @@ void* BalanceRobot::speak(void* this_ptr)
 
         execCommand(espeakBuff.c_str());
     }
+    if (obj_ptr->alsa_device)
+        obj_ptr->alsa_device->resume_recognize();
+
+    obj_ptr->soundActive = false;
+    return nullptr;
+}
+
+void* BalanceRobot::speakEn(void* this_ptr)
+{
+    BalanceRobot* obj_ptr = static_cast<BalanceRobot *>(this_ptr);
+    obj_ptr->soundActive = true;
+
+    if (obj_ptr->alsa_device)
+        obj_ptr->alsa_device->pause_recognize();
+
+    std::string sound = obj_ptr->soundText.toStdString();
+    std::string format = obj_ptr->soundFormatEn.toStdString();
+
+    if(obj_ptr)
+    {
+        std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
+
+        execCommand(espeakBuff.c_str());
+    }
+    if (obj_ptr->alsa_device)
+        obj_ptr->alsa_device->resume_recognize();
+
     obj_ptr->soundActive = false;
     return nullptr;
 }
 
 void BalanceRobot::init()
 {
+
     ResetValues();
 
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
@@ -694,26 +756,30 @@ void BalanceRobot::init()
 
     if(!initwiringPi()) return;
     if(!initGyroMeter()) return;
+
     initPid();
 
     calculateGyro();
-    calculatePwm();
     calculateGyro();
-    calculatePwm();
 
     pwm_l = 0;
     pwm_r = 0;
     Speed_L = 0;
     Speed_R = 0;
 
-    controlRobot();
-    controlRobot();
-
-    //SetAlsaMasterVolume(100);
     execCommand("aplay r2d2.wav");
 
     m_MainEnableThread = true;
     timer = micros();
+
+    alsa_device = new ALSAPCMDevice(nullptr, (char*)"plughw:1,0", 2);
+    connect(alsa_device, &ALSAPCMDevice::decodedSpeech, this, &BalanceRobot::decodedSpeech);
+    alsa_device->start();
+
+    soundText = ("Robot başladı.");
+    pthread_create(&soundhread, nullptr, speakTr, this);
+
+    QThread::sleep(2);
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
 }
