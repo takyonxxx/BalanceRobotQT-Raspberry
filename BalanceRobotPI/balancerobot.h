@@ -153,6 +153,8 @@ private:
     int avgPosition;
     int addPosition;
 
+    QStringList keyList{};
+
     uint32_t timer;
     int16_t ax, ay, az;
     int16_t gx, gy, gz;

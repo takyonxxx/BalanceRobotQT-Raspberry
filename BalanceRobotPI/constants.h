@@ -39,14 +39,23 @@ using namespace std;
 #define MAX_SAMPLES     512000 //wav
 #define SAMPLING_RATE   44100
 
-#define KEY_ROBOT       "ROBOT"
-#define KEY_START       "START"
-#define KEY_STOP        "STOP"
-#define KEY_FORWARD     "FORWARD"
-#define KEY_BACKWARD    "BACKWARD"
-#define KEY_LEFT        "LEFT"
-#define KEY_RIGHT       "RIGHT"
-#define KEY_GOODBYE     "GOODBYE"
+static QString KEY_TEST                 = "TEST";
+static QString KEY_HEY                  = "HEY";
+static QString KEY_ROBOT                = "ROBOT";
+static QString KEY_START                = "START";
+static QString KEY_STOP                 = "STOP";
+static QString KEY_FORWARD              = "FORWARD";
+static QString KEY_BACKWARD             = "BACKWARD";
+static QString KEY_LEFT                 = "LEFT";
+static QString KEY_RIGHT                = "RIGHT";
+static QString KEY_GO                   = "GO";
+static QString KEY_COME                 = "COME";
+static QString KEY_GOODBYE              = "GOODBYE";
+static QString KEY_WHAT_IS_YOUR_NAME    = "WHAT IS YOUR NAME?";
+static QString KEY_WHERE_ARE_YOU        = "WHERE ARE YOU?";
+static QString KEY_WHO_ARE_YOU          = "WHO ARE YOU?";
+static QString KEY_ARE_YOU_OK           = "ARE YOU OK?";
+
 
 #define MODELDIR "/usr/local/share/pocketsphinx/model"
 

@@ -14,15 +14,19 @@ protected:
     RequestType r_type;
     bool m_stop{false};
     bool m_pause{false};
+    bool m_break{false};
 public:
     ALSAPCMDevice(QObject* parent=nullptr, char* device_name = (char*)"plughw:0,0", int channels = 2);
 
     ~ALSAPCMDevice(){};
 
-    int start_recognize();
-    string recognize_from_microphone();
+    bool init();
     void pause_recognize();
     void resume_recognize();
+    void setBreak(bool val);
+
+private:
+    string recognize_from_microphone();
 
     uint8 utt_started, in_speech;            // flags for tracking active speech - has speech started? - is speech currently happening?
     string decoded_speech;

@@ -1,4 +1,4 @@
-Language model created by QuickLM on Mon Nov 16 13:44:06 EST 2020
+Language model created by QuickLM on Fri Nov 20 17:06:36 EST 2020
 Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
 
 The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
@@ -7,51 +7,87 @@ The code that was used to produce this language model is available in Open Sourc
 Please visit http://www.speech.cs.cmu.edu/tools/ for more information
 
 The (fixed) discount mass is 0.5. The backoffs are computed using the ratio method.
-This model based on a corpus of 8 sentences and 10 words
+This model based on a corpus of 13 sentences and 20 words
 
 \data\
-ngram 1=10
-ngram 2=16
-ngram 3=8
+ngram 1=20
+ngram 2=31
+ngram 3=19
 
 \1-grams:
--0.7782 </s> -0.3010
--0.7782 <s> -0.2218
--1.6812 BACKWARD -0.2218
--1.6812 FORWARD -0.2218
--1.6812 GOODBYE -0.2218
--1.6812 LEFT -0.2218
--1.6812 RIGHT -0.2218
--1.6812 ROBOT -0.2218
--1.6812 START -0.2218
--1.6812 STOP -0.2218
+-0.8498 </s> -0.3010
+-0.8498 <s> -0.2349
+-1.6628 ARE -0.2915
+-1.9638 BACKWARD -0.2349
+-1.9638 COME -0.2349
+-1.9638 FORWARD -0.2349
+-1.9638 GO -0.2349
+-1.9638 GOODBYE -0.2349
+-1.9638 HEY -0.2349
+-1.9638 IS -0.2963
+-1.9638 LEFT -0.2349
+-1.9638 NAME? -0.2349
+-1.9638 RIGHT -0.2349
+-1.9638 STOP -0.2349
+-1.9638 TEST -0.2349
+-1.9638 WHAT -0.2963
+-1.9638 WHERE -0.2915
+-1.9638 WHO -0.2915
+-1.6628 YOU? -0.2349
+-1.9638 YOUR -0.2963
 
 \2-grams:
--1.2041 <s> BACKWARD 0.0000
--1.2041 <s> FORWARD 0.0000
--1.2041 <s> GOODBYE 0.0000
--1.2041 <s> LEFT 0.0000
--1.2041 <s> RIGHT 0.0000
--1.2041 <s> ROBOT 0.0000
--1.2041 <s> START 0.0000
--1.2041 <s> STOP 0.0000
+-1.4150 <s> BACKWARD 0.0000
+-1.4150 <s> COME 0.0000
+-1.4150 <s> FORWARD 0.0000
+-1.4150 <s> GO 0.0000
+-1.4150 <s> GOODBYE 0.0000
+-1.4150 <s> HEY 0.0000
+-1.4150 <s> LEFT 0.0000
+-1.4150 <s> RIGHT 0.0000
+-1.4150 <s> STOP 0.0000
+-1.4150 <s> TEST 0.0000
+-1.4150 <s> WHAT 0.0000
+-1.4150 <s> WHERE 0.0000
+-1.4150 <s> WHO 0.0000
+-0.3010 ARE YOU? 0.0000
 -0.3010 BACKWARD </s> -0.3010
+-0.3010 COME </s> -0.3010
 -0.3010 FORWARD </s> -0.3010
+-0.3010 GO </s> -0.3010
 -0.3010 GOODBYE </s> -0.3010
+-0.3010 HEY </s> -0.3010
+-0.3010 IS YOUR 0.0000
 -0.3010 LEFT </s> -0.3010
+-0.3010 NAME? </s> -0.3010
 -0.3010 RIGHT </s> -0.3010
--0.3010 ROBOT </s> -0.3010
--0.3010 START </s> -0.3010
 -0.3010 STOP </s> -0.3010
+-0.3010 TEST </s> -0.3010
+-0.3010 WHAT IS 0.0000
+-0.3010 WHERE ARE 0.0000
+-0.3010 WHO ARE 0.0000
+-0.3010 YOU? </s> -0.3010
+-0.3010 YOUR NAME? 0.0000
 
 \3-grams:
 -0.3010 <s> BACKWARD </s>
+-0.3010 <s> COME </s>
 -0.3010 <s> FORWARD </s>
+-0.3010 <s> GO </s>
 -0.3010 <s> GOODBYE </s>
+-0.3010 <s> HEY </s>
 -0.3010 <s> LEFT </s>
 -0.3010 <s> RIGHT </s>
--0.3010 <s> ROBOT </s>
--0.3010 <s> START </s>
 -0.3010 <s> STOP </s>
+-0.3010 <s> TEST </s>
+-0.3010 <s> WHAT IS
+-0.3010 <s> WHERE ARE
+-0.3010 <s> WHO ARE
+-0.3010 ARE YOU? </s>
+-0.3010 IS YOUR NAME?
+-0.3010 WHAT IS YOUR
+-0.3010 WHERE ARE YOU?
+-0.3010 WHO ARE YOU?
+-0.3010 YOUR NAME? </s>
 
 \end\
