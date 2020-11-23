@@ -78,7 +78,7 @@ string ALSAPCMDevice::recognize_from_microphone()
                 }
             }
 
-            QThread::msleep(25);
+            QThread::msleep(10);
         }
     }
     ps_end_utt(mDecoder);

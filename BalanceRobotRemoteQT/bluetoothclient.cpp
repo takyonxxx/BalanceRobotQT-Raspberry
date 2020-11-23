@@ -45,11 +45,8 @@ void BluetoothClient::addDevice(const QBluetoothDeviceInfo &device)
 
          qDebug() << device.name() ;
 
-        if(device.name().startsWith("rasp"))
+        if(device.name().startsWith("BlueZ") || device.name().startsWith("rasp"))
         {
-
-            qDebug() << info;
-
             emit statusChanged(info);
             DeviceInfo *dev = new DeviceInfo(device);
             m_qlDevices.append(dev);
