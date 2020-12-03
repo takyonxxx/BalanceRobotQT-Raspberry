@@ -3,7 +3,7 @@ QT -= gui
 QT += bluetooth network
 CONFIG += c++11 console
 CONFIG -= app_bundle
-TARGET = BalanceRobot
+TARGET = BalanceRobotPI
 
 SOURCES += main.cpp \
     alsadevices.cpp \
