@@ -73,6 +73,7 @@ sudo apt-get install bluetooth blueman bluez python-gobject python-gobject-2 </b
 sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev </br>
 sudo apt-get install i2c-tools </br>
 sudo apt-get install qtconnectivity5-dev </br>
+sudo apt-get install qtmultimedia5-dev</br>
 </br>
 <b>Enable the I2C protocol feature in raspberry pi:</b></br>
 sudo raspi-config</br>
