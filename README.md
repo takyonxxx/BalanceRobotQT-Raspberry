@@ -25,7 +25,7 @@ sudo chmod 4755 /home/pi/BalanceRobotPI/BalanceRobotPI</br>
 cd /home/pi/BalanceRobotPI</br>
 sudo ./BalanceRobotPI</br>
 
-make executable
+make executable</br>
 chmod +x start_robot.sh
 
 Open a sample unit file using the command as shown below:</br>
