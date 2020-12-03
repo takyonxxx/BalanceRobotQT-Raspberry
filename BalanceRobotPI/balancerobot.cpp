@@ -804,10 +804,19 @@ void BalanceRobot::init()
     getDeviceInfo(device, ip, mac, mask);
     qDebug() << "Ip Adress:" << device << ip;
 
-    auto soundAyarlar = ("  Ayarlar. P = " + QString::number(aggKp) + ". I = " + QString::number(aggKi) + ". D = " + QString::number(aggKd) + ".");
+    //auto soundAyarlar = ("  Ayarlar. P = " + QString::number(aggKp) + ". I = " + QString::number(aggKi) + ". D = " + QString::number(aggKd) + ".");
 
-    soundText = ("Robot başlıyor. Adres. " + ip.replace(".", ", ") + "." + soundAyarlar);
+    soundText = ("Robot başlıyor. Netwörk Adresi. " + ip.replace(".", ", ") + ".");
     pthread_create(&soundhread, nullptr, speakTr, this);
+
+    google_speech = new VoiceTranslator(this);
+
+    connect(google_speech, &VoiceTranslator::speechChanged, [](QString speech)
+    {
+        qDebug() << speech;
+    });
+
+    return;
 
     m_MainEnableThread = true;
     timer = micros();

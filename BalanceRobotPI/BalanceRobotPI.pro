@@ -1,7 +1,8 @@
 TEMPLATE = app
 QT -= gui
-QT += bluetooth network
-CONFIG += c++11 console
+QT += bluetooth network multimedia
+
+CONFIG += c++17 console
 CONFIG -= app_bundle
 TARGET = BalanceRobotPI
 
@@ -12,7 +13,8 @@ SOURCES += main.cpp \
     i2cdev.cpp \
     message.cpp \
     mpu6050.cpp \
-    pid.cpp
+    pid.cpp \
+    voicetranslator.cpp
 
 HEADERS += \
     alsadevices.h \
@@ -23,7 +25,8 @@ HEADERS += \
     kalman.h \
     message.h \
     mpu6050.h \
-    pid.h
+    pid.h \
+    voicetranslator.h
 
 QMAKE_LIBDIR +=usr/lib
 QMAKE_LIBDIR += /usr/local/lib

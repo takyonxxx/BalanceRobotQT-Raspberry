@@ -20,6 +20,7 @@
 #include <message.h>
 #include "constants.h"
 #include "alsadevices.h"
+#include "voicetranslator.h"
 
 
 #define SLEEP_PERIOD 1000 //us;s
@@ -98,6 +99,8 @@ private:
 
     void loadSettings();
     void saveSettings();
+
+    VoiceTranslator *google_speech{};
 
     QString m_sSettingsFile;
     ALSAPCMDevice *alsa_device{};
