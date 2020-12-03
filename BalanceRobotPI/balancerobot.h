@@ -2,6 +2,7 @@
 #define BALANCEROBOT_H
 #include <QObject>
 #include <QSettings>
+#include <QNetworkInterface>
 
 #include <gattserver.h>
 
@@ -19,6 +20,7 @@
 #include <message.h>
 #include "constants.h"
 #include "alsadevices.h"
+
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -185,6 +187,40 @@ private:
         gettimeofday(&timer, NULL);
         unsigned int time_in_micros = 1000000 * timer.tv_sec + timer.tv_usec;
         return time_in_micros;
+    }
+
+    void getDeviceInfo (QString &device, QString &ip, QString &mac, QString &mask)
+    {
+
+        bool found = false;
+        foreach(QNetworkInterface interface, QNetworkInterface::allInterfaces())
+        {
+            unsigned int flags = interface.flags();
+            bool isLoopback = (bool)(flags & QNetworkInterface::IsLoopBack);
+            bool isP2P = (bool)(flags & QNetworkInterface::IsPointToPoint);
+            bool isRunning = (bool)(flags & QNetworkInterface::IsRunning);
+            if ( !isRunning ) continue;
+            if ( !interface.isValid() || isLoopback || isP2P ) continue;
+
+            foreach (QNetworkAddressEntry entry, interface.addressEntries())
+            {
+                // Ignore local host
+                if ( entry.ip() == QHostAddress::LocalHost ) continue;
+
+                // Ignore non-ipv4 addresses
+                if ( !entry.ip().toIPv4Address() ) continue;
+
+                if ( !found && interface.hardwareAddress() != "00:00:00:00:00:00" && entry.ip().toString().contains(".")
+                     && !interface.humanReadableName().contains("VM"))
+                {
+                    device = interface.humanReadableName();
+                    ip = entry.ip().toString();
+                    mac = interface.hardwareAddress();
+                    mask =  entry.netmask().toString();
+                    found = true;
+                }
+            }
+        }
     }
 
 private slots:

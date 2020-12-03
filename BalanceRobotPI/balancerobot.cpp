@@ -173,11 +173,11 @@ void BalanceRobot::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 10.0;
-    aggKi = 0.8;
-    aggKd = 0.6;
+    aggKp = 8.0;
+    aggKi = 0.9;
+    aggKd = 0.7;
     aggSD = 4.0;
-    aggAC = 5.0;//defaulf 1.0
+    aggAC = 4.9;//defaulf 1.0
 
     keyList.append(KEY_TEST);
     keyList.append(KEY_HEY);
@@ -799,10 +799,20 @@ void BalanceRobot::init()
 
     execCommand("aplay r2d2.wav");
 
+    QString device, ip, mac, mask;
+
+    getDeviceInfo(device, ip, mac, mask);
+    qDebug() << "Ip Adress:" << device << ip;
+
+    auto soundAyarlar = ("  Ayarlar. P = " + QString::number(aggKp) + ". I = " + QString::number(aggKi) + ". D = " + QString::number(aggKd) + ".");
+
+    soundText = ("Robot başlıyor. Adres. " + ip.replace(".", ", ") + "." + soundAyarlar);
+    pthread_create(&soundhread, nullptr, speakTr, this);
+
     m_MainEnableThread = true;
     timer = micros();
 
-    alsa_device = new ALSAPCMDevice(nullptr, (char*)"plughw:1,0", 2);
+    /*alsa_device = new ALSAPCMDevice(nullptr, (char*)"plughw:1,0", 2);
 
     if(alsa_device->init())
     {
@@ -817,7 +827,7 @@ void BalanceRobot::init()
         pthread_create(&soundhread, nullptr, speakTr, this);
     }    
 
-    QThread::sleep(2);
+    QThread::sleep(2);*/
 
     pthread_create( &mainThread, nullptr, mainLoop, this);
 }

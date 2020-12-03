@@ -1,6 +1,6 @@
 TEMPLATE = app
 QT -= gui
-QT += bluetooth
+QT += bluetooth network
 CONFIG += c++11 console
 CONFIG -= app_bundle
 TARGET = BalanceRobot
