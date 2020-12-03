@@ -56,6 +56,7 @@ sudo systemctl daemon-reload</br>
 sudo systemctl enable balancerobot.service</br>
 Reboot the Pi and your custom service should run:</br>
 sudo reboot</br>
+turn switch off and on if service not start.</br>
 
 <b>Building code: </b></br>
 Please install build-essential, alsa , qmake and espeak before compile.</br>
