@@ -74,6 +74,7 @@ sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libi
 sudo apt-get install i2c-tools </br>
 sudo apt-get install qtconnectivity5-dev </br>
 sudo apt-get install qtmultimedia5-dev</br>
+sudo apt install libqt5multimedia5-plugins</br>
 </br>
 <b>Enable the I2C protocol feature in raspberry pi:</b></br>
 sudo raspi-config</br>
