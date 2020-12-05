@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QSettings>
 #include <QNetworkInterface>
+#include <QtConcurrent/QtConcurrent>
 
 #include <gattserver.h>
 
@@ -14,14 +15,10 @@
 #include <wiringPi.h>
 #include <alsa/asoundlib.h>
 #include <sys/time.h>
-#include <pthread.h>
 #include <math.h>
 #include <iostream>
 #include <message.h>
-#include "constants.h"
-#include "alsadevices.h"
-#include "voicetranslator.h"
-
+#include "alsatranslator.h"
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -66,17 +63,20 @@ class BalanceRobot : public QObject
 public:
     explicit BalanceRobot(QObject *parent = nullptr);
     ~BalanceRobot();
-    void init();
-
+    void init(); 
     static BalanceRobot* getInstance();
     static BalanceRobot *theInstance_;
 
 private slots:
     void onConnectionStatedChanged(bool state);
     void onDataReceived(QByteArray data);
+    void speechReceived(QString text);
 
 private:
 
+    std::mutex mutex_loop;
+
+    void execCommand(const char* cmd);
     bool initGyroMeter();
     bool initwiringPi();
     void initPid();
@@ -85,32 +85,30 @@ private:
     void calculateGyro();
     void controlRobot();
     void ResetValues();
-    //void execCommand(const char* cmd);
+
     void createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result);
     bool parseMessage(QByteArray *data, uint8_t &command, QByteArray &value, uint8_t &rw);
     void requestData(uint8_t command);
     void sendData(uint8_t command, uint8_t value);
     void sendString(uint8_t command, QString value);
-    static void* mainLoop(void* this_ptr);
-    static void* speakTr(void* this_ptr);
-    static void* speakEn(void* this_ptr);
+
+    void mainLoop();
+
     static void encodeL(void);
     static void encodeR(void);
 
     void loadSettings();
-    void saveSettings();
-
-    VoiceTranslator *google_speech{};
+    void saveSettings();   
 
     QString m_sSettingsFile;
-    ALSAPCMDevice *alsa_device{};
+
+    AlsaTranslator *translator{};
 
     PID *balancePID;
     Message message;
 
     GattServer *gattServer;
-    pthread_t mainThread;
-    pthread_t soundhread;
+    std::thread mainThread;    
 
     MPU6050 *gyroMPU{};
     bool mpu_test{false};
@@ -118,11 +116,9 @@ private:
     Kalman kalmanY{};
 
     std::string currentSound;
-    QString soundFormatTr;
-    QString soundFormatEn;
+
     QString soundText;
     bool robotActive{true};
-    bool soundActive{false};
 
     double Input;
     double Output;
@@ -162,8 +158,9 @@ private:
 
     uint32_t timer;
     int16_t ax, ay, az;
-    int16_t gx, gy, gz;
+    int16_t gx, gy, gz;       
 
+private:
     template<class T>
     const T& constrain(const T& x, const T& a, const T& b) {
         if(x < a) {
@@ -225,9 +222,6 @@ private:
             }
         }
     }
-
-private slots:
-    void decodedSpeech(QString speech);
 
 };
 

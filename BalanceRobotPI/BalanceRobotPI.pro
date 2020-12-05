@@ -7,17 +7,18 @@ CONFIG -= app_bundle
 TARGET = BalanceRobotPI
 
 SOURCES += main.cpp \
-    alsadevices.cpp \
+    alsarecorder.cpp \
+    alsatranslator.cpp \
     balancerobot.cpp \
     gattserver.cpp \
     i2cdev.cpp \
     message.cpp \
     mpu6050.cpp \
-    pid.cpp \
-    voicetranslator.cpp
+    pid.cpp
 
 HEADERS += \
-    alsadevices.h \
+    alsarecorder.h \
+    alsatranslator.h \
     balancerobot.h \
     constants.h \
     gattserver.h \
@@ -25,27 +26,29 @@ HEADERS += \
     kalman.h \
     message.h \
     mpu6050.h \
-    pid.h \
-    voicetranslator.h
+    pid.h
 
-QMAKE_LIBDIR +=usr/lib
+QMAKE_INCDIR += /usr/local/include
+QMAKE_LIBDIR += /usr/lib
 QMAKE_LIBDIR += /usr/local/lib
-INCLUDEPATH += /usr/local/include
-INCLUDEPATH += /usr/local/include/pocketsphinx
-INCLUDEPATH += /usr/local/include/sphinxbase
+QMAKE_LIBDIR += /usr/lib/x86_64-linux-gnu
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lasound -lsphinxbase -lpocketsphinx -lsphinxad
+LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lasound -lFLAC
 
-RESOURCES += \
-    resources.qrc
 
-DISTFILES += \
-    install.sh
+RESOURCES +=
 
-#sudo apt-get install bison
-#sudo apt-get install swig
+DISTFILES +=
+
 #sudo apt-get install libasound2-dev
 #sudo apt-get install alsa alsa-tools
-#sudo ldconfig
+#sudo apt-get install qtmultimedia5-dev
+#sudo apt install libqt5multimedia5-plugins
+#sudo apt-get install libflac-dev
+#sudo apt-get install espeak
+# flac -c -d *flac | aplay
 #espeak voice folder under /usr/lib/arm-linux-gnueabihf/espeak-data/voices/!v
+#i did not use libespeak instead i use system command,
+#for install libespeak and compile visit:
+#https://walker.cs.grinnell.edu/MyroC/linux/myroc-installation-notes-linux.php?MyroC_release=3.2&MyroC_subrelease=a&eSpeak_release=2.0
 

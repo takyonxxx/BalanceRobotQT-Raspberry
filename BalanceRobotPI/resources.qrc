@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>robot.dic</file>
-        <file>robot.lm</file>
-        <file>robot.txt</file>
-    </qresource>
-</RCC>
