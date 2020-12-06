@@ -24,10 +24,10 @@ public:
 
     void readValue();
     void writeValue(const QByteArray &value);
+    void startBleService();
 
 private:
-    void addService(const QLowEnergyServiceData &serviceData);
-    void startBleService();
+    void addService(const QLowEnergyServiceData &serviceData);    
     void resetBluetoothService();
     void reconnect();
 

@@ -24,9 +24,7 @@ GattServer::GattServer(QObject *parent) : QObject(parent)
 {
     qRegisterMetaType<QLowEnergyController::ControllerState>();
     qRegisterMetaType<QLowEnergyController::Error>();
-    qRegisterMetaType<QLowEnergyConnectionParameters>();    
-
-    startBleService();
+    qRegisterMetaType<QLowEnergyConnectionParameters>();
 }
 
 GattServer::~GattServer()

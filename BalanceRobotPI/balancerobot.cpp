@@ -577,10 +577,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
         default:
             break;
         }
+
+        saveSettings();
     }
-
-    saveSettings();
-
 
     auto pidInfo = QString("P:")
             + QString::number(aggKp, 'f', 1)
@@ -598,9 +597,6 @@ void BalanceRobot::onDataReceived(QByteArray data)
             + QString::number(aggAC, 'f', 1) ;
 
     sendString(mData, pidInfo);
-
-    qDebug() << pidInfo;
-
 }
 
 //loops
@@ -650,11 +646,11 @@ void BalanceRobot::init()
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
+    gattServer->startBleService();
 
     translator = new AlsaTranslator(this);
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::speechReceived);
     translator->setRecordDuration(2000);
-    translator->start();
 
     QString device, ip, mac, mask;
     getDeviceInfo(device, ip, mac, mask);
@@ -667,4 +663,6 @@ void BalanceRobot::init()
 
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
+
+    translator->start();
 }
