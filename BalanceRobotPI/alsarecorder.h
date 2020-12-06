@@ -30,7 +30,7 @@ using namespace std;
 #define READSIZE 1024
 static unsigned totalSamples{};
 
-class ALSARecorder:public QThread
+class ALSARecorder:public QObject
 {
     Q_OBJECT
 
@@ -83,7 +83,6 @@ private:
 
 signals:
     void stateChanged(State state);
-
 };
 
 #endif

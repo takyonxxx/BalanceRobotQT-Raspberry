@@ -1,7 +1,7 @@
 #include "alsarecorder.h"
 
 ALSARecorder::ALSARecorder(QObject *parent)
-    : QThread(parent)
+    : QObject(parent)
 {   
 }
 
@@ -18,7 +18,7 @@ void ALSARecorder::setPause(bool pause)
 
 bool ALSARecorder::initCaptureDevice() {
 
-    snd_pcm_hw_params_t *params;    
+    snd_pcm_hw_params_t *params;
 
     int err = 0;
 
@@ -240,46 +240,55 @@ bool ALSARecorder::record(int mseconds)
 
     qDebug() << "Listening...";
 
-    FLAC__bool flac_ok = true;
-    FLAC__int32 pcm[get_frames_per_period() * channels];
+    QThread *thread = QThread::create([this, &mseconds]{
 
-    initFlacDecoder((char*)fileName.toStdString().c_str());
+        FLAC__bool flac_ok = true;
+        FLAC__int32 pcm[get_frames_per_period() * channels];
 
-    char* buffer = allocate_buffer();
-    auto endwait = QDateTime::currentMSecsSinceEpoch() + mseconds;
+        initFlacDecoder((char*)fileName.toStdString().c_str());
 
-    do
-    {
-        if(m_pause)
-        {           
-            break;
-        }
+        char* buffer = allocate_buffer();
+        auto endwait = QDateTime::currentMSecsSinceEpoch() + mseconds;
 
-        auto read = capture_into_buffer(buffer);
-
-        if(read == 0)
-            continue;
-
-        totalSamples = read;
-        size_t left = (size_t)totalSamples;
-        while(flac_ok && left)
+        do
         {
-            /* convert the packed little-endian 16-bit PCM samples from WAVE into an interleaved FLAC__int32 buffer for libFLAC */
-            size_t i;
-            for(i = 0; i < read*channels; i++)
+            if(m_pause)
             {
-                /* inefficient but simple and works on big- or little-endian machines */
-                pcm[i] = (FLAC__int32)(((FLAC__int16)(FLAC__int8)buffer[2 * i + 1] << 8) | (FLAC__int16)buffer[2 * i]);
+                break;
             }
-            /* feed samples to encoder */
-            flac_ok = FLAC__stream_encoder_process_interleaved(pcm_encoder, pcm, read);
-            left -= read;
-        }
+
+            auto read = capture_into_buffer(buffer);
+
+            if(read == 0)
+                continue;
+
+            totalSamples = read;
+            size_t left = (size_t)totalSamples;
+            while(flac_ok && left)
+            {
+                /* convert the packed little-endian 16-bit PCM samples from WAVE into an interleaved FLAC__int32 buffer for libFLAC */
+                size_t i;
+                for(i = 0; i < read*channels; i++)
+                {
+                    /* inefficient but simple and works on big- or little-endian machines */
+                    pcm[i] = (FLAC__int32)(((FLAC__int16)(FLAC__int8)buffer[2 * i + 1] << 8) | (FLAC__int16)buffer[2 * i]);
+                }
+                /* feed samples to encoder */
+                flac_ok = FLAC__stream_encoder_process_interleaved(pcm_encoder, pcm, read);
+                left -= read;
+            }
 
 
-    } while (QDateTime::currentMSecsSinceEpoch() < endwait);  
+        } while (QDateTime::currentMSecsSinceEpoch() < endwait);
 
-    finishFlacDecoder();
-    emit stateChanged(StoppedState);
+        finishFlacDecoder();
+
+    });
+    connect(thread,  &QThread::finished,  this,  [=]()
+    {
+        emit stateChanged(StoppedState);
+    });
+    thread->start();
+    thread->wait();
     return true;
 }

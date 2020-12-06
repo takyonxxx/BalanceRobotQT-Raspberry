@@ -1,6 +1,7 @@
 #ifndef ALSATRANSLATOR_H
 #define ALSATRANSLATOR_H
 
+#include <QCoreApplication>
 #include <QThread>
 #include <QStandardPaths>
 #include <QUrl>
@@ -16,6 +17,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QElapsedTimer>
+
 #include "alsarecorder.h"
 #include "constants.h"
 
@@ -38,7 +40,7 @@ public:
     void setRecordDuration(int value);
 
 private:
-    QNetworkAccessManager networkAccessManager;
+    QNetworkAccessManager *networkAccessManager{};
     QNetworkRequest request;
     QFile file;
     QUrl url;
@@ -62,7 +64,7 @@ private:
     QElapsedTimer timer;
     qint64 nanoSec;
 
-    void record();    
+    void record();
     void speakTr(QString text);
     void speakEn(QString text);
     void execCommand(const char* cmd);
@@ -109,6 +111,7 @@ private:
     }
 
     void translate();
+
 signals:
     void recordDurationChanged(qint64 duration);
     void runningChanged(bool running);
@@ -119,14 +122,5 @@ signals:
 protected:
     bool m_stop{false};
 };
-
-/*QThread *thread = QThread::create([this]
-{
-});
-connect(thread,  &QThread::finished,  this,  [=]()
-{
-});
-thread->start();
-thread->wait ();*/
 
 #endif // ALSATRANSLATOR_H

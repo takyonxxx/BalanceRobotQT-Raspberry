@@ -652,10 +652,10 @@ void BalanceRobot::init()
     Speed_R = 0;
 
     execCommand("aplay r2d2.wav");
-    execCommand("amixer -c 1 set Mic 0DB");
+    //execCommand("amixer -c 1 set Mic 0DB");
 
     translator = new AlsaTranslator(this);
-    QObject::connect(translator, &AlsaTranslator::speechChanged, this, &BalanceRobot::speechReceived);
+    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::speechReceived);
     translator->setRecordDuration(2000);
 
     QString device, ip, mac, mask;

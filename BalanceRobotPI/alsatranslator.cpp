@@ -26,41 +26,32 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     file.setFileName(this->filePath);
 
     connect(&audioRecorder, &ALSARecorder::stateChanged, [this](auto state)
-    {
-        //qDebug() << "state:" << state;
-
+    {              
         if (state == ALSARecorder::StoppedState)
+        {
             this->translate();
+        }
     });
 
-    connect(&networkAccessManager, &QNetworkAccessManager::finished, [this](QNetworkReply *response)
+    networkAccessManager = new QNetworkAccessManager(this);
+
+    connect(networkAccessManager, &QNetworkAccessManager::finished, [this](QNetworkReply *response)
     {
         if(m_stop)
             return;
 
-        networkAccessManager.clearAccessCache();
-        networkAccessManager.clearConnectionCache();
+        networkAccessManager->clearAccessCache();
+        networkAccessManager->clearConnectionCache();
 
         auto command = QString{};
 
         auto data = QJsonDocument::fromJson(response->readAll());
         response->deleteLater();
 
-        //QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
-
         auto error = data["error"]["message"];
 
         if (error.isUndefined()) {
             command = data["results"][0]["alternatives"][0]["transcript"].toString();
-            //auto confidence = data["results"][0]["alternatives"][0]["confidence"].toDouble();
-            if(!command.isEmpty())
-            {
-                if(!command.isEmpty())
-                {
-                    emit speechChanged(command);
-                }
-            }
-
             setRunning(false);
             setCommand(command);
 
@@ -70,9 +61,18 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
         }
 
         if(!command.isEmpty())
-            speak(TR, command);
-
-        record();
+        {
+            QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
+            connect(thread,  &QThread::finished,  this,  [=]()
+            {
+                record();
+            });
+            thread->start();
+        }
+        else
+        {
+            record();
+        }
     });
 
     qDebug() << "Flac location:" << this->filePath;
@@ -81,6 +81,7 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
 AlsaTranslator::~AlsaTranslator()
 {
     audioRecorder.close();
+    delete networkAccessManager;
 }
 
 void AlsaTranslator::translate() {
@@ -115,7 +116,13 @@ void AlsaTranslator::translate() {
                     }
     };
 
-    networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
+    networkAccessManager->post(this->request, data.toJson(QJsonDocument::Compact));
+}
+
+void AlsaTranslator::start()
+{
+    qDebug() << "Alsa Translator is started...";
+    record();
 }
 
 void AlsaTranslator::execCommand(const char* cmd)
@@ -148,21 +155,14 @@ void AlsaTranslator::setRecordDuration(int value)
 
 void AlsaTranslator::record()
 {
-    execCommand("amixer -c 1 set Mic 100DB");   
-    execCommand("aplay beep.wav");
-    QThread::msleep(500);
-
+    execCommand("amixer -c 1 set Mic 100DB");
+    execCommand("aplay beep.wav");   
+    QThread::msleep(250);
     setError("");
     setCommand("");
-    setRunning(true);    
+    setRunning(true);
     audioRecorder.record(recordDuration);
     execCommand("amixer -c 1 set Mic 0DB");
-}
-
-void AlsaTranslator::start()
-{
-    qDebug() << "Alsa Translator is started...";
-    record();
 }
 
 void AlsaTranslator::speak(SType type, QString &text)
