@@ -26,62 +26,57 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     file.setFileName(this->filePath);
 
     connect(&audioRecorder, &ALSARecorder::stateChanged, [this](auto state)
-    {              
+    {
         if (state == ALSARecorder::StoppedState)
         {
             this->translate();
         }
     });
 
-    networkAccessManager = new QNetworkAccessManager(this);
-
-    connect(networkAccessManager, &QNetworkAccessManager::finished, [this](QNetworkReply *response)
-    {
-        if(m_stop)
-            return;
-
-        networkAccessManager->clearAccessCache();
-        networkAccessManager->clearConnectionCache();
-
-        auto command = QString{};
-
-        auto data = QJsonDocument::fromJson(response->readAll());
-        response->deleteLater();
-
-        auto error = data["error"]["message"];
-
-        if (error.isUndefined()) {
-            command = data["results"][0]["alternatives"][0]["transcript"].toString();
-            setRunning(false);
-            setCommand(command);
-
-        } else {
-            setRunning(false);
-            setError(error.toString());
-        }
-
-        if(!command.isEmpty())
-        {
-            QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
-            connect(thread,  &QThread::finished,  this,  [=]()
-            {
-                record();
-            });
-            thread->start();
-        }
-        else
-        {
-            record();
-        }
-    });
-
+    connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &AlsaTranslator::responseReceived);
     qDebug() << "Flac location:" << this->filePath;
 }
 
 AlsaTranslator::~AlsaTranslator()
 {
     audioRecorder.close();
-    delete networkAccessManager;
+}
+
+void AlsaTranslator::responseReceived(QNetworkReply *response)
+{
+    if(m_stop)
+        return;
+
+    auto command = QString{};
+
+    auto data = QJsonDocument::fromJson(response->readAll());
+    response->deleteLater();
+
+    auto error = data["error"]["message"];
+
+    if (error.isUndefined()) {
+        command = data["results"][0]["alternatives"][0]["transcript"].toString();
+        setRunning(false);
+        setCommand(command);
+
+    } else {
+        setRunning(false);
+        setError(error.toString());
+    }
+
+    if(!command.isEmpty())
+    {
+        QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
+        connect(thread,  &QThread::finished,  this,  [=]()
+        {
+            record();
+        });
+        thread->start();
+    }
+    else
+    {
+        record();
+    }
 }
 
 void AlsaTranslator::translate() {
@@ -116,14 +111,9 @@ void AlsaTranslator::translate() {
                     }
     };
 
-    networkAccessManager->post(this->request, data.toJson(QJsonDocument::Compact));
+    networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
 }
 
-void AlsaTranslator::start()
-{
-    qDebug() << "Alsa Translator is started...";
-    record();
-}
 
 void AlsaTranslator::execCommand(const char* cmd)
 {
@@ -155,22 +145,22 @@ void AlsaTranslator::setRecordDuration(int value)
 
 void AlsaTranslator::record()
 {
-    execCommand("amixer -c 1 set Mic 100DB");
-    execCommand("aplay beep.wav");   
+    execCommand("aplay beep.wav");
     QThread::msleep(250);
     setError("");
     setCommand("");
     setRunning(true);
     audioRecorder.record(recordDuration);
-    execCommand("amixer -c 1 set Mic 0DB");
 }
 
 void AlsaTranslator::speak(SType type, QString &text)
 {
+    execCommand("amixer -c 1 set Mic 0DB");
     if(type==SType::TR)
         speakTr(text);
     else if(type==SType::EN)
         speakEn(text);
+    execCommand("amixer -c 1 set Mic 100DB");
 }
 
 void AlsaTranslator::speakTr(QString text)
@@ -188,4 +178,11 @@ void AlsaTranslator::speakEn(QString text)
     std::string format = soundFormatEn.toStdString();
     std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
     execCommand(espeakBuff.c_str());
+}
+
+
+void AlsaTranslator::start()
+{
+    qDebug() << "Alsa Translator is started...";
+    record();
 }

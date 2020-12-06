@@ -40,7 +40,7 @@ public:
     void setRecordDuration(int value);
 
 private:
-    QNetworkAccessManager *networkAccessManager{};
+    QNetworkAccessManager networkAccessManager;
     QNetworkRequest request;
     QFile file;
     QUrl url;
@@ -111,6 +111,9 @@ private:
     }
 
     void translate();
+
+private slots:
+    void responseReceived(QNetworkReply *response);
 
 signals:
     void recordDurationChanged(qint64 duration);

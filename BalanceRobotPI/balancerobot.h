@@ -103,14 +103,13 @@ private:
     QString m_sSettingsFile;
 
     AlsaTranslator *translator{};
+    GattServer *gattServer{};  
+    MPU6050 *gyroMPU{};
+    std::thread mainThread{};
 
     PID *balancePID;
     Message message;
 
-    GattServer *gattServer;
-    std::thread mainThread;    
-
-    MPU6050 *gyroMPU{};
     bool mpu_test{false};
     Kalman kalmanX{};
     Kalman kalmanY{};

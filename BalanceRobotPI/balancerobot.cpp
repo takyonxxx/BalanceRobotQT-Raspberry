@@ -27,6 +27,9 @@ BalanceRobot::~BalanceRobot()
 {
     softPwmWrite(PWML, 0);
     softPwmWrite(PWMR, 0);
+    delete gattServer;
+    delete translator;
+    delete gyroMPU;
 }
 
 void BalanceRobot::execCommand(const char* cmd)
@@ -625,14 +628,10 @@ void BalanceRobot::speechReceived(QString text)
 
 void BalanceRobot::init()
 {
-
     ResetValues();
 
-    gattServer = new GattServer(this);
-    QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
-    QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
+
     if (QFile(m_sSettingsFile).exists())
         loadSettings();
     else
@@ -643,34 +642,29 @@ void BalanceRobot::init()
 
     initPid();
 
-    calculateGyro();
-    calculateGyro();
-
-    pwm_l = 0;
-    pwm_r = 0;
-    Speed_L = 0;
-    Speed_R = 0;
+    for(int i=0; i<50; i++)
+        calculateGyro();
 
     execCommand("aplay r2d2.wav");
-    //execCommand("amixer -c 1 set Mic 0DB");
+
+    gattServer = new GattServer(this);
+    QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
+    QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
 
     translator = new AlsaTranslator(this);
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::speechReceived);
     translator->setRecordDuration(2000);
+    translator->start();
 
     QString device, ip, mac, mask;
-
     getDeviceInfo(device, ip, mac, mask);
     qDebug() << "Ip Adress:" << device << ip;
-
     soundText = ("Robot başlıyor. Netwörk Adresi. " + ip.replace(".", ", ") + ".");
     translator->speak(TR, soundText);
 
-    timer = micros();
     m_MainEnableThread = true;
+    timer = micros();
 
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
-
-    translator->start();
 }

@@ -50,7 +50,6 @@ private slots:
     void handleConnected();
     void handleDisconnected();
     void controllerError(QLowEnergyController::Error error);
-
 };
 
 #endif
