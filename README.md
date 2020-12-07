@@ -85,7 +85,7 @@ Reboot your system</br>
 cd BalanceRobotPI </br>
 qmake, make </br>
 </br>
-<p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_control.jpg">
-		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_control.jpg" 
+<p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
+		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg" 
 		name="remote" width="480" height="800" align="bottom" border="1"></a></p>
 		
