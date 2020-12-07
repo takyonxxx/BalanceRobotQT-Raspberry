@@ -32,24 +32,6 @@ BalanceRobot::~BalanceRobot()
     delete gyroMPU;
 }
 
-void BalanceRobot::execCommand(const char* cmd)
-{
-    char buffer[128];
-    std::string result = "";
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    try {
-        while (!feof(pipe)) {
-            if (fgets(buffer, 128, pipe) != nullptr)
-                result += buffer;
-        }
-    } catch (...) {
-        pclose(pipe);
-        throw;
-    }
-    pclose(pipe);
-}
-
 void BalanceRobot::loadSettings()
 {
     QSettings settings(m_sSettingsFile, QSettings::IniFormat);
@@ -618,12 +600,8 @@ void BalanceRobot::mainLoop()
     }
 }
 
-void BalanceRobot::speechReceived(QString text)
-{
-}
-
 void BalanceRobot::init()
-{
+{   
     ResetValues();
 
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
@@ -641,7 +619,7 @@ void BalanceRobot::init()
     for(int i=0; i<50; i++)
         calculateGyro();
 
-    execCommand("aplay r2d2.wav");
+    execCommand((char*)"aplay r2d2.wav");
 
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
@@ -649,8 +627,7 @@ void BalanceRobot::init()
     gattServer->startBleService();
 
     translator = new AlsaTranslator(this);
-    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::speechReceived);
-    translator->setRecordDuration(2000);
+    translator->setRecordDuration(2500);
 
     QString device, ip, mac, mask;
     getDeviceInfo(device, ip, mac, mask);

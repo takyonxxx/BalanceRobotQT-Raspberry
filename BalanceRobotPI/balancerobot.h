@@ -19,6 +19,7 @@
 #include <iostream>
 #include <message.h>
 #include "alsatranslator.h"
+#include "constants.h"
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -70,13 +71,11 @@ public:
 private slots:
     void onConnectionStatedChanged(bool state);
     void onDataReceived(QByteArray data);
-    void speechReceived(QString text);
 
 private:
 
     std::mutex mutex_loop;
 
-    void execCommand(const char* cmd);
     bool initGyroMeter();
     bool initwiringPi();
     void initPid();
@@ -98,7 +97,7 @@ private:
     static void encodeR(void);
 
     void loadSettings();
-    void saveSettings();   
+    void saveSettings();
 
     QString m_sSettingsFile;
 

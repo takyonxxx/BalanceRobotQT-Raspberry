@@ -31,7 +31,6 @@ public:
 
     Q_PROPERTY(QString command READ getCommand NOTIFY commandChanged)
     Q_PROPERTY(QString error READ getError NOTIFY errorChanged)
-    Q_PROPERTY(QString speech READ getSpeech NOTIFY speechChanged)
     Q_PROPERTY(bool running READ getRunning NOTIFY runningChanged)
 
     void speak(SType type, QString &text);
@@ -39,8 +38,7 @@ public:
     void stop();
     void setRecordDuration(int value);
 
-private:
-    QNetworkAccessManager networkAccessManager;
+private:    
     QNetworkRequest request;
     QFile file;
     QUrl url;
@@ -53,6 +51,7 @@ private:
     const int minDuration = 1000; // minimium recording duration allowed
 
     ALSARecorder audioRecorder;
+    QNetworkAccessManager networkAccessManager;
     std::thread soundhread;
 
     QString command = ""; // last command
@@ -67,7 +66,6 @@ private:
     void record();
     void speakTr(QString text);
     void speakEn(QString text);
-    void execCommand(const char* cmd);
 
     QString soundFormatTr;
     QString soundFormatEn;
@@ -95,10 +93,6 @@ private:
         }
     }
 
-    QString getSpeech() const {
-        return this->speech;
-    }
-
     QString getError() const {
         return this->error;
     }
@@ -116,11 +110,9 @@ private slots:
     void responseReceived(QNetworkReply *response);
 
 signals:
-    void recordDurationChanged(qint64 duration);
     void runningChanged(bool running);
     void commandChanged(QString text);
     void errorChanged(QString text);
-    void speechChanged(QString text);
 
 protected:
     bool m_stop{false};

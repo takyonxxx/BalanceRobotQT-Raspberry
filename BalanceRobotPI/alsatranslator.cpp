@@ -34,6 +34,7 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     });
 
     connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &AlsaTranslator::responseReceived);
+
     qDebug() << "Flac location:" << this->filePath;
 }
 
@@ -69,7 +70,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
         connect(thread,  &QThread::finished,  this,  [=]()
         {
-            record();
+            record();;
         });
         thread->start();
     }
@@ -114,25 +115,6 @@ void AlsaTranslator::translate() {
     networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
 }
 
-
-void AlsaTranslator::execCommand(const char* cmd)
-{
-    char buffer[128];
-    std::string result = "";
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    try {
-        while (!feof(pipe)) {
-            if (fgets(buffer, 128, pipe) != nullptr)
-                result += buffer;
-        }
-    } catch (...) {
-        pclose(pipe);
-        throw;
-    }
-    pclose(pipe);
-}
-
 void AlsaTranslator::stop()
 {
     m_stop = true;
@@ -145,7 +127,7 @@ void AlsaTranslator::setRecordDuration(int value)
 
 void AlsaTranslator::record()
 {
-    execCommand("aplay beep.wav");
+    execCommand((char*)"aplay beep.wav");
     QThread::msleep(250);
     setError("");
     setCommand("");
@@ -155,12 +137,12 @@ void AlsaTranslator::record()
 
 void AlsaTranslator::speak(SType type, QString &text)
 {
-    execCommand("amixer -c 1 set Mic 0DB");
+    execCommand((char*)"amixer -c 1 set Mic 0DB");
     if(type==SType::TR)
         speakTr(text);
     else if(type==SType::EN)
         speakEn(text);
-    execCommand("amixer -c 1 set Mic 100DB");
+    execCommand((char*)"amixer -c 1 set Mic 100DB");
 }
 
 void AlsaTranslator::speakTr(QString text)
@@ -168,7 +150,7 @@ void AlsaTranslator::speakTr(QString text)
     std::string sound = text.toStdString();
     std::string format = soundFormatTr.toStdString();
     std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
-    execCommand(espeakBuff.c_str());
+    execCommand((char*)espeakBuff.c_str());
 }
 
 
@@ -177,7 +159,7 @@ void AlsaTranslator::speakEn(QString text)
     std::string sound = text.toStdString();
     std::string format = soundFormatEn.toStdString();
     std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
-    execCommand(espeakBuff.c_str());
+    execCommand((char*)espeakBuff.c_str());
 }
 
 
