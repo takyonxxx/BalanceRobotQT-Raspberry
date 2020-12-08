@@ -66,9 +66,9 @@ turn switch off and on if service not start.</br>
 Please install build-essential, alsa , qmake and espeak before compile.</br>
 
 sudo apt-get update && sudo apt-get upgrade </br>
+sudo apt-get install build-essential </br>
 sudo apt-get install qt5-default </br>
 sudo apt-get install wiringPi</br>
-sudo apt-get install build-essential </br>
 sudo apt-get install alsa-utils </br>
 sudo apt-get install espeak </br>
 sudo apt-get install libasound2-dev </br>
