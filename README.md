@@ -84,7 +84,7 @@ sudo apt install libqt5multimedia5-plugins</br>
 </br>
 <b>Enable the I2C protocol feature in raspberry pi:</b></br>
 sudo raspi-config</br>
-Enable the I2C, SPI, 1-WIRE</br>
+Enable the I2C, SPI, Remote GPIO</br>
 Reboot your system</br>
 </br>
 <b>Compile code: </b></br>
