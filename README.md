@@ -64,7 +64,7 @@ check your service</br>
 sudo systemctl status balancerobot.service</br>
 turn switch off and on if service not start.</br>
 
-<b>Building code: </b></br>
+<b>Required libraries: </b></br>
 sudo apt-get update && sudo apt-get upgrade </br>
 sudo apt-get install build-essential </br>
 sudo apt-get install qt5-default </br>
