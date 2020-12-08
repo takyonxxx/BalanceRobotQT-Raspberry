@@ -1,9 +1,13 @@
 # BalanceRobot & Remote Control with Bluetooth BLE GATT Services
 This is a Balance Robot Project developed with QT 5</br>
 
-The remote control can compile on all platforms that supports qt.</br>
+The remote control has ios and qt version which can compile on all platforms that supports qt.</br>
 https://www.youtube.com/watch?v=immSrXEHzQE&feature=youtu.be</br>
-
+</br>
+I use Rpi Motor Drive which works perfect with all raspberry versions.</br>
+Please check below link for details.</br>
+https://www.waveshare.com/wiki/RPi_Motor_Driver_Board</br>
+</br>
 <b>Proportional Term (KP)</b></br>
 The proportional term is your primary term for controlling the error. this directly scales your error, so with a small KP the controller will make small attempts to minimize the error, and with a large KP the controller will make a larger attempt. If the KP is too small you might never minimize the error (unless you are using D and I terms) and not be able to respond to changes affecting your system, and if KP is too large you can have an unstable (ie. weird oscillations) filter that severely overshoot the desired value.
 </br></br>
