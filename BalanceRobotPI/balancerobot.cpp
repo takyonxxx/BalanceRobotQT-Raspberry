@@ -637,5 +637,5 @@ void BalanceRobot::init()
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
 
-    //translator->start();
+    translator->start();
 }
