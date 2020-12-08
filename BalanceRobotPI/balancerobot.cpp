@@ -612,11 +612,6 @@ void BalanceRobot::init()
 
     initPid();
 
-    for(int i=0; i<50; i++)
-        calculateGyro();
-
-    execCommand((char*)"aplay r2d2.wav");
-
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
@@ -625,17 +620,40 @@ void BalanceRobot::init()
     translator = new AlsaTranslator(this);
     translator->setRecordDuration(2500);
 
-    QString device, ip, mac, mask;
-    getDeviceInfo(device, ip, mac, mask);
-    qDebug() << "Ip Adress:" << device << ip;
-    soundText = ("Robot başlıyor. Netwörk Adresi. " + ip.replace(".", ", ") + ".");
-    translator->speak(TR, soundText);
+    execCommand((char*)"aplay r2d2.wav");
+    soundText = ("Robot başlıyor.");
+    QThread *thread = QThread::create([this]
+    {
+        translator->speak(TR, soundText);
+    });
+    thread->start();
+    thread->wait();
+
+    for(int i=0; i<250; i++)
+        calculateGyro();
 
     m_MainEnableThread = true;
     timer = micros();
 
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
+
+    QString device, ip, mac, mask;
+
+    while(ip.size() == 0)
+    {
+        getDeviceInfo(device, ip, mac, mask);
+        QThread::msleep(100);
+    }
+
+    qDebug() << "Ip Adress:" << device << ip;
+    soundText = ("Aypi adresi. " + ip.replace(".", ", ") + ".");
+    thread = QThread::create([this]
+    {
+        translator->speak(TR, soundText);
+    });
+    thread->start();
+    thread->wait();
 
     translator->start();
 }
