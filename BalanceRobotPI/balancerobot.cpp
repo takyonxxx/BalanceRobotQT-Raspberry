@@ -84,11 +84,11 @@ void BalanceRobot::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 8.0;
+    aggKp = 10.0;
     aggKi = 0.9;
     aggKd = 0.7;
     aggSD = 4.0;
-    aggAC = 4.9;//defaulf 1.0
+    aggAC = 4.8;//defaulf 1.0
 }
 
 bool BalanceRobot::initGyroMeter()
@@ -116,8 +116,6 @@ void BalanceRobot::encodeL(void)
     else
         Speed_L -= 1;
 
-    //qDebug() << "L: " << Speed_L;
-
 }
 
 void BalanceRobot::encodeR(void)
@@ -126,8 +124,6 @@ void BalanceRobot::encodeR(void)
         Speed_R += 1;
     else
         Speed_R -= 1;
-
-    //qDebug() << "R: " << Speed_R;
 }
 
 bool BalanceRobot::initwiringPi()
@@ -641,5 +637,5 @@ void BalanceRobot::init()
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
 
-    translator->start();
+    //translator->start();
 }
