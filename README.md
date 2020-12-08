@@ -21,6 +21,7 @@ The derivative term is looking at how your system is behaving between time inter
 I assume that your code and exec (bin) will be in /home/pi/BalanceRobotPI folder.
 
 create a script start_robot.sh on your home folder (home/pi)
+nano start_robot.sh<br>
 place below code in it.
 
 #!/bin/bash</br>
