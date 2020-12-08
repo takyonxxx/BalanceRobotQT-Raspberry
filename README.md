@@ -73,6 +73,7 @@ sudo apt-get install alsa-utils </br>
 sudo apt-get install espeak </br>
 sudo apt-get install libasound2-dev </br>
 sudo apt-get install libbluetooth-dev </br>
+sudo apt-get install libflac-dev</br>
 sudo apt-get install bluetooth blueman bluez python-gobject python-gobject-2 </br>
 sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev </br>
 sudo apt-get install i2c-tools </br>
