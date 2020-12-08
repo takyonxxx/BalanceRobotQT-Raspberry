@@ -82,6 +82,18 @@ sudo apt purge wiringpi</br>
 cd /tmp</br>
 wget https://project-downloads.drogon.net/wiringpi-latest.deb</br>
 sudo dpkg -i wiringpi-latest.deb</br>
+gpio -v</br>
+
+gpio version: 2.52
+Copyright (c) 2012-2018 Gordon Henderson
+This is free software with ABSOLUTELY NO WARRANTY.
+For details type: gpio -warranty
+
+Raspberry Pi Details:
+  Type: Pi 4B, Revision: 04, Memory: 8192MB, Maker: Sony 
+  * Device tree is enabled.
+  *--> Raspberry Pi 4 Model B Rev 1.4
+  * This Raspberry Pi supports user-level GPIO access.
 </br>
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
 		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg" 
