@@ -90,6 +90,7 @@ Reboot your system</br>
 <b>Compile code: </b></br>
 cd BalanceRobotPI </br>
 qmake, make </br>
+</br>
 <b>Install latest wiringpi for rasp 4</b></br>
 sudo apt purge wiringpi</br>
 cd /tmp</br>
