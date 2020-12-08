@@ -90,6 +90,7 @@ Reboot your system</br>
 <b>Compile code: </b></br>
 cd BalanceRobotPI </br>
 qmake, make </br>
+git clone https://github.com/WiringPi/WiringPi.git<br>
 </br>
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
 		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg" 
