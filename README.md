@@ -90,7 +90,11 @@ Reboot your system</br>
 <b>Compile code: </b></br>
 cd BalanceRobotPI </br>
 qmake, make </br>
-git clone https://github.com/WiringPi/WiringPi.git<br>
+<b>Install latest wiringpi for rasp 4</b></br>
+sudo apt purge wiringpi</br>
+cd /tmp</br>
+wget https://project-downloads.drogon.net/wiringpi-latest.deb</br>
+sudo dpkg -i wiringpi-latest.deb</br>
 </br>
 <p align="center"><a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
 		<img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg" 
