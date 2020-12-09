@@ -85,10 +85,10 @@ void BalanceRobot::ResetValues()
     pwm_r = 0;
 
     aggKp = 10.0;
-    aggKi = 0.9;
-    aggKd = 0.7;
+    aggKi = 0.8;
+    aggKd = 0.6;
     aggSD = 4.0;
-    aggAC = 4.8;//defaulf 1.0
+    aggAC = 5.0;//defaulf 1.0
 }
 
 bool BalanceRobot::initGyroMeter()
@@ -218,16 +218,8 @@ void BalanceRobot::calculatePwm()
 
     if (errorAngle <= 1.0)
     {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/5, aggKi/5, aggKd/5);
-    }
-    else if (errorAngle > 1.0 && errorAngle <= 2.0)
-    {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/3.5, aggKi/3.5, aggKd/3.5);
-    }
-    else if (errorAngle > 2.0 && errorAngle <= 3.0)
-    {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/1.5, aggKi/1.5, aggKd/1.5);
-    }
+        balancePID->SetTunings(aggKp/2, aggKi/2, aggKd/2);
+    }    
     else
     {   //we're far from setpoint, use aggressive tuning parameters
         balancePID->SetTunings(aggKp,   aggKi,  aggKd);
@@ -655,5 +647,5 @@ void BalanceRobot::init()
     thread->start();
     thread->wait();
 
-    translator->start();
+    //translator->start();
 }
