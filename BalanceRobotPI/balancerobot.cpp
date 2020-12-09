@@ -647,5 +647,5 @@ void BalanceRobot::init()
     thread->start();
     thread->wait();
 
-    //translator->start();
+    translator->start();
 }
