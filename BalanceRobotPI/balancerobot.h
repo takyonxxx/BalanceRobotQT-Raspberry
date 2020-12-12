@@ -71,6 +71,7 @@ public:
 private slots:
     void onConnectionStatedChanged(bool state);
     void onDataReceived(QByteArray data);
+    void onCommandReceived(QString command);
 
 private:
 

@@ -219,7 +219,7 @@ void BalanceRobot::calculatePwm()
     if (errorAngle <= 1.0)
     {   //we're close to setpoint, use conservative tuning parameters
         balancePID->SetTunings(aggKp/2, aggKi/2, aggKd/2);
-    }    
+    }
     else
     {   //we're far from setpoint, use aggressive tuning parameters
         balancePID->SetTunings(aggKp,   aggKi,  aggKd);
@@ -569,6 +569,41 @@ void BalanceRobot::onDataReceived(QByteArray data)
     sendString(mData, pidInfo);
 }
 
+void BalanceRobot::onCommandReceived(QString command)
+{
+    if(!command.isEmpty())
+    {
+        int value = 40;
+        auto endwait = QDateTime::currentMSecsSinceEpoch() + 1000;
+        auto m_command = command.toLower();
+        qDebug() << m_command;
+
+        do
+        {
+            if(m_command.contains("ileri") || m_command.contains("merhaba"))
+            {                
+                needSpeed = -1*value;
+            }
+            else if(m_command.contains("geri") || m_command.contains("güle"))
+            {
+                needSpeed = value;
+            }
+            else if(m_command.contains("ol"))
+            {
+                needTurnL = value;
+            }
+            else if(m_command.contains("ağ"))
+            {
+                needTurnR = value;
+            }
+        } while (QDateTime::currentMSecsSinceEpoch() < endwait);
+
+        needSpeed = 0;
+        needTurnL = 0;
+        needTurnR = 0;
+    }
+}
+
 //loops
 void BalanceRobot::mainLoop()
 {   
@@ -610,7 +645,8 @@ void BalanceRobot::init()
     gattServer->startBleService();
 
     translator = new AlsaTranslator(this);
-    translator->setRecordDuration(2500);
+    translator->setRecordDuration(2000);
+    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
 
     execCommand((char*)"aplay r2d2.wav");
     soundText = ("Robot başlıyor.");
@@ -635,7 +671,7 @@ void BalanceRobot::init()
     while(ip.size() == 0)
     {
         getDeviceInfo(device, ip, mac, mask);
-        QThread::msleep(100);
+        QThread::msleep(10);
     }
 
     qDebug() << "Ip Adress:" << device << ip;

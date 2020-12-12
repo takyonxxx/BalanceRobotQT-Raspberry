@@ -238,8 +238,6 @@ bool ALSARecorder::record(int mseconds)
     if(!capture_handle)
         return false;
 
-    qDebug() << "Listening...";
-
     QThread *thread = QThread::create([this, mseconds]
     {
         FLAC__bool flac_ok = true;

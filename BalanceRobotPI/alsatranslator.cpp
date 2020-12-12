@@ -58,8 +58,6 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
     if (error.isUndefined()) {
         command = data["results"][0]["alternatives"][0]["transcript"].toString();
         setRunning(false);
-        setCommand(command);
-
     } else {
         setRunning(false);
         setError(error.toString());
@@ -70,12 +68,14 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
         connect(thread,  &QThread::finished,  this,  [=]()
         {
+            setCommand(command);
             record();;
         });
         thread->start();
     }
     else
     {
+        setCommand(command);
         record();
     }
 }
@@ -128,7 +128,6 @@ void AlsaTranslator::setRecordDuration(int value)
 void AlsaTranslator::record()
 {
     execCommand((char*)"aplay beep.wav");
-    QThread::msleep(250);
     setError("");
     setCommand("");
     setRunning(true);
