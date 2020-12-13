@@ -57,18 +57,21 @@ private:
     QString command = ""; // last command
     QString speech = ""; // last speech
     QString error = ""; // last error
-    int recordDuration = 3000; // recording duration in miliseconds
-    bool running = false; // translation state
+    int recordDuration = 1000; // recording duration in miliseconds
+    bool foundCapture {false};
+    bool running {false}; // translation state
 
     QElapsedTimer timer;
     qint64 nanoSec;
 
     void record();
+    void findCaptureDevice(char* device);
     void speakTr(QString text);
     void speakEn(QString text);
 
     QString soundFormatTr;
     QString soundFormatEn;
+    int soundCardNumber{0};
 
     bool getRunning() const {
         return this->running;

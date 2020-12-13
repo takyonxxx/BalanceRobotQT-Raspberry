@@ -216,7 +216,7 @@ void BalanceRobot::calculatePwm()
     addPosition += avgPosition;  //position
     addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
 
-    if (errorAngle <= 1.0)
+    if (errorAngle <= 0.5)
     {   //we're close to setpoint, use conservative tuning parameters
         balancePID->SetTunings(aggKp/2, aggKi/2, aggKd/2);
     }

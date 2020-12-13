@@ -6,41 +6,109 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     soundFormatTr = QString("espeak -vtr+f2");
     soundFormatEn = QString("espeak -ven+f2");
 
-    if (!this->location.exists())
-        this->location.mkpath(".");
+    char devname[10] = {0};
 
-    this->filePath = location.filePath(fileName);
-    this->audioRecorder.setOutputLocation(filePath);
-    this->audioRecorder.setDeviceName((char*)"plughw:1,0");
-    this->audioRecorder.setChannels(1);
-    this->audioRecorder.setSampleRate(44100);
-    this->audioRecorder.initCaptureDevice();
+    findCaptureDevice(devname);
 
-    this->url.setUrl(baseApi);
-    this->url.setQuery("key=" + apiKey);
-
-    this->request.setUrl(this->url);
-    this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    //this->request.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
-
-    file.setFileName(this->filePath);
-
-    connect(&audioRecorder, &ALSARecorder::stateChanged, [this](auto state)
+    if(QString(devname).isEmpty())
+        foundCapture = false;
+    else
     {
-        if (state == ALSARecorder::StoppedState)
+        if (!this->location.exists())
+            this->location.mkpath(".");
+
+        this->filePath = location.filePath(fileName);
+
+        this->audioRecorder.setOutputLocation(filePath);
+        this->audioRecorder.setDeviceName(devname);
+        this->audioRecorder.setChannels(1);
+        this->audioRecorder.setSampleRate(44100);
+        this->audioRecorder.initCaptureDevice();
+        foundCapture = true;
+        file.setFileName(this->filePath);
+
+        this->url.setUrl(baseApi);
+        this->url.setQuery("key=" + apiKey);
+
+        this->request.setUrl(this->url);
+        this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        //this->request.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
+
+        connect(&audioRecorder, &ALSARecorder::stateChanged, [this](auto state)
         {
-            this->translate();
-        }
-    });
+            if (state == ALSARecorder::StoppedState)
+            {
+                this->translate();
+            }
+        });
 
-    connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &AlsaTranslator::responseReceived);
+        connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &AlsaTranslator::responseReceived);
 
-    qDebug() << "Flac location:" << this->filePath;
+        qDebug() << "Flac location:" << this->filePath;
+    }
 }
 
 AlsaTranslator::~AlsaTranslator()
 {
     audioRecorder.close();
+}
+
+void AlsaTranslator::findCaptureDevice(char *devname)
+{
+    int idx, dev, err;
+    snd_ctl_t *handle;
+    snd_ctl_card_info_t *info;
+    snd_pcm_info_t *pcminfo;
+    char str[128];
+
+    snd_ctl_card_info_alloca(&info);
+    snd_pcm_info_alloca(&pcminfo);
+    printf("\n");
+
+    idx = -1;
+    while (1)
+    {
+        if ((err = snd_card_next(&idx)) < 0) {
+            printf("Card next error: %s\n", snd_strerror(err));
+            break;
+        }
+        if (idx < 0)
+            break;
+        sprintf(str, "hw:CARD=%i", idx);
+        if ((err = snd_ctl_open(&handle, str, 0)) < 0) {
+            printf("Open error: %s\n", snd_strerror(err));
+            continue;
+        }
+        if ((err = snd_ctl_card_info(handle, info)) < 0) {
+            printf("HW info error: %s\n", snd_strerror(err));
+            continue;
+        }
+
+        dev = -1;
+        while (1) {
+            snd_pcm_sync_id_t sync;
+            if ((err = snd_ctl_pcm_next_device(handle, &dev)) < 0) {
+                printf("  PCM next device error: %s\n", snd_strerror(err));
+                break;
+            }
+            if (dev < 0)
+                break;
+            snd_pcm_info_set_device(pcminfo, dev);
+            snd_pcm_info_set_subdevice(pcminfo, 0);
+            snd_pcm_info_set_stream(pcminfo, SND_PCM_STREAM_CAPTURE);
+            if ((err = snd_ctl_pcm_info(handle, pcminfo)) < 0) {
+                printf("Sound card - %i - '%s' has no capture device.\n",
+                       snd_ctl_card_info_get_card(info), snd_ctl_card_info_get_name(info));
+                continue;
+            }
+            printf("Sound card - %i - '%s' has capture device.\n", snd_ctl_card_info_get_card(info), snd_ctl_card_info_get_name(info));
+            sprintf(devname, "plughw:%d,0", snd_ctl_card_info_get_card(info));
+            break;
+        }
+        snd_ctl_close(handle);
+    }
+
+    snd_config_update_free_global();
 }
 
 void AlsaTranslator::responseReceived(QNetworkReply *response)
@@ -127,6 +195,9 @@ void AlsaTranslator::setRecordDuration(int value)
 
 void AlsaTranslator::record()
 {
+    if(!foundCapture)
+        return;
+
     execCommand((char*)"aplay beep.wav");
     setError("");
     setCommand("");
@@ -148,7 +219,7 @@ void AlsaTranslator::speakTr(QString text)
 {
     std::string sound = text.toStdString();
     std::string format = soundFormatTr.toStdString();
-    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
+    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' ;
     execCommand((char*)espeakBuff.c_str());
 }
 
@@ -157,13 +228,16 @@ void AlsaTranslator::speakEn(QString text)
 {
     std::string sound = text.toStdString();
     std::string format = soundFormatEn.toStdString();
-    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' + " --stdout|aplay";
+    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' ;
     execCommand((char*)espeakBuff.c_str());
 }
 
 
 void AlsaTranslator::start()
 {
+    if(!foundCapture)
+        return;
+
     qDebug() << "Alsa Translator is started...";
     record();
 }
