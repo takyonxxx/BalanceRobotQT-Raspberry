@@ -84,11 +84,11 @@ void BalanceRobot::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 10.0;
-    aggKi = 0.8;
+    aggKp = 9.0;
+    aggKi = 0.6;
     aggKd = 0.6;
     aggSD = 4.0;
-    aggAC = 5.0;//defaulf 1.0
+    aggAC = 3.4;//defaulf 1.0
 }
 
 bool BalanceRobot::initGyroMeter()
@@ -227,7 +227,7 @@ void BalanceRobot::calculatePwm()
 
     balancePID->Compute();
 
-    pwm = -static_cast<int>(Output - (currentGyro + addPosition) * aggKd / 2);
+    pwm = -static_cast<int>(Output - (currentGyro + addPosition) * aggKd * aggKi);
 
     if(needTurnR != 0 || needTurnL != 0)
     {
@@ -526,12 +526,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         case mForward:
         {
-            needSpeed = -1*value;
+            needSpeed = -1*value + 10;
             break;
         }
         case mBackward:
         {
-            needSpeed = value;
+            needSpeed = value - 10;
             break;
         }
         case mLeft:
