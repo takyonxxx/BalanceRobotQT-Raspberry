@@ -84,11 +84,11 @@ void BalanceRobot::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 9.0;
+    aggKp = 7.0;
     aggKi = 0.6;
-    aggKd = 0.6;
+    aggKd = 0.7;
     aggSD = 4.0;
-    aggAC = 3.4;//defaulf 1.0
+    aggAC = 5.0;//defaulf 1.0
 }
 
 bool BalanceRobot::initGyroMeter()
