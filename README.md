@@ -67,7 +67,7 @@ turn switch off and on if service not start.</br>
 
 <b>Required libraries: </b></br>
 sudo apt update && sudo apt upgrade </br>
-sudo apt install wiringpi alsa-utils espeak libasound2-dev libbluetooth-dev libflac-dev bluetooth blueman bluez python-gobject python-gobject-2 libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev i2c-tools libi2c-dev qtconnectivity5-dev qtmultimedia5-dev libqt5multimedia5-plugins</br>
+sudo apt install alsa-utils espeak libasound2-dev libbluetooth-dev libflac-dev bluetooth blueman bluez python-gobject python-gobject-2 libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev i2c-tools libi2c-dev qt5-default qtconnectivity5-dev qtmultimedia5-dev libqt5multimedia5-plugins</br>
 </br>
 <b>Enable the I2C protocol feature in raspberry pi:</b></br>
 sudo raspi-config</br>
