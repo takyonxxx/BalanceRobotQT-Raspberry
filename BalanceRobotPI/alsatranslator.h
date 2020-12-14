@@ -65,7 +65,7 @@ private:
     qint64 nanoSec;
 
     void record();
-    void findCaptureDevice(char* device);
+    void findCaptureDevice(char* devname);
     void speakTr(QString text);
     void speakEn(QString text);
 

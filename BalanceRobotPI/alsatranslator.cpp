@@ -60,13 +60,14 @@ void AlsaTranslator::findCaptureDevice(char *devname)
     snd_ctl_card_info_t *info;
     snd_pcm_info_t *pcminfo;
     char str[128];
+    bool found = false;
 
     snd_ctl_card_info_alloca(&info);
     snd_pcm_info_alloca(&pcminfo);
     printf("\n");
 
     idx = -1;
-    while (1)
+    while (!found)
     {
         if ((err = snd_card_next(&idx)) < 0) {
             printf("Card next error: %s\n", snd_strerror(err));
@@ -103,6 +104,7 @@ void AlsaTranslator::findCaptureDevice(char *devname)
             }
             printf("Sound card - %i - '%s' has capture device.\n", snd_ctl_card_info_get_card(info), snd_ctl_card_info_get_name(info));
             sprintf(devname, "plughw:%d,0", snd_ctl_card_info_get_card(info));
+            found = true;
             break;
         }
         snd_ctl_close(handle);
