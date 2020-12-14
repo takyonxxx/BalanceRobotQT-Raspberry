@@ -580,19 +580,19 @@ void BalanceRobot::onCommandReceived(QString command)
 
         do
         {
-            if(m_command.contains("ileri") || m_command.contains("merhaba"))
+            if(m_command.contains("ileri"))
             {                
                 needSpeed = -1*value;
             }
-            else if(m_command.contains("geri") || m_command.contains("güle"))
+            else if(m_command.contains("geri"))
             {
                 needSpeed = value;
             }
-            else if(m_command.contains("ol"))
+            else if(m_command.contains("sol"))
             {
                 needTurnL = value;
             }
-            else if(m_command.contains("ağ"))
+            else if(m_command.contains("sağ"))
             {
                 needTurnR = value;
             }
