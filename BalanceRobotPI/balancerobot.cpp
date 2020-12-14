@@ -84,11 +84,11 @@ void BalanceRobot::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 7.0;
+    aggKp = 8.0;
     aggKi = 0.6;
-    aggKd = 0.7;
+    aggKd = 0.8;
     aggSD = 4.0;
-    aggAC = 5.0;//defaulf 1.0
+    aggAC = 6.0;//defaulf 1.0
 }
 
 bool BalanceRobot::initGyroMeter()
@@ -619,7 +619,7 @@ void BalanceRobot::mainLoop()
         calculatePwm();
         controlRobot();
 
-        QThread::usleep(SLEEP_PERIOD * SAMPLE_TIME);
+        QThread::usleep(10);
     }
 }
 
