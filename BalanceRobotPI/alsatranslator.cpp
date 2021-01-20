@@ -9,6 +9,7 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     char devname[10] = {0};
 
     findCaptureDevice(devname);
+    qDebug() << devname;
 
     if(QString(devname).isEmpty())
         foundCapture = false;
@@ -139,7 +140,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         connect(thread,  &QThread::finished,  this,  [=]()
         {
             setCommand(command);
-            record();;
+            record();
         });
         thread->start();
     }
@@ -164,7 +165,6 @@ void AlsaTranslator::translate() {
 
     QByteArray fileData = file.readAll();
     file.close();
-    file.remove();
 
     QJsonDocument data {
         QJsonObject { {
@@ -183,6 +183,7 @@ void AlsaTranslator::translate() {
     };
 
     networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
+    file.remove();
 }
 
 void AlsaTranslator::stop()
@@ -209,11 +210,11 @@ void AlsaTranslator::record()
 
 void AlsaTranslator::speak(SType type, QString &text)
 {
-    execCommand((char*)"amixer -c 1 set Mic 0DB");
+    execCommand((char*)"amixer -c 1 set Mic 0DB");    
     if(type==SType::TR)
         speakTr(text);
     else if(type==SType::EN)
-        speakEn(text);
+        speakEn(text);    
     execCommand((char*)"amixer -c 1 set Mic 100DB");
 }
 

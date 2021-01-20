@@ -25,7 +25,7 @@ bool ALSARecorder::initCaptureDevice() {
     if ((err = snd_pcm_open(&capture_handle, deviceName.toStdString().c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0)
 
     {
-        std::cerr << "cannot open audio device " << capture_handle << "(" << snd_strerror(err) << ", " << err << ")" << "\n";
+        std::cerr << "cannot open audio device " << deviceName.toStdString().c_str() << " (" << snd_strerror(err) << ", " << err << ")" << "\n";
         return OPEN_ERROR;
     }
 
@@ -242,6 +242,13 @@ bool ALSARecorder::record(int mseconds)
     {
         FLAC__bool flac_ok = true;
         FLAC__int32 pcm[get_frames_per_period() * channels];
+
+        /*const int result = remove((char*)fileName.toStdString().c_str());
+        if( result == 0 ){
+            printf( "Old Flac removed.\n" );
+        } else {
+            printf( "%s\n", strerror( errno ) ); // No such file or directory
+        }*/
 
         initFlacDecoder((char*)fileName.toStdString().c_str());
 

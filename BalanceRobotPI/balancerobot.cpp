@@ -575,9 +575,7 @@ void BalanceRobot::onCommandReceived(QString command)
     {
         int value = 40;
         auto endwait = QDateTime::currentMSecsSinceEpoch() + 1000;
-        auto m_command = command.toLower();
-        qDebug() << m_command;
-
+        auto m_command = command.toLower();        
         do
         {
             if(m_command.contains("ileri"))
@@ -639,16 +637,17 @@ void BalanceRobot::init()
 
     initPid();
 
+    execCommand((char*)"aplay r2d2.wav");
+
+    translator = new AlsaTranslator(this);
+    translator->setRecordDuration(1500);
+    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
+
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
     gattServer->startBleService();
 
-    translator = new AlsaTranslator(this);
-    translator->setRecordDuration(2000);
-    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
-
-    execCommand((char*)"aplay r2d2.wav");
     soundText = ("Robot başlıyor.");
     QThread *thread = QThread::create([this]
     {
