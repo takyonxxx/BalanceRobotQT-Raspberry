@@ -85,7 +85,7 @@ void BalanceRobot::ResetValues()
     pwm_r = 0;
 
     aggKp = 8.0;
-    aggKi = 0.6;
+    aggKi = 0.4;
     aggKd = 0.8;
     aggSD = 4.0;
     aggAC = 1.0;//defaulf 1.0
