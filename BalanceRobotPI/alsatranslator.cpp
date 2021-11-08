@@ -9,7 +9,7 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     char devname[10] = {0};
 
     findCaptureDevice(devname);
-    qDebug() << devname;
+    qDebug() << "Capture device" << devname;
 
     if(QString(devname).isEmpty())
         foundCapture = false;
@@ -18,15 +18,11 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
         if (!this->location.exists())
             this->location.mkpath(".");
 
-        this->filePath = location.filePath(fileName);
-
-        this->audioRecorder.setOutputLocation(filePath);
         this->audioRecorder.setDeviceName(devname);
         this->audioRecorder.setChannels(1);
         this->audioRecorder.setSampleRate(44100);
         this->audioRecorder.initCaptureDevice();
         foundCapture = true;
-        file.setFileName(this->filePath);
 
         this->url.setUrl(baseApi);
         this->url.setQuery("key=" + apiKey);
@@ -120,6 +116,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         return;
 
     auto command = QString{};
+    auto confidence = 0.0;
 
     auto data = QJsonDocument::fromJson(response->readAll());
     response->deleteLater();
@@ -128,33 +125,35 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
 
     if (error.isUndefined()) {
         command = data["results"][0]["alternatives"][0]["transcript"].toString();
-        setRunning(false);
+        if(!data["results"][0]["alternatives"][0]["confidence"].isUndefined())
+        {
+            confidence = data["results"][0]["alternatives"][0]["confidence"].toDouble();
+        }
     } else {
-        setRunning(false);
         setError(error.toString());
     }
 
-    if(!command.isEmpty())
+    qDebug() << command << confidence;
+
+    if (confidence >= 0.7)
     {
-        QThread *thread = QThread::create([this, &command]{ speak(TR, command); });
-        connect(thread,  &QThread::finished,  this,  [=]()
-        {
-            setCommand(command);
-            record();
-        });
-        thread->start();
+        setCommand(command);
     }
     else
     {
-        setCommand(command);
         record();
     }
+
+    setRunning(false);
 }
 
 void AlsaTranslator::translate() {
 
     if(m_stop)
         return;
+
+    QFile file{};
+    file.setFileName(this->filePath);
 
     if (!file.open(QIODevice::ReadOnly)) {
         qDebug()  << "cannot open file:" << file.errorString() << file.fileName();
@@ -165,25 +164,31 @@ void AlsaTranslator::translate() {
 
     QByteArray fileData = file.readAll();
     file.close();
+    file.remove();
 
     QJsonDocument data {
-        QJsonObject { {
+        QJsonObject
+        {
+            {
                 "audio",
-                QJsonObject { {"content", QJsonValue::fromVariant(fileData.toBase64())} }
-                      },  {
+                QJsonObject {
+                    {"content", QJsonValue::fromVariant(fileData.toBase64())}
+                }
+            },
+            {
                 "config",
                 QJsonObject {
                     {"encoding", "FLAC"},
-                    {"languageCode", "tr-TR"},
+                    {"languageCode", languageCode},
                     {"model", "command_and_search"},
                     {"enableWordTimeOffsets", false},
                     {"sampleRateHertz", (int)audioRecorder.getSampleRate()}
-                }}
-                    }
+                }
+            }
+        }
     };
-
+    fileData.clear();
     networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
-    file.remove();
 }
 
 void AlsaTranslator::stop()
@@ -196,25 +201,41 @@ void AlsaTranslator::setRecordDuration(int value)
     recordDuration = value;
 }
 
+void AlsaTranslator::setLanguageCode(const QString &newLanguageCode)
+{
+    languageCode = newLanguageCode;
+}
+
+const QString &AlsaTranslator::getLanguageCode() const
+{
+    return languageCode;
+}
+
 void AlsaTranslator::record()
 {
     if(!foundCapture)
         return;
 
-    execCommand((char*)"aplay beep.wav");
-    setError("");
-    setCommand("");
+    const QString fileName = QUuid::createUuid().toString() + ".flac"; // random unique recording name
+    this->filePath = location.filePath(fileName);
+    this->audioRecorder.setOutputLocation(filePath);
+
     setRunning(true);
+    setError("");
+    execCommand((char*)"aplay beep.wav");
     audioRecorder.record(recordDuration);
 }
 
 void AlsaTranslator::speak(SType type, QString &text)
 {
-    execCommand((char*)"amixer -c 1 set Mic 0DB");    
+    if(text.isEmpty())
+        return;
+
+    execCommand((char*)"amixer -c 1 set Mic 0DB");
     if(type==SType::TR)
         speakTr(text);
     else if(type==SType::EN)
-        speakEn(text);    
+        speakEn(text);
     execCommand((char*)"amixer -c 1 set Mic 100DB");
 }
 

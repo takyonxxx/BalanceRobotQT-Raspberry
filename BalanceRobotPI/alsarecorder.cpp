@@ -16,6 +16,11 @@ void ALSARecorder::setPause(bool pause)
     m_pause = pause;
 }
 
+unsigned int ALSARecorder::getChannels() const
+{
+    return channels;
+}
+
 bool ALSARecorder::initCaptureDevice() {
 
     snd_pcm_hw_params_t *params;
@@ -243,12 +248,10 @@ bool ALSARecorder::record(int mseconds)
         FLAC__bool flac_ok = true;
         FLAC__int32 pcm[get_frames_per_period() * channels];
 
-        /*const int result = remove((char*)fileName.toStdString().c_str());
+        const int result = remove((char*)fileName.toStdString().c_str());
         if( result == 0 ){
             printf( "Old Flac removed.\n" );
-        } else {
-            printf( "%s\n", strerror( errno ) ); // No such file or directory
-        }*/
+        }
 
         initFlacDecoder((char*)fileName.toStdString().c_str());
 

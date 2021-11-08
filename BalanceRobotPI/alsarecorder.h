@@ -64,6 +64,8 @@ public:
 
     void setPause(bool pause);
 
+    unsigned int getChannels() const;
+
 private:
     QString deviceName;
     QString fileName;

@@ -114,9 +114,9 @@ private:
     Kalman kalmanX{};
     Kalman kalmanY{};
 
-    std::string currentSound;
+    std::string currentSound{};
 
-    QString soundText;
+    QString soundText{};
     bool robotActive{true};
 
     double Input;

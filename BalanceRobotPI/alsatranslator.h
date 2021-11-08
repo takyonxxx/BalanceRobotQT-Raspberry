@@ -29,48 +29,50 @@ public:
     AlsaTranslator(QObject* parent);
     ~AlsaTranslator();
 
-    Q_PROPERTY(QString command READ getCommand NOTIFY commandChanged)
     Q_PROPERTY(QString error READ getError NOTIFY errorChanged)
     Q_PROPERTY(bool running READ getRunning NOTIFY runningChanged)
 
     void speak(SType type, QString &text);
     void start();
     void stop();
+    void record();
     void setRecordDuration(int value);
 
-private:    
+    void setLanguageCode(const QString &newLanguageCode);
+
+    const QString &getLanguageCode() const;
+
+private:
     QNetworkRequest request;
-    QFile file;
-    QUrl url;
-    QString filePath;
+    QUrl url{};
+    QString filePath{};
+    QString languageCode{"en-US"};
 
 
     const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    const QString fileName = "record.flac";//QUuid::createUuid().toString() + ".flac"; // random unique recording name
+    const QString fileName {};
     const int maxDuration = 10000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed
 
     ALSARecorder audioRecorder;
     QNetworkAccessManager networkAccessManager;
-    std::thread soundhread;
+    std::thread soundhread{};
 
-    QString command = ""; // last command
-    QString speech = ""; // last speech
-    QString error = ""; // last error
-    int recordDuration = 1000; // recording duration in miliseconds
+    QString speech = {}; // last speech
+    QString error = {}; // last error
+    int recordDuration{0}; // recording duration in miliseconds
     bool foundCapture {false};
     bool running {false}; // translation state
 
-    QElapsedTimer timer;
-    qint64 nanoSec;
+    QElapsedTimer timer{};
+    qint64 nanoSec{};
 
-    void record();
     void findCaptureDevice(char* devname);
     void speakTr(QString text);
     void speakEn(QString text);
 
-    QString soundFormatTr;
-    QString soundFormatEn;
+    QString soundFormatTr{};
+    QString soundFormatEn{};
     int soundCardNumber{0};
 
     bool getRunning() const {
@@ -85,15 +87,8 @@ private:
         }
     }
 
-    QString getCommand() const {
-        return this->command;
-    }
-
-    void setCommand(QString command) {
-        if (this->command != command) {
-            this->command = command;
-            emit commandChanged(command);
-        }
+    void setCommand(QString command) {       
+        emit commandChanged(command);
     }
 
     QString getError() const {
