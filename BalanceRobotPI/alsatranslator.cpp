@@ -187,6 +187,7 @@ void AlsaTranslator::translate() {
             }
         }
     };
+
     fileData.clear();
     networkAccessManager.post(this->request, data.toJson(QJsonDocument::Compact));
 }
