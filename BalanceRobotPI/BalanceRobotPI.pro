@@ -14,6 +14,7 @@ SOURCES += main.cpp \
     i2cdev.cpp \
     message.cpp \
     mpu6050.cpp \
+    networkrequest.cpp \
     pid.cpp
 
 HEADERS += \
@@ -26,6 +27,7 @@ HEADERS += \
     kalman.h \
     message.h \
     mpu6050.h \
+    networkrequest.h \
     pid.h
 
 QMAKE_INCDIR += /usr/local/include

@@ -133,9 +133,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         setError(error.toString());
     }
 
-    qDebug() << command << confidence;
-
-    if (confidence >= 0.7)
+    if (confidence >= 0.3)
     {
         setCommand(command);
     }

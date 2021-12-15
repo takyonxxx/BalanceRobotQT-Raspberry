@@ -570,17 +570,30 @@ void BalanceRobot::onDataReceived(QByteArray data)
 }
 
 void BalanceRobot::onCommandReceived(QString command)
-{
-    auto m_command = command.toLower();
-    soundText = command;
-    auto thread = QThread::create([this]{
-        translator->speak(EN, soundText);
-    });
-    connect(thread,  &QThread::finished,  this,  [=]()
+{    
+    if(networkRequest && !command.isEmpty())
     {
-        this->translator->record();
-    });
-    thread->start();
+        qDebug() << "Voice received: " << command;
+        networkRequest->sendRequest(command);
+    }
+}
+
+void BalanceRobot::recievedResponse(QString result)
+{
+    if (!result.isEmpty())
+    {
+        soundText = result;
+
+        qDebug() << "Wiki received: " << soundText;
+        auto thread = QThread::create([this]{
+            translator->speak(TR, soundText);
+        });
+        connect(thread,  &QThread::finished,  this,  [=]()
+        {
+            this->translator->record();
+        });
+        thread->start();
+    }
 }
 
 //loops
@@ -622,14 +635,17 @@ void BalanceRobot::init()
 
     translator = new AlsaTranslator(this);
     translator->setRecordDuration(2000);
-    //translator->setLanguageCode("tr-TR");
-    translator->setLanguageCode("en-US");
+    translator->setLanguageCode("tr-TR");
+    //translator->setLanguageCode("en-US");
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
 
     gattServer = new GattServer(this);
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
     gattServer->startBleService();
+
+    networkRequest = NetworkRequest::getInstance();
+    connect(networkRequest, &NetworkRequest::sendResponse, this, &BalanceRobot::recievedResponse);
 
     auto thread = QThread::create([this]{
         QString device, ip, mac, mask;
@@ -639,6 +655,9 @@ void BalanceRobot::init()
             this->getDeviceInfo(device, ip, mac, mask);
             QThread::msleep(10);
         }
+
+        qDebug() << ip << mac;
+
         soundText = ("Robot başlıyor.");
         translator->speak(TR, soundText);
         auto soundText = ("Aypi adresi. " + ip.replace(".", ", ") + ".");

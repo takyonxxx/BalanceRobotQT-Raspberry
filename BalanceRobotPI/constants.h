@@ -12,7 +12,9 @@ enum SType
 };
 
 static QString baseApi = "https://speech.googleapis.com/v1/speech:recognize";
-static QString apiKey = "your api";
+static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
+static QString baseWikiSummaryApi = "https://tr.wikipedia.org/api/rest_v1/page/summary/";
+static QString apiKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
 
 static char * appendChar(char * string1, char * string2)
 {

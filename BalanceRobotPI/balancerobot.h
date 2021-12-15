@@ -20,6 +20,7 @@
 #include <message.h>
 #include "alsatranslator.h"
 #include "constants.h"
+#include "networkrequest.h"
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -76,6 +77,7 @@ private slots:
 private:
 
     std::mutex mutex_loop;
+    NetworkRequest *networkRequest{};
 
     bool initGyroMeter();
     bool initwiringPi();
@@ -158,6 +160,9 @@ private:
     uint32_t timer;
     int16_t ax, ay, az;
     int16_t gx, gy, gz;       
+
+private slots:
+    void recievedResponse(QString);
 
 private:
     template<class T>
