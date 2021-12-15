@@ -29,6 +29,8 @@ public:
 
 private slots:
     void responseReceived(QNetworkReply *response);
+    void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void slotError(QNetworkReply::NetworkError);
 signals:
     void sendResponse(QString response);
 
