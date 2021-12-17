@@ -21,7 +21,6 @@ NetworkRequest::NetworkRequest(QObject *parent) : QObject(parent)
 void NetworkRequest::sendRequest(QString request)
 {
     this->url.setQuery("format=json&action=query&prop=extracts&srlimit=1&origin=*&exintro&explaintext&redirects=1&titles=" + request.split(" ")[0]);
-    qDebug() << this->url;
 
     this->request.setUrl(this->url);
     this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/text");

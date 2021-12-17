@@ -1,8 +1,12 @@
 #include "alsarecorder.h"
+#include <math.h>
 
 ALSARecorder::ALSARecorder(QObject *parent)
     : QObject(parent)
-{   
+{      
+    kalman_filter = new KalmanFilter(KF_VAR_ACCEL);
+    kalman_filter->Reset(0.0);
+    start_time =  clock();
 }
 
 ALSARecorder::~ALSARecorder()
@@ -183,6 +187,71 @@ unsigned int ALSARecorder::capture_into_buffer(char* buffer) {
         return 0;
     }
     return frames_read;
+}
+
+
+float ALSARecorder::processRawData(char* buffer, int cap_size)
+{
+    unsigned int            fftsize;
+    unsigned int            i;
+    float                   pwr;
+    float                   pwr_scale;
+    std::complex<float>     pt;
+    float sum = 0.0, decibel = 0.0;
+
+    if(cap_size == 0)
+        return decibel;
+
+    fftsize = static_cast<unsigned int>(cap_size);
+
+    auto d_fftData = buffer;
+
+    pwr_scale = static_cast<float>(1.0 / (fftsize * fftsize));
+
+    end_time =  clock();
+    dt = float( clock () - start_time );
+
+    for (i = 0; i < fftsize; i++)
+    {
+        if (i < fftsize/2)
+        {
+            pt = d_fftData[fftsize/2+i];
+        }
+        else
+        {
+            pt = d_fftData[i-fftsize/2];
+        }
+
+        // calculate power in dBFS
+        pwr = pwr_scale * (pt.imag() * pt.imag() + pt.real() * pt.real()) ;
+
+        // calculate signal level in dBFS
+        auto val = 20.f * log10(pwr + 1.0e-45f);
+        sum += val;
+    }
+
+    if(dt > 0)
+    {
+        kalman_filter->Update(sum, KF_VAR_MEASUREMENT, dt);
+        sum = kalman_filter->GetXAbs();
+    }
+    start_time = end_time;
+
+    decibel = sum / fftsize;
+    return decibel;
+}
+
+float ALSARecorder::GetMicLevel()
+{
+    if(m_pause)
+        return false;
+
+    if(!capture_handle)
+        return false;
+
+    char* buffer = allocate_buffer();
+    auto cap_size = capture_into_buffer(buffer);
+    return processRawData(buffer, cap_size);
 }
 
 bool ALSARecorder::initFlacDecoder(char *flacfile)

@@ -12,6 +12,7 @@ SOURCES += main.cpp \
     balancerobot.cpp \
     gattserver.cpp \
     i2cdev.cpp \
+    kalmanfilter.cpp \
     message.cpp \
     mpu6050.cpp \
     networkrequest.cpp \
@@ -25,6 +26,7 @@ HEADERS += \
     gattserver.h \
     i2cdev.h \
     kalman.h \
+    kalmanfilter.h \
     message.h \
     mpu6050.h \
     networkrequest.h \
@@ -34,8 +36,9 @@ QMAKE_INCDIR += /usr/local/include
 QMAKE_LIBDIR += /usr/lib
 QMAKE_LIBDIR += /usr/local/lib
 QMAKE_LIBDIR += /usr/lib/x86_64-linux-gnu
+INCLUDEPATH += /usr/local/include
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lasound -lFLAC
+LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC
 
 
 RESOURCES +=

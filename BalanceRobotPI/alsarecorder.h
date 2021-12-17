@@ -24,10 +24,20 @@
 #define START_ERROR       13
 
 #include <iostream>
+#include <complex>
+#include "kalmanfilter.h"
 
 using namespace std;
 
 #define READSIZE 1024
+#define REAL 0
+#define IMAG 1
+#define mag_sqrd(re,im) (re*re+im*im)
+#define Decibels(re,im) ((re == 0 && im == 0) ? (0) : 10.0 * log10(double(mag_sqrd(re,im))))
+#define Amplitude(re,im,len) (GetFrequencyIntensity(re,im)/(len))
+#define AmplitudeScaled(re,im,len,scale) ((int)Amplitude(re,im,len)%scale)
+
+
 static unsigned totalSamples{};
 
 class ALSARecorder:public QObject
@@ -59,6 +69,8 @@ public:
     void setSampleRate(unsigned int value);
     unsigned int getSampleRate() const;
     void setChannels(unsigned int value);
+    float GetMicLevel();
+    float processRawData(char* buffer, int cap_size);
     bool record(int mseconds);
     void close();
 
@@ -72,6 +84,11 @@ private:
     unsigned int sampleRate;
     unsigned int channels;
     unsigned bps{16};
+
+    KalmanFilter *kalman_filter;
+    long start_time{0};
+    long end_time{0};
+    long dt{0};
 
     bool initFlacDecoder(char* flacfile);
     bool finishFlacDecoder();

@@ -6,6 +6,8 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
     soundFormatTr = QString("espeak -vtr+f2");
     soundFormatEn = QString("espeak -ven+f2");
 
+    setRunning(false);
+
     char devname[10] = {0};
 
     findCaptureDevice(devname);
@@ -86,7 +88,7 @@ void AlsaTranslator::findCaptureDevice(char *devname)
         while (1) {
             snd_pcm_sync_id_t sync;
             if ((err = snd_ctl_pcm_next_device(handle, &dev)) < 0) {
-                printf("  PCM next device error: %s\n", snd_strerror(err));
+                printf("PCM next device error: %s\n", snd_strerror(err));
                 break;
             }
             if (dev < 0)
@@ -133,16 +135,15 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         setError(error.toString());
     }
 
-    if (confidence >= 0.3)
+    if(!command.isEmpty())
     {
-        setCommand(command);
+         setCommand(command);
     }
-    else
+    else if(!ignore_record)
     {
-        record();
+        ignore_record = true;
+        setRunning(false);
     }
-
-    setRunning(false);
 }
 
 void AlsaTranslator::translate() {
@@ -156,6 +157,7 @@ void AlsaTranslator::translate() {
     if (!file.open(QIODevice::ReadOnly)) {
         qDebug()  << "cannot open file:" << file.errorString() << file.fileName();
         setRunning(false);
+        ignore_record = false;
         setError(file.errorString());
         return;
     }
@@ -212,6 +214,9 @@ const QString &AlsaTranslator::getLanguageCode() const
 
 void AlsaTranslator::record()
 {
+    if (getRunning())
+        return;
+
     if(!foundCapture)
         return;
 
@@ -221,7 +226,7 @@ void AlsaTranslator::record()
 
     setRunning(true);
     setError("");
-    execCommand((char*)"aplay beep.wav");
+    //execCommand((char*)"aplay beep.wav");
     audioRecorder.record(recordDuration);
 }
 
@@ -255,12 +260,52 @@ void AlsaTranslator::speakEn(QString text)
     execCommand((char*)espeakBuff.c_str());
 }
 
+void AlsaTranslator::setDedectSoundDecibel(float newDedect_sound_decibel)
+{
+    dedect_sound_decibel = newDedect_sound_decibel;
+}
+
+void AlsaTranslator::setIgnoreRecord(bool newIgnore_record)
+{
+    ignore_record = newIgnore_record;
+}
 
 void AlsaTranslator::start()
 {
     if(!foundCapture)
         return;
 
-    qDebug() << "Alsa Translator is started...";
-    record();
+    QThread *thread = QThread::create([this]
+    {
+        qDebug() << "Alsa Translator is listening.";
+
+        //record();
+        while (true)
+        {
+            if (m_stop)
+                break;
+
+            if (getRunning() || ignore_record)
+            {
+                if(ignore_record)
+                    ignore_record = false;
+                QThread::msleep(100);
+                continue;
+            }
+
+            record();
+
+            /*auto decibel = audioRecorder.GetMicLevel();
+            //auto dedect sound, should be improved.
+            if (decibel > dedect_sound_decibel)
+            {                
+               qDebug() << decibel;
+               record();
+            }*/
+
+            QThread::msleep(100);
+        }
+    });
+    thread->start();
 }
+

@@ -573,7 +573,7 @@ void BalanceRobot::onCommandReceived(QString command)
 {    
     if(networkRequest && !command.isEmpty())
     {
-        qDebug() << "Voice received: " << command;
+        qDebug() << "Voice received: " << command;        
         networkRequest->sendRequest(command);
     }
 }
@@ -590,7 +590,8 @@ void BalanceRobot::recievedResponse(QString result)
         });
         connect(thread,  &QThread::finished,  this,  [=]()
         {
-            this->translator->record();
+            translator->setRunning(false);
+            translator->setIgnoreRecord(false);
         });
         thread->start();
     }
@@ -636,7 +637,8 @@ void BalanceRobot::init()
     translator = new AlsaTranslator(this);
     translator->setRecordDuration(2000);
     translator->setLanguageCode("tr-TR");
-    //translator->setLanguageCode("en-US");
+    translator->setDedectSoundDecibel(-120.0);
+
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
 
     gattServer = new GattServer(this);
@@ -646,6 +648,12 @@ void BalanceRobot::init()
 
     networkRequest = NetworkRequest::getInstance();
     connect(networkRequest, &NetworkRequest::sendResponse, this, &BalanceRobot::recievedResponse);
+
+    for(int i=0; i<250; i++)
+        calculateGyro();
+
+    m_MainEnableThread = true;
+    timer = micros();
 
     auto thread = QThread::create([this]{
         QString device, ip, mac, mask;
@@ -665,15 +673,10 @@ void BalanceRobot::init()
     });
     connect(thread,  &QThread::finished,  this,  [=]()
     {
+        QThread::msleep(1000);
         this->translator->start();
     });
     thread->start();
-
-    for(int i=0; i<250; i++)
-        calculateGyro();
-
-    m_MainEnableThread = true;
-    timer = micros();
 
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();

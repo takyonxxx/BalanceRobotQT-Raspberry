@@ -42,6 +42,21 @@ public:
 
     const QString &getLanguageCode() const;
 
+    bool getRunning() const {
+        return this->running;
+    }
+
+
+    void setRunning(bool running) {
+        if (running != this->running) {
+            this->running = running;
+            emit runningChanged(running);
+        }
+    }
+    void setDedectSoundDecibel(float newDedect_sound_decibel);
+
+    void setIgnoreRecord(bool newIgnore_record);
+
 private:
     QNetworkRequest request;
     QUrl url{};
@@ -63,6 +78,7 @@ private:
     int recordDuration{0}; // recording duration in miliseconds
     bool foundCapture {false};
     bool running {false}; // translation state
+    bool ignore_record {false};
 
     QElapsedTimer timer{};
     qint64 nanoSec{};
@@ -75,17 +91,8 @@ private:
     QString soundFormatEn{};
     int soundCardNumber{0};
 
-    bool getRunning() const {
-        return this->running;
-    }
+    float dedect_sound_decibel{0};
 
-
-    void setRunning(bool running) {
-        if (running != this->running) {
-            this->running = running;
-            emit runningChanged(running);
-        }
-    }
 
     void setCommand(QString command) {       
         emit commandChanged(command);

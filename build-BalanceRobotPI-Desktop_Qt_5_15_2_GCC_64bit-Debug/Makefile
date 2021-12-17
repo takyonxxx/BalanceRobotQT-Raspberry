@@ -40,7 +40,7 @@ DISTNAME      = BalanceRobotPI1.0.0
 DISTDIR = /home/tbiliyor/Desktop/BalanceRobotQT-Raspberry/build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/.tmp/BalanceRobotPI1.0.0
 LINK          = g++
 LFLAGS        = -Wl,-rpath,/home/tbiliyor/Qt/5.15.2/gcc_64/lib -Wl,-rpath-link,/home/tbiliyor/Qt/5.15.2/gcc_64/lib
-LIBS          = $(SUBLIBS) -L/usr/lib -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -lm -lcrypt -lwiringPi -li2c -lasound -lFLAC /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Bluetooth.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Multimedia.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Network.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Gui.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Core.so -lGL -lpthread   
+LIBS          = $(SUBLIBS) -L/usr/lib -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Bluetooth.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Multimedia.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Network.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Gui.so /home/tbiliyor/Qt/5.15.2/gcc_64/lib/libQt5Core.so -lGL -lpthread   
 AR            = ar cqs
 RANLIB        = 
 SED           = sed
@@ -65,8 +65,7 @@ SOURCES       = ../BalanceRobotPI/main.cpp \
 		moc_alsatranslator.cpp \
 		moc_balancerobot.cpp \
 		moc_gattserver.cpp \
-		moc_networkrequest.cpp \
-		moc_replytimeout.cpp
+		moc_networkrequest.cpp
 OBJECTS       = main.o \
 		alsarecorder.o \
 		alsatranslator.o \
@@ -81,8 +80,7 @@ OBJECTS       = main.o \
 		moc_alsatranslator.o \
 		moc_balancerobot.o \
 		moc_gattserver.o \
-		moc_networkrequest.o \
-		moc_replytimeout.o
+		moc_networkrequest.o
 DIST          = ../../../Qt/5.15.2/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../Qt/5.15.2/gcc_64/mkspecs/common/unix.conf \
 		../../../Qt/5.15.2/gcc_64/mkspecs/common/linux.conf \
@@ -303,8 +301,7 @@ DIST          = ../../../Qt/5.15.2/gcc_64/mkspecs/features/spec_pre.prf \
 		../BalanceRobotPI/message.h \
 		../BalanceRobotPI/mpu6050.h \
 		../BalanceRobotPI/networkrequest.h \
-		../BalanceRobotPI/pid.h \
-		../BalanceRobotPI/replytimeout.h ../BalanceRobotPI/main.cpp \
+		../BalanceRobotPI/pid.h ../BalanceRobotPI/main.cpp \
 		../BalanceRobotPI/alsarecorder.cpp \
 		../BalanceRobotPI/alsatranslator.cpp \
 		../BalanceRobotPI/balancerobot.cpp \
@@ -763,7 +760,7 @@ distdir: FORCE
 	@test -d $(DISTDIR) || mkdir -p $(DISTDIR)
 	$(COPY_FILE) --parents $(DIST) $(DISTDIR)/
 	$(COPY_FILE) --parents ../../../Qt/5.15.2/gcc_64/mkspecs/features/data/dummy.cpp $(DISTDIR)/
-	$(COPY_FILE) --parents ../BalanceRobotPI/alsarecorder.h ../BalanceRobotPI/alsatranslator.h ../BalanceRobotPI/balancerobot.h ../BalanceRobotPI/constants.h ../BalanceRobotPI/gattserver.h ../BalanceRobotPI/i2cdev.h ../BalanceRobotPI/kalman.h ../BalanceRobotPI/message.h ../BalanceRobotPI/mpu6050.h ../BalanceRobotPI/networkrequest.h ../BalanceRobotPI/pid.h ../BalanceRobotPI/replytimeout.h $(DISTDIR)/
+	$(COPY_FILE) --parents ../BalanceRobotPI/alsarecorder.h ../BalanceRobotPI/alsatranslator.h ../BalanceRobotPI/balancerobot.h ../BalanceRobotPI/constants.h ../BalanceRobotPI/gattserver.h ../BalanceRobotPI/i2cdev.h ../BalanceRobotPI/kalman.h ../BalanceRobotPI/message.h ../BalanceRobotPI/mpu6050.h ../BalanceRobotPI/networkrequest.h ../BalanceRobotPI/pid.h $(DISTDIR)/
 	$(COPY_FILE) --parents ../BalanceRobotPI/main.cpp ../BalanceRobotPI/alsarecorder.cpp ../BalanceRobotPI/alsatranslator.cpp ../BalanceRobotPI/balancerobot.cpp ../BalanceRobotPI/gattserver.cpp ../BalanceRobotPI/i2cdev.cpp ../BalanceRobotPI/message.cpp ../BalanceRobotPI/mpu6050.cpp ../BalanceRobotPI/networkrequest.cpp ../BalanceRobotPI/pid.cpp $(DISTDIR)/
 
 
@@ -796,9 +793,9 @@ compiler_moc_predefs_clean:
 moc_predefs.h: ../../../Qt/5.15.2/gcc_64/mkspecs/features/data/dummy.cpp
 	g++ -pipe -g -std=gnu++1z -Wall -Wextra -dM -E -o moc_predefs.h ../../../Qt/5.15.2/gcc_64/mkspecs/features/data/dummy.cpp
 
-compiler_moc_header_make_all: moc_alsarecorder.cpp moc_alsatranslator.cpp moc_balancerobot.cpp moc_gattserver.cpp moc_networkrequest.cpp moc_replytimeout.cpp
+compiler_moc_header_make_all: moc_alsarecorder.cpp moc_alsatranslator.cpp moc_balancerobot.cpp moc_gattserver.cpp moc_networkrequest.cpp
 compiler_moc_header_clean:
-	-$(DEL_FILE) moc_alsarecorder.cpp moc_alsatranslator.cpp moc_balancerobot.cpp moc_gattserver.cpp moc_networkrequest.cpp moc_replytimeout.cpp
+	-$(DEL_FILE) moc_alsarecorder.cpp moc_alsatranslator.cpp moc_balancerobot.cpp moc_gattserver.cpp moc_networkrequest.cpp
 moc_alsarecorder.cpp: ../BalanceRobotPI/alsarecorder.h \
 		../../../Qt/5.15.2/gcc_64/include/QtCore/QThread \
 		../../../Qt/5.15.2/gcc_64/include/QtCore/qthread.h \
@@ -1704,110 +1701,6 @@ moc_networkrequest.cpp: ../BalanceRobotPI/networkrequest.h \
 		moc_predefs.h \
 		../../../Qt/5.15.2/gcc_64/bin/moc
 	/home/tbiliyor/Qt/5.15.2/gcc_64/bin/moc $(DEFINES) --include /home/tbiliyor/Desktop/BalanceRobotQT-Raspberry/build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/moc_predefs.h -I/home/tbiliyor/Qt/5.15.2/gcc_64/mkspecs/linux-g++ -I/home/tbiliyor/Desktop/BalanceRobotQT-Raspberry/BalanceRobotPI -I/home/tbiliyor/Qt/5.15.2/gcc_64/include -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtBluetooth -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtMultimedia -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtNetwork -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtGui -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtCore -I. -I/usr/include/c++/9 -I/usr/include/x86_64-linux-gnu/c++/9 -I/usr/include/c++/9/backward -I/usr/lib/gcc/x86_64-linux-gnu/9/include -I/usr/local/include -I/usr/include/x86_64-linux-gnu -I/usr/include ../BalanceRobotPI/networkrequest.h -o moc_networkrequest.cpp
-
-moc_replytimeout.cpp: ../BalanceRobotPI/replytimeout.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/QNetworkReply \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qnetworkreply.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qtnetworkglobal.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qglobal.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qconfig-bootstrapped.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qconfig.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qtcore-config.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qsystemdetection.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qprocessordetection.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcompilerdetection.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qtypeinfo.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qsysinfo.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qlogging.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qflags.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qatomic.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qbasicatomic.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qatomic_bootstrap.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qgenericatomic.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qatomic_cxx11.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qatomic_msvc.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qglobalstatic.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qmutex.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qnumeric.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qversiontagging.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qtnetwork-config.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QIODevice \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qiodevice.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qobject.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qobjectdefs.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qnamespace.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qobjectdefs_impl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstring.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qchar.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qbytearray.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qrefcount.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qarraydata.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringliteral.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringalgorithms.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringview.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringbuilder.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qlist.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qalgorithms.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qiterator.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qhashfunctions.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qpair.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qvector.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcontainertools_impl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qpoint.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qbytearraylist.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringlist.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qregexp.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qstringmatcher.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcoreevent.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qscopedpointer.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qmetatype.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qvarlengtharray.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcontainerfwd.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qobject_impl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QString \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QVariant \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qvariant.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qmap.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qdebug.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qhash.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qtextstream.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qlocale.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qshareddata.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qset.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcontiguouscache.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qsharedpointer.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qsharedpointer_impl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/QNetworkRequest \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qnetworkrequest.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QSharedDataPointer \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QUrl \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qurl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qurlquery.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/QNetworkAccessManager \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qnetworkaccessmanager.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QVector \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QObject \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/QSslConfiguration \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qsslconfiguration.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qsslsocket.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qtcpsocket.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qabstractsocket.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qsslerror.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qsslcertificate.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qcryptographichash.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qdatetime.h \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qssl.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QFlags \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/QSslPreSharedKeyAuthenticator \
-		../../../Qt/5.15.2/gcc_64/include/QtNetwork/qsslpresharedkeyauthenticator.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QMetaType \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QTimer \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qtimer.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/qbasictimer.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QTimerEvent \
-		moc_predefs.h \
-		../../../Qt/5.15.2/gcc_64/bin/moc
-	/home/tbiliyor/Qt/5.15.2/gcc_64/bin/moc $(DEFINES) --include /home/tbiliyor/Desktop/BalanceRobotQT-Raspberry/build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/moc_predefs.h -I/home/tbiliyor/Qt/5.15.2/gcc_64/mkspecs/linux-g++ -I/home/tbiliyor/Desktop/BalanceRobotQT-Raspberry/BalanceRobotPI -I/home/tbiliyor/Qt/5.15.2/gcc_64/include -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtBluetooth -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtMultimedia -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtNetwork -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtGui -I/home/tbiliyor/Qt/5.15.2/gcc_64/include/QtCore -I. -I/usr/include/c++/9 -I/usr/include/x86_64-linux-gnu/c++/9 -I/usr/include/c++/9/backward -I/usr/lib/gcc/x86_64-linux-gnu/9/include -I/usr/local/include -I/usr/include/x86_64-linux-gnu -I/usr/include ../BalanceRobotPI/replytimeout.h -o moc_replytimeout.cpp
 
 compiler_moc_objc_header_make_all:
 compiler_moc_objc_header_clean:
@@ -3075,9 +2968,7 @@ networkrequest.o: ../BalanceRobotPI/networkrequest.cpp ../BalanceRobotPI/network
 		../../../Qt/5.15.2/gcc_64/include/QtCore/QTimer \
 		../../../Qt/5.15.2/gcc_64/include/QtCore/qtimer.h \
 		../../../Qt/5.15.2/gcc_64/include/QtCore/qbasictimer.h \
-		../BalanceRobotPI/constants.h \
-		../BalanceRobotPI/replytimeout.h \
-		../../../Qt/5.15.2/gcc_64/include/QtCore/QTimerEvent
+		../BalanceRobotPI/constants.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o networkrequest.o ../BalanceRobotPI/networkrequest.cpp
 
 pid.o: ../BalanceRobotPI/pid.cpp ../BalanceRobotPI/pid.h
@@ -3097,9 +2988,6 @@ moc_gattserver.o: moc_gattserver.cpp
 
 moc_networkrequest.o: moc_networkrequest.cpp 
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_networkrequest.o moc_networkrequest.cpp
-
-moc_replytimeout.o: moc_replytimeout.cpp 
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_replytimeout.o moc_replytimeout.cpp
 
 ####### Install
 
