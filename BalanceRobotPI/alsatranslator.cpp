@@ -137,7 +137,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
 
     if(!command.isEmpty())
     {
-         setCommand(command);
+        setCommand(command);
     }
     else if(!ignore_record)
     {
@@ -295,15 +295,32 @@ void AlsaTranslator::start()
 
             record();
 
-            /*auto decibel = audioRecorder.GetMicLevel();
             //auto dedect sound, should be improved.
+
+            /*double len = 10;
+            double val = audioRecorder.GetMicLevel();
+            double instance; //Increment each time input accepted.
+
+            deque<double> dq;
+            if(instance < len){
+                dq.push_back(val);
+            }
+            else {
+                dq.pop_front();
+                dq.push_back(val);
+            }
+            double cs = 0;
+            for(auto i : dq){
+                cs += i;
+            }
+            double decibel = cs / len;
             if (decibel > dedect_sound_decibel)
-            {                
+            {
                qDebug() << decibel;
                record();
             }*/
 
-            QThread::msleep(100);
+            QThread::msleep(50);
         }
     });
     thread->start();

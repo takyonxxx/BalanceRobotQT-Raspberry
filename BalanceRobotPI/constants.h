@@ -2,8 +2,27 @@
 #define CONSTANTS_H
 #include <QString>
 #include <iostream>
-
+#include <deque>
 using namespace std;
+
+template <typename T>
+double mov_avg(vector<T> vec, int len){
+  deque<T> dq = {};
+  for(auto i = 0;i < vec.size();i++){
+    if(i < len){
+      dq.push_back(vec[i]);
+    }
+    else {
+      dq.pop_front();
+      dq.push_back(vec[i]);
+    }
+  }
+  double cs = 0;
+  for(auto i : dq){
+    cs += i;
+  }
+  return cs / len;
+}
 
 enum SType
 {
