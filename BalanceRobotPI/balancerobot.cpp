@@ -1,4 +1,5 @@
 #include "balancerobot.h"
+#include "constants.h"
 
 #define MPU6050_I2C_ADDRESS 0x68
 #define RESTRICT_PITCH
@@ -370,13 +371,13 @@ void BalanceRobot::onConnectionStatedChanged(bool state)
 {
     if(state)
     {
-        soundText = ("Bağlantı kuruldu.");
-        translator->speak(TR, soundText);
+        soundText = ("Bluetooth connection is succesfull.");
+        translator->speak(soundText);
     }
     else
     {
-        soundText = ("Bağlantı koptu.");
-        translator->speak(TR, soundText);
+        soundText = ("Bluetooth connection lost.");
+        translator->speak(soundText);
     }
 }
 
@@ -521,7 +522,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mSpeak:
         {
             soundText = QString(parsedValue.data());
-            translator->speak(TR, soundText);
+            translator->speak(soundText);
             break;
         }
         case mForward:
@@ -582,16 +583,23 @@ void BalanceRobot::recievedResponse(QString result)
 {
     if (!result.isEmpty())
     {
+        if (result.contains("no result"))
+        {
+             qDebug() << "No response.";
+             translator->record();
+             return;
+        }
+
         soundText = result;
 
-        qDebug() << "Wiki received: " << soundText;
+        qDebug() << "Response received: " << soundText;
+
         auto thread = QThread::create([this]{
-            translator->speak(TR, soundText);
+            translator->speak(soundText);
         });
         connect(thread,  &QThread::finished,  this,  [=]()
         {
-            translator->setRunning(false);
-            translator->setIgnoreRecord(false);
+            translator->record();
         });
         thread->start();
     }
@@ -635,9 +643,8 @@ void BalanceRobot::init()
     execCommand((char*)"aplay r2d2.wav");
 
     translator = new AlsaTranslator(this);
-    translator->setRecordDuration(2000);
-    translator->setLanguageCode("tr-TR");
-    translator->setDedectSoundDecibel(-120.0);
+    translator->setRecordDuration(3000);
+    translator->setLanguageCode(TR);
 
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
 
@@ -667,9 +674,9 @@ void BalanceRobot::init()
         qDebug() << ip << mac;
 
         soundText = ("Robot başlıyor.");
-        translator->speak(TR, soundText);
-        auto soundText = ("Aypi adresi. " + ip.replace(".", ", ") + ".");
-        this->translator->speak(TR, soundText);
+        translator->speak(soundText);
+        auto soundText = ("Aypi adresi " + ip.replace(".", ", ") + ".");
+        this->translator->speak(soundText);
     });
     connect(thread,  &QThread::finished,  this,  [=]()
     {

@@ -46,7 +46,8 @@ RESOURCES +=
 DISTFILES +=
 
 #sudo apt-get install libasound2-dev
-#sudo apt-get install alsa alsa-tools
+#sudo apt-get install sox libsox-fmt-all
+#sudo apt-get install pulseaudio alsa-tools
 #sudo apt-get install qtmultimedia5-dev
 #sudo apt install libqt5multimedia5-plugins
 #sudo apt-get install libflac-dev
@@ -56,4 +57,6 @@ DISTFILES +=
 #i did not use libespeak instead i use system command,
 #for install libespeak and compile visit:
 #https://walker.cs.grinnell.edu/MyroC/linux/myroc-installation-notes-linux.php?MyroC_release=3.2&MyroC_subrelease=a&eSpeak_release=2.0
+#ffmpeg -f alsa -ar 48000 -ac 2 -i hw:0 testfile.flac
+
 

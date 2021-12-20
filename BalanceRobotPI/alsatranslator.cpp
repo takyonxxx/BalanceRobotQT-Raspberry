@@ -8,26 +8,26 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
 
     setRunning(false);
 
-    char devname[10] = {0};
+    char capture_devname[10] = {0};
 
-    findCaptureDevice(devname);
-    qDebug() << "Capture device" << devname;
+    findCaptureDevice(capture_devname);
+    qDebug() << "Capture device" << capture_devname;
 
-    if(QString(devname).isEmpty())
+    if(QString(capture_devname).isEmpty())
         foundCapture = false;
     else
     {
         if (!this->location.exists())
             this->location.mkpath(".");
 
-        this->audioRecorder.setDeviceName(devname);
+        this->audioRecorder.setDeviceName(capture_devname);
         this->audioRecorder.setChannels(1);
         this->audioRecorder.setSampleRate(44100);
         this->audioRecorder.initCaptureDevice();
         foundCapture = true;
 
-        this->url.setUrl(baseApi);
-        this->url.setQuery("key=" + apiKey);
+        this->url.setUrl(baseSpeechApi);
+        this->url.setQuery("key=" + apiSpeechKey);
 
         this->request.setUrl(this->url);
         this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -42,8 +42,6 @@ AlsaTranslator::AlsaTranslator(QObject *parent)
         });
 
         connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &AlsaTranslator::responseReceived);
-
-        qDebug() << "Flac location:" << this->filePath;
     }
 }
 
@@ -112,6 +110,66 @@ void AlsaTranslator::findCaptureDevice(char *devname)
     snd_config_update_free_global();
 }
 
+void AlsaTranslator::findPlaybackDevice(char *devname)
+{
+    int idx, dev, err;
+    snd_ctl_t *handle;
+    snd_ctl_card_info_t *info;
+    snd_pcm_info_t *pcminfo;
+    char str[128];
+    bool found = false;
+
+    snd_ctl_card_info_alloca(&info);
+    snd_pcm_info_alloca(&pcminfo);
+    printf("\n");
+
+    idx = -1;
+    while (!found)
+    {
+        if ((err = snd_card_next(&idx)) < 0) {
+            printf("Card next error: %s\n", snd_strerror(err));
+            break;
+        }
+        if (idx < 0)
+            break;
+        sprintf(str, "hw:CARD=%i", idx);
+        if ((err = snd_ctl_open(&handle, str, 0)) < 0) {
+            printf("Open error: %s\n", snd_strerror(err));
+            continue;
+        }
+        if ((err = snd_ctl_card_info(handle, info)) < 0) {
+            printf("HW info error: %s\n", snd_strerror(err));
+            continue;
+        }
+
+        dev = -1;
+        while (1) {
+            snd_pcm_sync_id_t sync;
+            if ((err = snd_ctl_pcm_next_device(handle, &dev)) < 0) {
+                printf("PCM next device error: %s\n", snd_strerror(err));
+                break;
+            }
+            if (dev < 0)
+                break;
+            snd_pcm_info_set_device(pcminfo, dev);
+            snd_pcm_info_set_subdevice(pcminfo, 0);
+            snd_pcm_info_set_stream(pcminfo, SND_PCM_STREAM_PLAYBACK);
+            if ((err = snd_ctl_pcm_info(handle, pcminfo)) < 0) {
+                printf("Sound card - %i - '%s' has no playback device.\n",
+                       snd_ctl_card_info_get_card(info), snd_ctl_card_info_get_name(info));
+                continue;
+            }
+            printf("Sound card - %i - '%s' has playback device.\n", snd_ctl_card_info_get_card(info), snd_ctl_card_info_get_name(info));
+            sprintf(devname, "plughw:%d,0", snd_ctl_card_info_get_card(info));
+            found = true;
+            break;
+        }
+        snd_ctl_close(handle);
+    }
+
+    snd_config_update_free_global();
+}
+
 void AlsaTranslator::responseReceived(QNetworkReply *response)
 {
     if(m_stop)
@@ -139,10 +197,9 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
     {
         setCommand(command);
     }
-    else if(!ignore_record)
+    else
     {
-        ignore_record = true;
-        setRunning(false);
+       record();
     }
 }
 
@@ -157,14 +214,19 @@ void AlsaTranslator::translate() {
     if (!file.open(QIODevice::ReadOnly)) {
         qDebug()  << "cannot open file:" << file.errorString() << file.fileName();
         setRunning(false);
-        ignore_record = false;
         setError(file.errorString());
         return;
     }
 
     QByteArray fileData = file.readAll();
     file.close();
-    file.remove();
+    //file.remove();
+
+    QString language = "en-US";
+
+    if (languageCode == TR)
+        language = "tr-TR";
+
 
     QJsonDocument data {
         QJsonObject
@@ -179,7 +241,7 @@ void AlsaTranslator::translate() {
                 "config",
                 QJsonObject {
                     {"encoding", "FLAC"},
-                    {"languageCode", languageCode},
+                    {"languageCode", language},
                     {"model", "command_and_search"},
                     {"enableWordTimeOffsets", false},
                     {"sampleRateHertz", (int)audioRecorder.getSampleRate()}
@@ -202,45 +264,42 @@ void AlsaTranslator::setRecordDuration(int value)
     recordDuration = value;
 }
 
-void AlsaTranslator::setLanguageCode(const QString &newLanguageCode)
+void AlsaTranslator::setLanguageCode(SType newLanguageCode)
 {
     languageCode = newLanguageCode;
 }
 
-const QString &AlsaTranslator::getLanguageCode() const
+const SType &AlsaTranslator::getLanguageCode() const
 {
     return languageCode;
 }
 
 void AlsaTranslator::record()
 {
-    if (getRunning())
-        return;
-
     if(!foundCapture)
         return;
 
-    const QString fileName = QUuid::createUuid().toString() + ".flac"; // random unique recording name
-    this->filePath = location.filePath(fileName);
-    this->audioRecorder.setOutputLocation(filePath);
-
-    setRunning(true);
-    setError("");
-    //execCommand((char*)"aplay beep.wav");
+    const QString fileName = QString::number(filecount) + ".flac"; //QUuid::createUuid().toString() + ".flac"; // random unique recording name
+    //this->filePath = location.filePath(fileName);
+    this->filePath = fileName;
+    this->audioRecorder.setOutputLocation(filePath);   
+    execCommand((char*)"aplay beep.wav");
     audioRecorder.record(recordDuration);
+    filecount++;
 }
 
-void AlsaTranslator::speak(SType type, QString &text)
+void AlsaTranslator::speak(QString &text)
 {
     if(text.isEmpty())
         return;
 
-    execCommand((char*)"amixer -c 1 set Mic 0DB");
-    if(type==SType::TR)
+    //execCommand((char*)"amixer -c 1 set Mic 0");
+    if(languageCode==SType::TR)
         speakTr(text);
-    else if(type==SType::EN)
+    else if(languageCode==SType::EN)
         speakEn(text);
-    execCommand((char*)"amixer -c 1 set Mic 100DB");
+    //execCommand((char*)"amixer -c 1 set Mic 16");
+
 }
 
 void AlsaTranslator::speakTr(QString text)
@@ -260,22 +319,14 @@ void AlsaTranslator::speakEn(QString text)
     execCommand((char*)espeakBuff.c_str());
 }
 
-void AlsaTranslator::setDedectSoundDecibel(float newDedect_sound_decibel)
-{
-    dedect_sound_decibel = newDedect_sound_decibel;
-}
-
-void AlsaTranslator::setIgnoreRecord(bool newIgnore_record)
-{
-    ignore_record = newIgnore_record;
-}
-
 void AlsaTranslator::start()
 {
     if(!foundCapture)
         return;
 
-    QThread *thread = QThread::create([this]
+    record();
+
+    /*QThread *thread = QThread::create([this]
     {
         qDebug() << "Alsa Translator is listening.";
 
@@ -289,7 +340,7 @@ void AlsaTranslator::start()
             {
                 if(ignore_record)
                     ignore_record = false;
-                QThread::msleep(100);
+                QThread::msleep(10);
                 continue;
             }
 
@@ -297,7 +348,7 @@ void AlsaTranslator::start()
 
             //auto dedect sound, should be improved.
 
-            /*double len = 10;
+            double len = 10;
             double val = audioRecorder.GetMicLevel();
             double instance; //Increment each time input accepted.
 
@@ -318,11 +369,11 @@ void AlsaTranslator::start()
             {
                qDebug() << decibel;
                record();
-            }*/
+            }
 
             QThread::msleep(50);
         }
     });
-    thread->start();
+    thread->start();*/
 }
 

@@ -63,7 +63,6 @@ public:
     };
 
     bool initCaptureDevice();
-
     void setDeviceName(const QString &value);
     void setOutputLocation(const QString &value);
     void setSampleRate(unsigned int value);

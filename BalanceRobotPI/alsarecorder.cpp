@@ -185,7 +185,7 @@ unsigned int ALSARecorder::capture_into_buffer(char* buffer) {
         /* EPIPE means overrun */
         snd_pcm_prepare(capture_handle);
         return 0;
-    }
+    }    
     return frames_read;
 }
 
@@ -317,10 +317,10 @@ bool ALSARecorder::record(int mseconds)
         FLAC__bool flac_ok = true;
         FLAC__int32 pcm[get_frames_per_period() * channels];
 
-        const int result = remove((char*)fileName.toStdString().c_str());
+        /*const int result = remove((char*)fileName.toStdString().c_str());
         if( result == 0 ){
             printf( "Old Flac removed.\n" );
-        }
+        }*/
 
         initFlacDecoder((char*)fileName.toStdString().c_str());
 
@@ -360,7 +360,7 @@ bool ALSARecorder::record(int mseconds)
         finishFlacDecoder();
     });
     connect(thread,  &QThread::finished,  this,  [=]()
-    {
+    {        
         emit stateChanged(StoppedState);
     });
     thread->start();

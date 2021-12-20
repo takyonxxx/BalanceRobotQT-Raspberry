@@ -3,6 +3,8 @@
 #include <QString>
 #include <iostream>
 #include <deque>
+#include <vector>
+
 using namespace std;
 
 template <typename T>
@@ -30,10 +32,9 @@ enum SType
     EN
 };
 
-static QString baseApi = "https://speech.googleapis.com/v1/speech:recognize";
-static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
-static QString baseWikiSummaryApi = "https://tr.wikipedia.org/api/rest_v1/page/summary/";
-static QString apiKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
+static QString baseSpeechApi = "https://speech.googleapis.com/v1/speech:recognize";
+static QString apiSpeechKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
+static QString baseDuckduckgo = "http://api.duckduckgo.com";
 
 static char * appendChar(char * string1, char * string2)
 {
@@ -44,6 +45,7 @@ static char * appendChar(char * string1, char * string2)
 
 static void execCommand(char* cmd)
 {
+    //system(cmd);
     auto command = appendChar(cmd, (char*)">>/dev/null 2>>/dev/null");
 
     char buffer[128];
