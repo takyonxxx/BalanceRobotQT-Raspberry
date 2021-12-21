@@ -36,6 +36,7 @@ enum SType
 static QString baseSpeechApi = "https://speech.googleapis.com/v1/speech:recognize";
 static QString apiSpeechKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
 static QString baseDuckduckgo = "http://api.duckduckgo.com";
+static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
 
 static char * appendChar(char * string1, char * string2)
 {

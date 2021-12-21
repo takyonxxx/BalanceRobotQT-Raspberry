@@ -80,6 +80,8 @@ void Speaker::speak_by_language(QString text, QString lang)
         espeak_Cancel();
 
     espeak_SetParameter(espeakVOLUME, 100, 0);
+    espeak_SetParameter(espeakWORDGAP,1,0);
+    espeak_SetParameter(espeakCAPITALS,5,0);
 
     espeak_VOICE voice;
     memset(&voice, 0, sizeof(espeak_VOICE)); // Zero out the voice first

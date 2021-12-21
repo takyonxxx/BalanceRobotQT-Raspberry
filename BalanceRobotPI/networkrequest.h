@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QEventLoop>
 #include <QTimer>
+#include <regex>
 
 class NetworkRequest : public QObject
 {
@@ -23,6 +24,7 @@ private:
     QUrl url{};
 
     static NetworkRequest *theInstance_;
+    void RemoveHTMLTags(QString &s);
 
 public:
     void sendRequest(QString request);

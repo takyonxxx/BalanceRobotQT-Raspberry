@@ -14,13 +14,14 @@ NetworkRequest* NetworkRequest::getInstance()
 
 NetworkRequest::NetworkRequest(QObject *parent) : QObject(parent)
 {
-    this->url.setUrl(baseDuckduckgo);
+    this->url.setUrl(baseWikiApi);
     connect(&networkAccessManager, &QNetworkAccessManager::finished, this, &NetworkRequest::responseReceived);
 }
 
 void NetworkRequest::sendRequest(QString request)
 {
-    QString _query =QString("q=%1&format=json&pretty=1&no_html=1&skip_disambig=1").arg(request);
+    //QString _query =QString("q=%1&format=json&pretty=1&no_html=1&skip_disambig=1").arg(request);
+    QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(request);
     this->url.setQuery(_query);
 
     this->request.setUrl(this->url);
@@ -38,27 +39,37 @@ void NetworkRequest::slotError(QNetworkReply::NetworkError) {
     qDebug() << "error";
 }
 
+void NetworkRequest::RemoveHTMLTags(QString &s)
+{
+  const regex pattern("\\<.*?\\>");
+
+  // Use regex_replace function in regex
+  // to erase every tags enclosed in <>
+  s = regex_replace(s.toStdString(), pattern, "").c_str();
+
+  return ;
+}
+
 void NetworkRequest::responseReceived(QNetworkReply *response)
 {
-    QString clearText{"no result"};
+    QString clearText{};
     QString strReply = (QString)response->readAll();
-
     auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
     if(jsonResponse.isObject())
     {
         QJsonObject obj = jsonResponse.object();
-        QJsonObject::iterator itr = obj.find("RelatedTopics");
+        QJsonObject::iterator itr = obj.find("query");
         if(itr == obj.end())
         {
             // object not found.
         }
         else
         {
-            auto jsonValue =jsonResponse["RelatedTopics"][0];
+            auto jsonValue =jsonResponse["query"]["search"][0];
             auto j_object = jsonValue.toObject();
             foreach(const QString& key, j_object.keys()) {
                 QJsonValue value = j_object.value(key);
-                if(key.contains("Text"))
+                if(key.contains("snippet"))
                 {
                     clearText = j_object.value(key).toString();
                 }
@@ -66,7 +77,7 @@ void NetworkRequest::responseReceived(QNetworkReply *response)
         }
     }
 
+    RemoveHTMLTags(clearText);
     emit sendResponse(clearText);
     response->deleteLater();
 }
-
