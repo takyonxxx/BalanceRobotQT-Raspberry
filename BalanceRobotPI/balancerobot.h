@@ -21,6 +21,7 @@
 #include "alsatranslator.h"
 #include "constants.h"
 #include "networkrequest.h"
+#include "speaker.h"
 
 #define SLEEP_PERIOD 1000 //us;s
 #define SERIAL_TIME  100 //ms
@@ -106,6 +107,7 @@ private:
 
     AlsaTranslator *translator{};
     GattServer *gattServer{};  
+    Speaker *speaker{};
     MPU6050 *gyroMPU{};
     std::thread mainThread{};
 

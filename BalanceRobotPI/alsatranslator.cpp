@@ -199,7 +199,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
     }
     else
     {
-       record();
+        record();
     }
 }
 
@@ -220,7 +220,7 @@ void AlsaTranslator::translate() {
 
     QByteArray fileData = file.readAll();
     file.close();
-    //file.remove();
+    file.remove();
 
     QString language = "en-US";
 
@@ -279,53 +279,25 @@ void AlsaTranslator::record()
     if(!foundCapture)
         return;
 
-    const QString fileName = QString::number(filecount) + ".flac"; //QUuid::createUuid().toString() + ".flac"; // random unique recording name
-    //this->filePath = location.filePath(fileName);
-    this->filePath = fileName;
-    this->audioRecorder.setOutputLocation(filePath);   
-    execCommand((char*)"aplay beep.wav");
+    while(getRunning())
+    {
+        QThread::sleep(1);
+        qDebug() << "waiting";
+        continue;
+    }
+
+    const QString fileName = QUuid::createUuid().toString() + ".flac"; // random unique recording name
+    this->filePath = location.filePath(fileName);
+    this->audioRecorder.setOutputLocation(filePath);    
+    //execCommand((char*)"amixer -c 1 set Mic 16");
     audioRecorder.record(recordDuration);
+    //execCommand((char*)"amixer -c 1 set Mic 0");
     filecount++;
 }
 
-void AlsaTranslator::speak(QString &text)
-{
-    if(text.isEmpty())
-        return;
-
-    //execCommand((char*)"amixer -c 1 set Mic 0");
-    if(languageCode==SType::TR)
-        speakTr(text);
-    else if(languageCode==SType::EN)
-        speakEn(text);
-    //execCommand((char*)"amixer -c 1 set Mic 16");
-
-}
-
-void AlsaTranslator::speakTr(QString text)
-{
-    std::string sound = text.toStdString();
-    std::string format = soundFormatTr.toStdString();
-    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' ;
-    execCommand((char*)espeakBuff.c_str());
-}
-
-
-void AlsaTranslator::speakEn(QString text)
-{
-    std::string sound = text.toStdString();
-    std::string format = soundFormatEn.toStdString();
-    std::string espeakBuff = format + std::string(" ")  + '"' + sound + '"' ;
-    execCommand((char*)espeakBuff.c_str());
-}
 
 void AlsaTranslator::start()
 {
-    if(!foundCapture)
-        return;
-
-    record();
-
     /*QThread *thread = QThread::create([this]
     {
         qDebug() << "Alsa Translator is listening.";

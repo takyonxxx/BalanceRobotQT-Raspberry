@@ -372,12 +372,12 @@ void BalanceRobot::onConnectionStatedChanged(bool state)
     if(state)
     {
         soundText = ("Bluetooth connection is succesfull.");
-        translator->speak(soundText);
+        speaker->speak(soundText);
     }
     else
     {
         soundText = ("Bluetooth connection lost.");
-        translator->speak(soundText);
+        speaker->speak(soundText);
     }
 }
 
@@ -522,7 +522,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mSpeak:
         {
             soundText = QString(parsedValue.data());
-            translator->speak(soundText);
+            speaker->speak(soundText);
             break;
         }
         case mForward:
@@ -595,7 +595,7 @@ void BalanceRobot::recievedResponse(QString result)
         qDebug() << "Response received: " << soundText;
 
         auto thread = QThread::create([this]{
-            translator->speak(soundText);
+            speaker->speak(soundText);
         });
         connect(thread,  &QThread::finished,  this,  [=]()
         {
@@ -625,7 +625,7 @@ void BalanceRobot::mainLoop()
 }
 
 void BalanceRobot::init()
-{   
+{
     ResetValues();
 
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
@@ -640,15 +640,20 @@ void BalanceRobot::init()
 
     initPid();
 
-    execCommand((char*)"aplay r2d2.wav");
+    execCommand((char*)"aplay r2d2.wav");    
 
-    translator = new AlsaTranslator(this);
-    translator->setRecordDuration(3000);
-    translator->setLanguageCode(TR);
+    QString device, ip, mac, mask;
 
-    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
+    while(ip.size() == 0)
+    {
+        this->getDeviceInfo(device, ip, mac, mask);
+        QThread::msleep(10);
+    }
 
-    gattServer = new GattServer(this);
+    speaker = Speaker::getInstance();
+    speaker->setLanguageCode(TR);
+
+    gattServer = GattServer::getInstance();
     QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
     QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
     gattServer->startBleService();
@@ -659,32 +664,20 @@ void BalanceRobot::init()
     for(int i=0; i<250; i++)
         calculateGyro();
 
-    m_MainEnableThread = true;
+    qDebug() << ip << mac;
+    auto soundText = QString("Robot başlıyor.");
+    speaker->speak(soundText);
+    soundText = QString("Aypi adresi " + ip.replace(".", ", ") + ".");
+    speaker->speak(soundText);
+
+    translator = new AlsaTranslator(this);
+    translator->setRecordDuration(2000);
+    translator->setLanguageCode(TR);
+    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
+    this->translator->record();
+
     timer = micros();
-
-    auto thread = QThread::create([this]{
-        QString device, ip, mac, mask;
-
-        while(ip.size() == 0)
-        {
-            this->getDeviceInfo(device, ip, mac, mask);
-            QThread::msleep(10);
-        }
-
-        qDebug() << ip << mac;
-
-        soundText = ("Robot başlıyor.");
-        translator->speak(soundText);
-        auto soundText = ("Aypi adresi " + ip.replace(".", ", ") + ".");
-        this->translator->speak(soundText);
-    });
-    connect(thread,  &QThread::finished,  this,  [=]()
-    {
-        QThread::msleep(1000);
-        this->translator->start();
-    });
-    thread->start();
-
+    m_MainEnableThread = true;
     mainThread = std::thread(&BalanceRobot::mainLoop, this);
     mainThread.detach();
 }

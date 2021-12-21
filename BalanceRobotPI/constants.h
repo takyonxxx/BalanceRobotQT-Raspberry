@@ -1,6 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 #include <QString>
+#include <QDebug>
 #include <iostream>
 #include <deque>
 #include <vector>
@@ -45,9 +46,7 @@ static char * appendChar(char * string1, char * string2)
 
 static void execCommand(char* cmd)
 {
-    //system(cmd);
     auto command = appendChar(cmd, (char*)">>/dev/null 2>>/dev/null");
-
     char buffer[128];
     std::string result = "";
     FILE* pipe = popen(command, "r");

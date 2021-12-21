@@ -310,10 +310,12 @@ bool ALSARecorder::record(int mseconds)
         return false;
 
     if(!capture_handle)
-        return false;
+        return false;   
 
     QThread *thread = QThread::create([this, mseconds]
     {
+        execCommand((char*)"aplay beep.wav");
+
         FLAC__bool flac_ok = true;
         FLAC__int32 pcm[get_frames_per_period() * channels];
 

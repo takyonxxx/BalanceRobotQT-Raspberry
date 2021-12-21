@@ -16,7 +16,8 @@ SOURCES += main.cpp \
     message.cpp \
     mpu6050.cpp \
     networkrequest.cpp \
-    pid.cpp
+    pid.cpp \
+    speaker.cpp
 
 HEADERS += \
     alsarecorder.h \
@@ -30,7 +31,8 @@ HEADERS += \
     message.h \
     mpu6050.h \
     networkrequest.h \
-    pid.h
+    pid.h \
+    speaker.h
 
 QMAKE_INCDIR += /usr/local/include
 QMAKE_LIBDIR += /usr/lib
@@ -38,13 +40,15 @@ QMAKE_LIBDIR += /usr/local/lib
 QMAKE_LIBDIR += /usr/lib/x86_64-linux-gnu
 INCLUDEPATH += /usr/local/include
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC
+LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC -lespeak
 
 
 RESOURCES +=
 
 DISTFILES +=
 
+#sudo apt install espeak-ng
+#sudo apt install libespeak-ng-dev
 #sudo apt-get install libasound2-dev
 #sudo apt-get install sox libsox-fmt-all
 #sudo apt-get install pulseaudio alsa-tools

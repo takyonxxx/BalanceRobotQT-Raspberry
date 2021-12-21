@@ -21,6 +21,7 @@
 #include "alsarecorder.h"
 #include "constants.h"
 
+
 class AlsaTranslator:public QObject
 {
     Q_OBJECT
@@ -32,7 +33,6 @@ public:
     Q_PROPERTY(QString error READ getError NOTIFY errorChanged)
     Q_PROPERTY(bool running READ getRunning NOTIFY runningChanged)
 
-    void speak(QString &text);
     void start();
     void stop();
     void record();
@@ -60,7 +60,6 @@ private:
     SType languageCode{EN};
     int filecount{0};
 
-
     const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString fileName {};
     const int maxDuration = 10000; // maximum recording duration allowed
@@ -81,8 +80,6 @@ private:
 
     void findCaptureDevice(char* devname);
     void findPlaybackDevice(char* devname);
-    void speakTr(QString text);
-    void speakEn(QString text);
 
     QString soundFormatTr{};
     QString soundFormatEn{};
