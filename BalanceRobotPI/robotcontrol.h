@@ -28,7 +28,6 @@ public:
 
     bool initGyroMeter();
     bool initwiringPi();
-    void initPid();
     void correctSpeedDiff();
     void calculatePwm();
     void calculateGyro();
@@ -41,20 +40,20 @@ public:
     void loadSettings();
     void saveSettings();
 
-    double getAggKp() const;
-    void setAggKp(double newAggKp);
+    float getAggKp() const;
+    void setAggKp(float newAggKp);
 
-    double getAggKi() const;
-    void setAggKi(double newAggKi);
+    float getAggKi() const;
+    void setAggKi(float newAggKi);
 
-    double getAggKd() const;
-    void setAggKd(double newAggKd);
+    float getAggKd() const;
+    void setAggKd(float newAggKd);
 
-    double getAggAC() const;
-    void setAggAC(double newAggAC);
+    float getAggAC() const;
+    void setAggAC(float newAggAC);
 
-    double getAggSD() const;
-    void setAggSD(double newAggSD);
+    float getAggSD() const;
+    void setAggSD(float newAggSD);
 
     int getNeedSpeed() const;
     void setNeedSpeed(int newNeedSpeed);
@@ -67,7 +66,8 @@ public:
 
 private:
 
-    PID *balancePID;
+    PID anglePID;
+
     MPU6050 *gyroMPU{};
 
     QString m_sSettingsFile;
@@ -76,49 +76,46 @@ private:
 
     double RAD_TO_DEG = 57.2958;    
 
-    double aggKp;
-    double aggKi;
-    double aggKd;
-    double aggAC;
-    double aggSD;
+    float aggKp{0};
+    float aggKi{0};
+    float aggKd{0};
+    float aggAC{0};
+    float aggSD{0};
 
-    int needSpeed;
-    int needTurnL;
-    int needTurnR;
+    int needSpeed{0};
+    int needTurnL{0};
+    int needTurnR{0};
 
-    double Input;
-    double Output;
-    double accX, accY, accZ;
-    double gyroX, gyroY, gyroZ;
-    double gyroXangle, gyroYangle; // Angle calculate using the gyro only
-    double compAngleX, compAngleY; // Calculated angle using a complementary filter
-    double kalAngleX, kalAngleY; // Calculated angle using a Kalman filter
-    double timeDiff;
+    float Input{0};
+    float Output{0};
+    float accX, accY, accZ;
+    float gyroX, gyroY, gyroZ;
+    float gyroXangle, gyroYangle; // Angle calculate using the gyro only
+    float compAngleX, compAngleY; // Calculated angle using a complementary filter
+    float kalAngleX, kalAngleY; // Calculated angle using a Kalman filter
+    float timeDiff{0};
 
-    double currentAngle{90};
-    double currentGyro;
-    double currentTemp;
-    double errorAngle;
-    double oldErrorAngle;
-    double targetAngle;    
-    double lastSpeedError;
-    double speedAdjust;
-    double errorSpeed;
-    double SKp ,SKi ,SKd;
-    double DataAvg[3];
-    int pwmLimit;
+    float currentAngle{0};
+    float currentGyro{0};
+    float targetAngle{0};
+    float lastSpeedError{0};
+    float speedAdjust{0};
+    float errorSpeed{0};
+    float SKp ,SKi ,SKd;
+    float DataAvg[3];
+    int pwmLimit{0};
     int pwm, pwm_l, pwm_r;
 
-    int diffSpeed;
-    int diffAllSpeed;
-    int avgPosition;
-    int addPosition;
+    int diffSpeed{0};
+    int diffAllSpeed{0};
+    int avgPosition{0};
+    int addPosition{0};
 
     bool mpu_test{false};
     Kalman kalmanX{};
     Kalman kalmanY{};
 
-    uint32_t timer;
+    uint32_t timer{};
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
 

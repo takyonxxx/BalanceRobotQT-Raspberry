@@ -26,8 +26,6 @@ RobotControl::RobotControl(QObject *parent) : QThread(parent)
     if(!initwiringPi()) return;
     if(!initGyroMeter()) return;
 
-    initPid();
-
     for(int i=0; i<255; i++)
         calculateGyro();
 
@@ -62,52 +60,52 @@ void RobotControl::saveSettings()
     settings.setValue("angleCorrection", QString::number(aggAC));
 }
 
-double RobotControl::getAggKp() const
+float RobotControl::getAggKp() const
 {
     return aggKp;
 }
 
-void RobotControl::setAggKp(double newAggKp)
+void RobotControl::setAggKp(float newAggKp)
 {
     aggKp = newAggKp;
 }
 
-double RobotControl::getAggKi() const
+float RobotControl::getAggKi() const
 {
     return aggKi;
 }
 
-void RobotControl::setAggKi(double newAggKi)
+void RobotControl::setAggKi(float newAggKi)
 {
     aggKi = newAggKi;
 }
 
-double RobotControl::getAggKd() const
+float RobotControl::getAggKd() const
 {
     return aggKd;
 }
 
-void RobotControl::setAggKd(double newAggKd)
+void RobotControl::setAggKd(float newAggKd)
 {
     aggKd = newAggKd;
 }
 
-double RobotControl::getAggAC() const
+float RobotControl::getAggAC() const
 {
     return aggAC;
 }
 
-void RobotControl::setAggAC(double newAggAC)
+void RobotControl::setAggAC(float newAggAC)
 {
     aggAC = newAggAC;
 }
 
-double RobotControl::getAggSD() const
+float RobotControl::getAggSD() const
 {
     return aggSD;
 }
 
-void RobotControl::setAggSD(double newAggSD)
+void RobotControl::setAggSD(float newAggSD)
 {
     aggSD = newAggSD;
 }
@@ -148,11 +146,8 @@ void RobotControl::ResetValues()
     timeDiff = 0.0;
     targetAngle = 0.0;
 
-    errorAngle = 0.0;
-    oldErrorAngle = 0.0;
     currentAngle = 0.0;
     currentGyro = 0.0;
-    currentTemp = 0.0;
     pwmLimit = 100;
     needSpeed = 0;
     needTurnL = 0;
@@ -174,11 +169,11 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 8.0;
+    aggKp = 14.0;
     aggKi = 0.4;
-    aggKd = 0.6;
-    aggSD = 4.0;
-    aggAC = 7.5;//defaulf 1.0
+    aggKd = 0.2;
+    aggSD = 5.0; //speed diff
+    aggAC = 5.0; //angel correction
 }
 
 bool RobotControl::initGyroMeter()
@@ -264,37 +259,23 @@ bool RobotControl::initwiringPi()
     return true;
 }
 
-void RobotControl::initPid()
-{
-    //Specify the links and initial tuning parameters
-    balancePID = new PID(&Input, &Output, &targetAngle, aggKp, aggKi, aggKd, DIRECT);
-
-    balancePID->SetMode(AUTOMATIC);
-    balancePID->SetSampleTime(SAMPLE_TIME);
-    balancePID->SetOutputLimits(-pwmLimit, pwmLimit);
-    balancePID->Reset();
-
-    qDebug("PID Setup ok.");
-}
-
 void RobotControl::correctSpeedDiff()
 {
     errorSpeed = diffSpeed - lastSpeedError;
-
     speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
     lastSpeedError = diffSpeed;
 
 }
 
 void RobotControl::calculatePwm()
-{
+{    
+    Input = currentAngle;
+    targetAngle = needSpeed / 7.5;
+    auto errorAngle = abs(targetAngle - Input);
+
     diffSpeed = Speed_R + Speed_L;
     diffAllSpeed += diffSpeed;
-
-    targetAngle = aggAC +  (needSpeed / 10);
-    Input = currentAngle;
-    //qDebug() << currentAngle;
-    errorAngle = abs(targetAngle - Input); //distance away from setpoint
+    correctSpeedDiff();
 
     float ftmp = 0;
     ftmp = (Speed_L + Speed_R) * 0.5;
@@ -302,30 +283,27 @@ void RobotControl::calculatePwm()
         avgPosition = ftmp + 0.5;
     else
         avgPosition = ftmp - 0.5;
+    addPosition += avgPosition;  //position  
+    addPosition = constrain(addPosition, -pwmLimit, pwmLimit);    
 
-    addPosition += avgPosition;  //position
-    addPosition = constrain(addPosition, -pwmLimit, pwmLimit);
+    //Set angle setpoint and compensate to reach equilibrium point
+    anglePID.setSetpoint(targetAngle + aggAC);
 
-    if (errorAngle <= 1.5)
+    if (errorAngle <= 1.0)
     {   //we're close to setpoint, use conservative tuning parameters
-        balancePID->SetTunings(aggKp/2, aggKi/2, aggKd/2);
+        anglePID.setPidTuning(CONSERVATIVE);
     }
     else
     {   //we're far from setpoint, use aggressive tuning parameters
-        balancePID->SetTunings(aggKp,   aggKi,  aggKd);
+        anglePID.setPidTuning(AGGRESSIVE);
     }
 
-    balancePID->Compute();
+    anglePID.setTunings(aggKp, aggKi, aggKd);
 
-    pwm = -static_cast<int>(Output - (currentGyro + addPosition)*2.0 * aggKd * aggKi);
+    //Compute Angle PID (input is current angle)
+    Output = anglePID.compute(Input);
 
-    if(needTurnR != 0 || needTurnL != 0)
-    {
-        diffSpeed = 0;
-        diffAllSpeed = 0;
-    }
-
-    correctSpeedDiff() ;
+    pwm = -static_cast<int>(Output - addPosition * aggKd * aggKi);
 
     pwm_r =int(pwm - aggSD * speedAdjust - needTurnR);
     pwm_l =int(pwm + aggSD * speedAdjust - needTurnL);
@@ -334,6 +312,12 @@ void RobotControl::calculatePwm()
     {
         pwm_l = 0;
         pwm_r = 0;
+    }
+
+    if(needTurnR != 0 || needTurnL != 0)
+    {
+        diffSpeed = 0;
+        diffAllSpeed = 0;
     }
 
     Speed_L = 0;
