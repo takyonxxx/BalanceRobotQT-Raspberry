@@ -36,8 +36,6 @@ private slots:
 signals:
     void sendResponse(QString response);
 
-signals:
-
 };
 
 #endif // NETWORKREQUEST_H

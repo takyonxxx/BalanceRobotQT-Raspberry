@@ -258,7 +258,6 @@ bool ALSARecorder::initFlacDecoder(char *flacfile)
 {
     FLAC__bool ok = true;
     FLAC__StreamEncoderInitStatus initStatus;
-    totalSamples = 0;
 
     /* allocate the encoder */
     if((pcm_encoder = FLAC__stream_encoder_new()) == NULL)
@@ -272,7 +271,7 @@ bool ALSARecorder::initFlacDecoder(char *flacfile)
     ok &= FLAC__stream_encoder_set_channels(pcm_encoder, channels);
     ok &= FLAC__stream_encoder_set_bits_per_sample(pcm_encoder, bps);
     ok &= FLAC__stream_encoder_set_sample_rate(pcm_encoder, sampleRate);
-    ok &= FLAC__stream_encoder_set_total_samples_estimate(pcm_encoder, totalSamples);
+    ok &= FLAC__stream_encoder_set_total_samples_estimate(pcm_encoder, 0);
 
     /* initialize encoder */
     if(ok)
@@ -341,7 +340,7 @@ bool ALSARecorder::record(int mseconds)
             if(read == 0)
                 continue;
 
-            totalSamples = read;
+            auto totalSamples = read;
             size_t left = (size_t)totalSamples;
             while(flac_ok && left)
             {

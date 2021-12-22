@@ -5,3 +5,5 @@ build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/Makefile
 build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/Makefile
 build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Debug/Makefile
 *.user
+*.stash
+build-BalanceRobotPI-Desktop_Qt_5_15_2_GCC_64bit-Release/Makefile

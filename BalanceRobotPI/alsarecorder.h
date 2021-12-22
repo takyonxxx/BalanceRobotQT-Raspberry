@@ -38,8 +38,6 @@ using namespace std;
 #define AmplitudeScaled(re,im,len,scale) ((int)Amplitude(re,im,len)%scale)
 
 
-static unsigned totalSamples{};
-
 class ALSARecorder:public QObject
 {
     Q_OBJECT

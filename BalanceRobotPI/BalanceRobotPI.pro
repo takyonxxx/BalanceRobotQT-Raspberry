@@ -17,6 +17,7 @@ SOURCES += main.cpp \
     mpu6050.cpp \
     networkrequest.cpp \
     pid.cpp \
+    robotcontrol.cpp \
     speaker.cpp
 
 HEADERS += \
@@ -32,6 +33,7 @@ HEADERS += \
     mpu6050.h \
     networkrequest.h \
     pid.h \
+    robotcontrol.h \
     speaker.h
 
 QMAKE_INCDIR += /usr/local/include
