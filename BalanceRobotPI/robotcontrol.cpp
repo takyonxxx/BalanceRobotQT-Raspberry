@@ -169,9 +169,9 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 14.0;
-    aggKi = 0.4;
-    aggKd = 0.2;
+    aggKp = 16.0;
+    aggKi = 5.0;
+    aggKd = 1.6;
     aggSD = 5.0; //speed diff
     aggAC = 5.0; //angel correction
 }
@@ -271,39 +271,29 @@ void RobotControl::calculatePwm()
 {    
     Input = currentAngle;
     targetAngle = needSpeed / 7.5;
-    auto errorAngle = abs(targetAngle - Input);
+    //auto errorAngle = abs(targetAngle - Input);
 
     diffSpeed = Speed_R + Speed_L;
     diffAllSpeed += diffSpeed;
     correctSpeedDiff();
 
-    float ftmp = 0;
+    /*float ftmp = 0;
     ftmp = (Speed_L + Speed_R) * 0.5;
     if( ftmp > 0)
         avgPosition = ftmp + 0.5;
     else
         avgPosition = ftmp - 0.5;
     addPosition += avgPosition;  //position  
-    addPosition = constrain(addPosition, -pwmLimit, pwmLimit);    
+    addPosition = constrain(addPosition, -pwmLimit, pwmLimit);*/
 
     //Set angle setpoint and compensate to reach equilibrium point
     anglePID.setSetpoint(targetAngle + aggAC);
-
-    if (errorAngle <= 1.0)
-    {   //we're close to setpoint, use conservative tuning parameters
-        anglePID.setPidTuning(CONSERVATIVE);
-    }
-    else
-    {   //we're far from setpoint, use aggressive tuning parameters
-        anglePID.setPidTuning(AGGRESSIVE);
-    }
-
-    anglePID.setTunings(aggKp, aggKi, aggKd);
+    anglePID.setTunings(aggKp, aggKi * 10.0, aggKd / 10.0);
 
     //Compute Angle PID (input is current angle)
     Output = anglePID.compute(Input);
 
-    pwm = -static_cast<int>(Output - addPosition * aggKd * aggKi);
+    pwm = -static_cast<int>(Output);
 
     pwm_r =int(pwm - aggSD * speedAdjust - needTurnR);
     pwm_l =int(pwm + aggSD * speedAdjust - needTurnL);
@@ -312,6 +302,8 @@ void RobotControl::calculatePwm()
     {
         pwm_l = 0;
         pwm_r = 0;
+        diffSpeed = 0;
+        diffAllSpeed = 0;
     }
 
     if(needTurnR != 0 || needTurnL != 0)

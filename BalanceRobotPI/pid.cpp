@@ -85,16 +85,7 @@ void PID::setPidTuning(PIDTuning tunning)
 
 void PID::setTunings(float Kp, float Ki, float Kd)
 {
-    if(pidTunning == CONSERVATIVE)
-    {
-        this->Kp = 2*Kp/3;
-        this->Ki = 2*Ki/3;
-        this->Kd = 2*Kd/3;
-    }
-    else
-    {
-        this->Kp = Kp;
-        this->Ki = Ki;
-        this->Kd = Kd;
-    }
+    this->Kp = Kp;
+    this->Ki = Ki;
+    this->Kd = Kd;
 }
