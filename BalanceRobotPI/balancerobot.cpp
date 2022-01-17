@@ -194,6 +194,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mSpeak:
         {
             soundText = QString(parsedValue.data());
+
+            if (soundText.contains("start"))
+                translator->start();
+            else if  (soundText.contains("stop"))
+                translator->stop();
+
             speaker->speak(soundText);
             break;
         }
@@ -303,7 +309,6 @@ void BalanceRobot::init()
     translator->setRecordDuration(2000);
     translator->setLanguageCode(TR);
     QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
-    this->translator->record();
 
     robotControl = RobotControl::getInstance();
     robotControl->start();

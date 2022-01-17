@@ -1,4 +1,4 @@
-#include "alsatranslator.h"
+﻿#include "alsatranslator.h"
 
 AlsaTranslator::AlsaTranslator(QObject *parent)
     : QObject(parent)
@@ -191,6 +191,7 @@ void AlsaTranslator::responseReceived(QNetworkReply *response)
         }
     } else {
         setError(error.toString());
+        qDebug() << error.toString();
     }
 
     if(!command.isEmpty())
@@ -279,6 +280,9 @@ void AlsaTranslator::record()
     if(!foundCapture)
         return;
 
+    if(m_stop)
+        return;
+
     while(getRunning())
     {
         QThread::sleep(1);
@@ -287,6 +291,7 @@ void AlsaTranslator::record()
     }
 
     const QString fileName = QUuid::createUuid().toString() + ".flac"; // random unique recording name
+
     this->filePath = location.filePath(fileName);
     this->audioRecorder.setOutputLocation(filePath);    
     //execCommand((char*)"amixer -c 1 set Mic 16");
@@ -298,6 +303,9 @@ void AlsaTranslator::record()
 
 void AlsaTranslator::start()
 {
+     m_stop = false;
+     record();
+
     /*QThread *thread = QThread::create([this]
     {
         qDebug() << "Alsa Translator is listening.";
