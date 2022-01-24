@@ -170,10 +170,10 @@ void RobotControl::ResetValues()
     pwm_r = 0;
 
     aggKp = 14.0;
-    aggKi = 7.0;
-    aggKd = 1.4;
+    aggKi = 10.0;
+    aggKd = 1.5;
     aggSD = 4.0; //speed diff
-    aggAC = 5.0; //angel correction
+    aggAC = 2.2; //angel correction
 }
 
 bool RobotControl::initGyroMeter()
@@ -268,7 +268,7 @@ void RobotControl::correctSpeedDiff()
 }
 
 void RobotControl::calculatePwm()
-{    
+{
     if( currentAngle > 45 || currentAngle < -45)
     {
         pwm = 0;
@@ -280,7 +280,32 @@ void RobotControl::calculatePwm()
         addPosition = 0;
         Speed_L = 0;
         Speed_R = 0;
+        Input = currentAngle;
+        reset_timer_speed = true;
+        timer_speed_total = 0.0;
         return;
+    } 
+
+    double dt_control = (double)(micros() - timer_speed) / 1000000; // Calculate delta time
+    timer_speed = micros();
+
+    if(dt_control > 0.1)
+        return;
+
+    if(reset_timer_speed)
+    {
+        timer_speed_total += dt_control;
+
+        if (timer_speed_total >= 0.5)
+        {
+            reset_timer_speed = false;
+            timer_speed_total = 0.0;
+        }
+
+        if (reset_timer_speed)
+        {
+            return;
+        }
     }
 
     Input = currentAngle;
@@ -300,8 +325,6 @@ void RobotControl::calculatePwm()
         avgPosition = ftmp - 0.5;
     addPosition += avgPosition;  //position  
     auto addPositionf = constrain(addPosition, -pwmLimit, pwmLimit) * 0.1;
-
-    qDebug() << Speed_L << Speed_R << Input << addPositionf << speedAdjust;
 
     addPositionf = 0.0f;
 
@@ -325,7 +348,7 @@ void RobotControl::calculatePwm()
     }
 
     Speed_L = 0;
-    Speed_R = 0;
+    Speed_R = 0;   
 }
 
 void RobotControl::controlRobot()
@@ -451,6 +474,6 @@ void RobotControl::run()
         calculatePwm();
         controlRobot();
 
-        QThread::usleep(10);
+        QThread::usleep(1);
     }
 }
