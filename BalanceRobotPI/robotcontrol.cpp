@@ -269,8 +269,23 @@ void RobotControl::correctSpeedDiff()
 
 void RobotControl::calculatePwm()
 {    
+    if( currentAngle > 45 || currentAngle < -45)
+    {
+        pwm = 0;
+        pwm_l = 0;
+        pwm_r = 0;
+        diffSpeed = 0;
+        diffAllSpeed = 0;
+        speedAdjust = 0;
+        addPosition = 0;
+        Speed_L = 0;
+        Speed_R = 0;
+        return;
+    }
+
     Input = currentAngle;
     targetAngle = needSpeed / 7.5;
+
     //auto errorAngle = abs(targetAngle - Input);
 
     diffSpeed = Speed_R + Speed_L;
@@ -286,6 +301,10 @@ void RobotControl::calculatePwm()
     addPosition += avgPosition;  //position  
     auto addPositionf = constrain(addPosition, -pwmLimit, pwmLimit) * 0.1;
 
+    qDebug() << Speed_L << Speed_R << Input << addPositionf << speedAdjust;
+
+    addPositionf = 0.0f;
+
     //Set angle setpoint and compensate to reach equilibrium point
     anglePID.setSetpoint(targetAngle + aggAC);
     anglePID.setTunings(aggKp, aggKi, aggKd / 10.0);
@@ -298,13 +317,6 @@ void RobotControl::calculatePwm()
     pwm_r =int(pwm - aggSD * speedAdjust - addPositionf - needTurnR);
     pwm_l =int(pwm + aggSD * speedAdjust + addPositionf - needTurnL);
 
-    if( currentAngle > 45 || currentAngle < -45)
-    {
-        pwm_l = 0;
-        pwm_r = 0;
-        diffSpeed = 0;
-        diffAllSpeed = 0;
-    }
 
     if(needTurnR != 0 || needTurnL != 0)
     {
