@@ -19,6 +19,8 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
 
 BalanceRobot::~BalanceRobot()
 {   
+    robotControl->stop();
+    delete robotControl;
     delete speaker;
     delete gattServer;
     delete translator;    

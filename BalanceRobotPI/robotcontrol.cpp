@@ -176,6 +176,11 @@ void RobotControl::ResetValues()
     aggAC = 2.2; //angel correction
 }
 
+void RobotControl::stop()
+{
+    m_stop = true;
+}
+
 bool RobotControl::initGyroMeter()
 {
     qDebug("Initializing MPU6050 device...");

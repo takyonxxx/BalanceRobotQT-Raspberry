@@ -33,6 +33,7 @@ public:
     void calculateGyro();
     void controlRobot();
     void ResetValues();
+    void stop();
 
     static void encodeL(void);
     static void encodeR(void);
