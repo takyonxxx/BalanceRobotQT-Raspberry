@@ -113,7 +113,7 @@ void BalanceRobot::onCommandReceived(QString command)
 {    
     if(networkRequest && !command.isEmpty())
     {
-        qDebug() << "Voice received: " << command;        
+        qDebug() << "Voice received: " << command;
         networkRequest->sendRequest(command);
     }
 }
@@ -314,4 +314,6 @@ void BalanceRobot::init()
 
     robotControl = RobotControl::getInstance();
     robotControl->start();
+
+    translator->start();
 }

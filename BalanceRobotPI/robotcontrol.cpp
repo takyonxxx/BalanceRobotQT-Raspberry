@@ -479,6 +479,6 @@ void RobotControl::run()
         calculatePwm();
         controlRobot();
 
-        QThread::usleep(1);
+        QThread::usleep(5);
     }
 }
