@@ -54,7 +54,7 @@
 using namespace std;
 
 static QString baseSpeechApi = "https://speech.googleapis.com/v1/speech:recognize";
-static QString apiSpeechKey = "Your Key";
+static QString apiSpeechKey = "AsilIzaSyCY8Xg5wfn6Ld67287SGDBsilQPZvGCEN6Fsg";
 static QString baseDuckduckgo = "http://api.duckduckgo.com";
 static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
 
