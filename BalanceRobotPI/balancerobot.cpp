@@ -118,6 +118,8 @@ void BalanceRobot::onCommandReceived(QString command)
         if(command.contains("dur"))
         {
             translator->stop();
+            auto soundText = QString("Çevirici durduruldu.");
+            speaker->speak(soundText);
             return;
         }
         networkRequest->sendRequest(command);
@@ -286,12 +288,26 @@ void BalanceRobot::recievedResponse(QString result)
 
 void BalanceRobot::init()
 {      
-    QString device, ip, mac, mask;
-
-    getDeviceInfo(device, ip, mac, mask);
-
     speaker = Speaker::getInstance();
     speaker->setLanguageCode(TR);
+
+    execCommand((char*)"aplay r2d2.wav");
+
+    auto soundText = QString("Robot başlıyor.");
+    speaker->speak(soundText);
+
+    QString device, ip, mac, mask;
+    int conn_try = 0;
+    while(ip.size() == 0)
+    {
+        if(conn_try > 5)
+            break;
+        getDeviceInfo(device, ip, mac, mask);
+        auto soundText = QString("İnternet bağlantısı kontrol ediliyor.");
+        speaker->speak(soundText);
+        conn_try++;
+        QThread::msleep(250);
+    }
 
     gattServer = GattServer::getInstance();
     if (gattServer)
@@ -309,11 +325,6 @@ void BalanceRobot::init()
 
     networkRequest = NetworkRequest::getInstance();
     connect(networkRequest, &NetworkRequest::sendResponse, this, &BalanceRobot::recievedResponse);
-
-    execCommand((char*)"aplay r2d2.wav");
-
-    auto soundText = QString("Robot başlıyor.");
-    speaker->speak(soundText);
 
     if (ip.size() > 0)
     {
