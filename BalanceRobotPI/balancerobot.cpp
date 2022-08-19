@@ -20,6 +20,7 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
 BalanceRobot::~BalanceRobot()
 {   
     robotControl->stop();
+    translator->stop();
     delete robotControl;
     delete speaker;
     delete gattServer;
@@ -114,6 +115,11 @@ void BalanceRobot::onCommandReceived(QString command)
     if(networkRequest && !command.isEmpty())
     {
         qDebug() << "Voice received: " << command;
+        if(command.contains("dur"))
+        {
+            translator->stop();
+            return;
+        }
         networkRequest->sendRequest(command);
     }
 }
@@ -282,35 +288,44 @@ void BalanceRobot::init()
 {      
     QString device, ip, mac, mask;
 
-    while(ip.size() == 0)
-    {
-        getDeviceInfo(device, ip, mac, mask);
-        QThread::msleep(10);
-    }
+    getDeviceInfo(device, ip, mac, mask);
 
     speaker = Speaker::getInstance();
     speaker->setLanguageCode(TR);
 
     gattServer = GattServer::getInstance();
-    QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
-    QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
-    gattServer->startBleService();
+    if (gattServer)
+    {
+        qDebug() << "Starting gatt service";
+        QObject::connect(gattServer, &GattServer::connectionState, this, &BalanceRobot::onConnectionStatedChanged);
+        QObject::connect(gattServer, &GattServer::dataReceived, this, &BalanceRobot::onDataReceived);
+        gattServer->startBleService();
+    }
+
+    translator = new AlsaTranslator(this);
+    translator->setRecordDuration(2000);
+    translator->setLanguageCode(TR);
+    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
 
     networkRequest = NetworkRequest::getInstance();
     connect(networkRequest, &NetworkRequest::sendResponse, this, &BalanceRobot::recievedResponse);
 
     execCommand((char*)"aplay r2d2.wav");
 
-    qDebug() << ip << mac;
     auto soundText = QString("Robot başlıyor.");
     speaker->speak(soundText);
-    soundText = QString("Aypi adresi " + ip.replace(".", ", ") + ".");
-    speaker->speak(soundText);
 
-    translator = new AlsaTranslator(this);
-    translator->setRecordDuration(2000);
-    translator->setLanguageCode(TR);
-    QObject::connect(translator, &AlsaTranslator::commandChanged, this, &BalanceRobot::onCommandReceived);
+    if (ip.size() > 0)
+    {
+        qDebug() << "ip: " <<  ip << " mac:" << mac;
+        soundText = QString("Aypi adresi " + ip.replace(".", ", ") + ".");
+        speaker->speak(soundText);
+    }
+    else
+    {
+        auto soundText = QString("İnternet bağlantısı kurulamadı.");
+        speaker->speak(soundText);
+    }
 
     robotControl = RobotControl::getInstance();
     robotControl->start();

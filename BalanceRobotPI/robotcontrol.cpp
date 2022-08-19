@@ -285,7 +285,7 @@ void RobotControl::calculatePwm()
         addPosition = 0;
         Speed_L = 0;
         Speed_R = 0;
-        Input = currentAngle;
+        Input = 0;
         reset_timer_speed = true;
         timer_speed_total = 0.0;
         return;
@@ -314,9 +314,7 @@ void RobotControl::calculatePwm()
     }
 
     Input = currentAngle;
-    targetAngle = needSpeed / 7.5;
-
-    //auto errorAngle = abs(targetAngle - Input);
+    targetAngle = 0.0;
 
     diffSpeed = Speed_R + Speed_L;
     diffAllSpeed += diffSpeed;
@@ -479,6 +477,6 @@ void RobotControl::run()
         calculatePwm();
         controlRobot();
 
-        QThread::usleep(5);
+        QThread::usleep(10);
     }
 }
