@@ -210,17 +210,23 @@ void BalanceRobot::onDataReceived(QByteArray data)
             else if  (soundText.contains("stop"))
                 translator->stop();
 
-            speaker->speak(soundText);
+            auto thread = QThread::create([this]{
+                speaker->speak(soundText);
+            });
+            connect(thread,  &QThread::finished,  this,  [=]()
+            {
+            });
+            thread->start();
             break;
         }
         case mForward:
         {
-            robotControl->setNeedSpeed(-1*value + 10);
+            robotControl->setNeedSpeed(-1*value);
             break;
         }
         case mBackward:
         {
-            robotControl->setNeedSpeed(value - 10);
+            robotControl->setNeedSpeed(value);
             break;
         }
         case mLeft:
@@ -249,11 +255,21 @@ void BalanceRobot::onDataReceived(QByteArray data)
             + QString("D:")
             + QString::number(robotControl->getAggKd(), 'f', 1)
             + QString(" ")
-            + QString("SD")
+            + QString("SD:")
             + QString::number(robotControl->getAggSD(), 'f', 1)
             + QString(" ")
-            + QString("AC")
-            + QString::number(robotControl->getAggAC(), 'f', 1) ;
+            + QString("AC:")
+            + QString::number(robotControl->getAggAC(), 'f', 1)
+            + QString(" ")
+            + QString("Speed:")
+            + QString::number(robotControl->getNeedSpeed())
+            + QString(" ")
+            + QString("TurnL:")
+            + QString::number(robotControl->getNeedTurnL())
+            + QString(" ")
+            + QString("TurnR:")
+            + QString::number(robotControl->getNeedTurnR())
+            + QString(" ");
 
     qDebug() << pidInfo;
 

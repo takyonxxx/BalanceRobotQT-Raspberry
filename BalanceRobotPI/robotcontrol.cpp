@@ -169,11 +169,11 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 14.0;
+    aggKp = 15.0;
     aggKi = 10.0;
-    aggKd = 1.5;
+    aggKd = 0.5;
     aggSD = 4.0; //speed diff
-    aggAC = 2.2; //angel correction
+    aggAC = 1.2; //angel correction
 }
 
 void RobotControl::stop()
@@ -338,7 +338,7 @@ void RobotControl::calculatePwm()
     //Compute Angle PID (input is current angle)
     Output = anglePID.compute(Input);
 
-    pwm = -static_cast<int>(Output);
+    pwm = -static_cast<int>(Output) - needSpeed;
 
     pwm_r =int(pwm - aggSD * speedAdjust - addPositionf - needTurnR);
     pwm_l =int(pwm + aggSD * speedAdjust + addPositionf - needTurnL);
