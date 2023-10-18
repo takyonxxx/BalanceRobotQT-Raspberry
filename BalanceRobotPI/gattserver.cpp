@@ -114,7 +114,7 @@ void GattServer::startBleService()
     advertisingData.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityGeneral);
     advertisingData.setServices(services.keys());
     advertisingData.setIncludePowerLevel(true);
-    advertisingData.setLocalName("Esc Controller");
+    advertisingData.setLocalName("BlueZ");
 
     // We have to check if advertising succeeded ot not. If there was an advertising error we will
     // try to reinitialize our bluetooth service
