@@ -32,27 +32,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBExit->setStyleSheet("font-size: 32pt; font: bold; color: #ffffff; background-color: #239566;");
     ui->m_pBSpeak->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #239566;");
 
-#if defined (Q_OS_ANDROID)
-    //Request requiered permissions at runtime
-    for(const QString &permission : permissions){
-        auto result = QtAndroid::checkPermission(permission);
-
-        if(result == QtAndroid::PermissionResult::Denied)
-        {
-            auto resultHash = QtAndroid::requestPermissionsSync(QStringList({permission}));
-            if(resultHash[permission] == QtAndroid::PermissionResult::Denied)
-                ui->m_textStatus->append(permission + " denied!");
-            else
-                ui->m_textStatus->append(permission + " granted!");
-        }
-        else if(result == QtAndroid::PermissionResult::Granted)
-        {
-            ui->m_textStatus->append(permission + " granted!");
-        }
-    }
-    keep_screen_on(true);
-#endif
-
     m_bleConnection = new BluetoothClient();
 
     connect(m_bleConnection, &BluetoothClient::statusChanged, this, &MainWindow::statusChanged);
@@ -75,46 +54,32 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->m_pBExit, SIGNAL(clicked()),this, SLOT(on_Exit()));
 
     QPixmap pixmapf(":/icons/forward.png");
-    QIcon ForwardIcon(pixmapf.scaled(256, 128));
+    QIcon ForwardIcon(pixmapf.scaled(64, 32));
     ui->m_pBForward->setIcon(ForwardIcon);
-    ui->m_pBForward->setIconSize(pixmapf.scaled(256, 128).rect().size());
-    ui->m_pBForward->setFixedSize(pixmapf.scaled(256, 128).rect().size());
+    ui->m_pBForward->setIconSize(pixmapf.scaled(64, 32).rect().size());
+    ui->m_pBForward->setFixedSize(pixmapf.scaled(64, 32).rect().size());
 
     QPixmap pixmapb(":/icons/back.png");
-    QIcon BackwardIcon(pixmapb.scaled(256, 128));
+    QIcon BackwardIcon(pixmapb.scaled(64, 32));
     ui->m_pBBackward->setIcon(BackwardIcon);
-    ui->m_pBBackward->setIconSize(pixmapb.scaled(256, 128).rect().size());
-    ui->m_pBBackward->setFixedSize(pixmapb.scaled(256, 128).rect().size());
+    ui->m_pBBackward->setIconSize(pixmapb.scaled(64, 32).rect().size());
+    ui->m_pBBackward->setFixedSize(pixmapb.scaled(64, 32).rect().size());
 
     QPixmap pixmapl(":/icons/left.png");
-    QIcon LeftIcon(pixmapl.scaled(256, 128));
+    QIcon LeftIcon(pixmapl.scaled(64, 32));
     ui->m_pBLeft->setIcon(LeftIcon);
-    ui->m_pBLeft->setIconSize(pixmapl.scaled(256, 128).rect().size());
-    ui->m_pBLeft->setFixedSize(pixmapl.scaled(256, 128).rect().size());
+    ui->m_pBLeft->setIconSize(pixmapl.scaled(64, 32).rect().size());
+    ui->m_pBLeft->setFixedSize(pixmapl.scaled(64, 32).rect().size());
 
     QPixmap pixmapr(":/icons/right.png");
-    QIcon RightIcon(pixmapr.scaled(256, 128));
+    QIcon RightIcon(pixmapr.scaled(64, 32));
     ui->m_pBRight->setIcon(RightIcon);
-    ui->m_pBRight->setIconSize(pixmapr.scaled(256, 128).rect().size());
-    ui->m_pBRight->setFixedSize(pixmapr.scaled(256, 128).rect().size());
+    ui->m_pBRight->setIconSize(pixmapr.scaled(64, 32).rect().size());
+    ui->m_pBRight->setFixedSize(pixmapr.scaled(64, 32).rect().size());
 
     statusChanged("No Device Connected.");
 
 }
-
-#ifdef Q_OS_ANDROID
-bool MainWindow::setScreenOrientation(int orientation)
-{
-    QAndroidJniObject activity = QtAndroid::androidActivity();
-
-    if(activity.isValid())
-    {
-        activity.callMethod<void>("setRequestedOrientation", "(I)V", orientation);
-        return true;
-    }
-    return false;
-}
-#endif
 
 void MainWindow::changedState(BluetoothClient::bluetoothleState state){
 
@@ -302,8 +267,12 @@ void MainWindow::requestData(uint8_t command)
 void MainWindow::sendCommand(uint8_t command, uint8_t value)
 {
     QByteArray payload;
+    payload.resize(1);
+
+    // Assign the value to the first element of the payload
     payload[0] = static_cast<char>(value);
 
+    // Create the message and send it
     QByteArray sendData;
     createMessage(command, mWrite, payload, &sendData);
 
@@ -397,7 +366,7 @@ void MainWindow::on_LeftReleased()
 void MainWindow::on_m_pBSpeak_clicked()
 {
     QByteArray data;
-    data.append(QString(ui->lineEdit_Speak->text()));
+    data.append(QString(ui->lineEdit_Speak->text()).toUtf8());
     sendString(mSpeak, data);
 }
 

@@ -15,14 +15,7 @@
 #include "message.h"
 #include "bluetoothclient.h"
 
-#ifdef Q_OS_ANDROID
-#include <QAndroidJniEnvironment>
-#include <QAndroidJniObject>
-#include <QtAndroid>
-#endif
-
 #if defined (Q_OS_ANDROID)
-#include <QtAndroid>
 const QVector<QString> permissions({"android.permission.BLUETOOTH",
                                     "android.permission.BLUETOOTH_ADMIN"});
 #endif
@@ -38,35 +31,6 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-
-#ifdef Q_OS_ANDROID
-    void keep_screen_on(bool on)
-    {
-        QtAndroid::runOnAndroidThread([on]{
-            QAndroidJniObject activity = QtAndroid::androidActivity();
-            if (activity.isValid()) {
-                QAndroidJniObject window =
-                        activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
-
-                if (window.isValid()) {
-                    const int FLAG_KEEP_SCREEN_ON = 128;
-                    if (on) {
-                        window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
-                    } else {
-                        window.callMethod<void>("clearFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
-                    }
-                }
-            }
-            QAndroidJniEnvironment env;
-            if (env->ExceptionCheck()) {
-                env->ExceptionClear();
-            }
-        });
-    }
-
-    bool setScreenOrientation(int orientation);
-#endif
-
 
 private slots:
     void DataHandler(QByteArray data);

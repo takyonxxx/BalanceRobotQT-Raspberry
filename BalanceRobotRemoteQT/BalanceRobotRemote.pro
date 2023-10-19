@@ -1,4 +1,4 @@
-QT       += core gui bluetooth
+QT += bluetooth
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -25,8 +25,6 @@ RESOURCES += \
 
 android{
 
-QT += androidextras
-
 DISTFILES += \
     android/AndroidManifest.xml \
     android/build.gradle \
@@ -40,6 +38,19 @@ ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
 ANDROID_ABIS = armeabi-v7a
 }
 
-ANDROID_ABIS = armeabi-v7a
-
+DISTFILES += \
+    android/AndroidManifest.xml \
+    android/build.gradle \
+    android/gradle.properties \
+    android/gradle/wrapper/gradle-wrapper.jar \
+    android/gradle/wrapper/gradle-wrapper.properties \
+    android/gradlew \
+    android/gradlew.bat \
+    android/res/drawable-hdpi/icon.png \
+    android/res/drawable-ldpi/icon.png \
+    android/res/drawable-mdpi/icon.png \
+    android/res/drawable-xhdpi/icon.png \
+    android/res/drawable-xxhdpi/icon.png \
+    android/res/drawable-xxxhdpi/icon.png \
+    android/res/values/libs.xml
 

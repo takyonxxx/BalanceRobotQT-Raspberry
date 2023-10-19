@@ -312,6 +312,8 @@ void BalanceRobot::init()
     auto soundText = QString("Robot başlıyor.");
     speaker->speak(soundText);
 
+    qDebug() << "Speaker started.";
+
     QString device, ip, mac, mask;
     int conn_try = 0;
     while(ip.size() == 0)
@@ -324,6 +326,8 @@ void BalanceRobot::init()
         conn_try++;
         QThread::msleep(250);
     }
+
+    qDebug() << "Ip check ok.";
 
     gattServer = GattServer::getInstance();
     if (gattServer)
@@ -357,5 +361,5 @@ void BalanceRobot::init()
     robotControl = RobotControl::getInstance();
     robotControl->start();
 
-    translator->start();
+//    translator->start();
 }
