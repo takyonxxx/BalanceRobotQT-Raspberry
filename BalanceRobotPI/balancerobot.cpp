@@ -307,7 +307,7 @@ void BalanceRobot::init()
     speaker = Speaker::getInstance();
     speaker->setLanguageCode(TR);
 
-    execCommand((char*)"aplay r2d2.wav");
+//    execCommand((char*)"aplay r2d2.wav");
 
     auto soundText = QString("Robot başlıyor.");
     speaker->speak(soundText);

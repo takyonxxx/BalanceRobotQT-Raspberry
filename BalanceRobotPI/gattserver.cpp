@@ -130,11 +130,13 @@ void GattServer::startBleService()
         // writeTimer->start(1000);
         auto statusText = QString("Listening for Ble connection %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
+        qDebug() << statusText;
     }
     else
     {
         auto statusText = QString("Ble connection can not start for %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
+        qDebug() << statusText;
     }
 }
 
