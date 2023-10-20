@@ -15,12 +15,12 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->m_textStatus->setStyleSheet("font-size: 12pt; color: #cccccc; background-color: #003333;");
 
-    ui->labelPP->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
-    ui->labelPI->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
-    ui->labelPD->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
-    ui->labelDS->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
-    ui->labelAC->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #239566;");
-    ui->lineEdit_Speak->setStyleSheet("font-size: 18pt; color: #ffffff; background-color: #239566;");
+    ui->labelPP->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelPI->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelPD->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelDS->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelAC->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->lineEdit_Speak->setStyleSheet("font-size: 18pt; color: #ffffff; background-color: #FF4633;");
 
     ui->m_pBForward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
     ui->m_pBBackward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
@@ -28,9 +28,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->m_pBRight->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
 
 
-    ui->m_pBConnect->setStyleSheet("font-size: 32pt; font: bold; color: #ffffff; background-color: #336699;");
-    ui->m_pBExit->setStyleSheet("font-size: 32pt; font: bold; color: #ffffff; background-color: #239566;");
-    ui->m_pBSpeak->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #239566;");
+    ui->m_pBConnect->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #336699;");
+    ui->m_pBExit->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #336699;");
+    ui->m_pBSpeak->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #FF4633;");
 
     m_bleConnection = new BluetoothClient();
 
@@ -54,28 +54,28 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->m_pBExit, SIGNAL(clicked()),this, SLOT(on_Exit()));
 
     QPixmap pixmapf(":/icons/forward.png");
-    QIcon ForwardIcon(pixmapf.scaled(64, 32));
+    QIcon ForwardIcon(pixmapf.scaled(96, 64));
     ui->m_pBForward->setIcon(ForwardIcon);
-    ui->m_pBForward->setIconSize(pixmapf.scaled(64, 32).rect().size());
-    ui->m_pBForward->setFixedSize(pixmapf.scaled(64, 32).rect().size());
+    ui->m_pBForward->setIconSize(pixmapf.scaled(96, 64).rect().size());
+    ui->m_pBForward->setFixedSize(pixmapf.scaled(96, 64).rect().size());
 
     QPixmap pixmapb(":/icons/back.png");
-    QIcon BackwardIcon(pixmapb.scaled(64, 32));
+    QIcon BackwardIcon(pixmapb.scaled(96, 64));
     ui->m_pBBackward->setIcon(BackwardIcon);
-    ui->m_pBBackward->setIconSize(pixmapb.scaled(64, 32).rect().size());
-    ui->m_pBBackward->setFixedSize(pixmapb.scaled(64, 32).rect().size());
+    ui->m_pBBackward->setIconSize(pixmapb.scaled(96, 64).rect().size());
+    ui->m_pBBackward->setFixedSize(pixmapb.scaled(96, 64).rect().size());
 
     QPixmap pixmapl(":/icons/left.png");
-    QIcon LeftIcon(pixmapl.scaled(64, 32));
+    QIcon LeftIcon(pixmapl.scaled(96, 64));
     ui->m_pBLeft->setIcon(LeftIcon);
-    ui->m_pBLeft->setIconSize(pixmapl.scaled(64, 32).rect().size());
-    ui->m_pBLeft->setFixedSize(pixmapl.scaled(64, 32).rect().size());
+    ui->m_pBLeft->setIconSize(pixmapl.scaled(96, 64).rect().size());
+    ui->m_pBLeft->setFixedSize(pixmapl.scaled(96, 64).rect().size());
 
     QPixmap pixmapr(":/icons/right.png");
-    QIcon RightIcon(pixmapr.scaled(64, 32));
+    QIcon RightIcon(pixmapr.scaled(96, 64));
     ui->m_pBRight->setIcon(RightIcon);
-    ui->m_pBRight->setIconSize(pixmapr.scaled(64, 32).rect().size());
-    ui->m_pBRight->setFixedSize(pixmapr.scaled(64, 32).rect().size());
+    ui->m_pBRight->setIconSize(pixmapr.scaled(96, 64).rect().size());
+    ui->m_pBRight->setFixedSize(pixmapr.scaled(96, 64).rect().size());
 
     statusChanged("No Device Connected.");
 
