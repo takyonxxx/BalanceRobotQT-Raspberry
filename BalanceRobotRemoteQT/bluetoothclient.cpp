@@ -43,9 +43,9 @@ void BluetoothClient::addDevice(const QBluetoothDeviceInfo &device)
     {
         if(device.name().isEmpty()) return;
 
-        QString info = "Device Found: " + device.name() + "\nUuid: " + device.deviceUuid().toString();        
+        QString info = "Device Found: " + device.name() + "\nUuid: " + device.deviceUuid().toString();
 
-        if(device.name().startsWith("Bal"))
+        if(device.name().startsWith("Balance"))
         {
             emit statusChanged(info);
             current_device = new DeviceInfo(device);
@@ -104,8 +104,7 @@ void BluetoothClient::startConnect(int i){
     m_control = QLowEnergyController::createCentral(current_device->getDevice(), this);
     m_control ->setRemoteAddressType(QLowEnergyController::RandomAddress);
 
-    connect(m_control, SIGNAL(error(QLowEnergyController::Error)), this, SLOT(controllerError(QLowEnergyController::Error)));
-
+    connect(m_control, &QLowEnergyController::errorOccurred, this, &BluetoothClient::errorOccurred);
     connect(m_control, &QLowEnergyController::connected, this, &BluetoothClient::deviceConnected);
     connect(m_control, &QLowEnergyController::disconnected, this, &BluetoothClient::deviceDisconnected);
     connect(m_control, &QLowEnergyController::serviceDiscovered, this, &BluetoothClient::serviceDiscovered);
@@ -123,8 +122,11 @@ void BluetoothClient::setService_name(const QString &newService_name)
 
 void BluetoothClient::serviceDiscovered(const QBluetoothUuid &gatt)
 {
-    m_bFoundUARTService =true;
-    current_gatt = gatt;
+    if(gatt == QBluetoothUuid(SCANPARAMETERSUUID))
+    {
+        m_bFoundUARTService =true;
+        current_gatt = gatt;
+    }
 }
 
 void BluetoothClient::serviceScanDone()
@@ -138,13 +140,14 @@ void BluetoothClient::serviceScanDone()
     }
 
     if(!m_service)
-    {
-        QString info =  "Service Found: " + current_gatt.toString() ;
-        emit statusChanged(info);;
+    {       
         disconnectFromDevice();
         setState(DisConnected);
         return;
     }
+
+    QString info =  "Service Found: " + current_gatt.toString() ;
+    emit statusChanged(info);;
 
     /* 3 Step: Service Discovery */
     connect(m_service, SIGNAL(stateChanged(QLowEnergyService::ServiceState)),
@@ -175,6 +178,13 @@ void BluetoothClient::deviceConnected()
 {
     m_control->discoverServices();
     setState(Connected);
+}
+
+void BluetoothClient::errorOccurred(QLowEnergyController::Error newError)
+{
+    auto statusText = QString("Controller Error: %1").arg(newError);
+    qDebug() << statusText;
+    emit statusChanged(statusText);
 }
 
 void BluetoothClient::controllerError(QLowEnergyController::Error error)

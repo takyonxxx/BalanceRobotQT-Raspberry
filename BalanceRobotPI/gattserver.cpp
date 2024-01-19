@@ -63,7 +63,6 @@ void GattServer::errorOccurred(QLowEnergyController::Error newError)
 {
     auto statusText = QString("Controller Error: %1").arg(newError);
     emit sendInfo(statusText);
-    qDebug() << statusText;
 }
 
 void GattServer::addService(const QLowEnergyServiceData &serviceData)
@@ -130,13 +129,11 @@ void GattServer::startBleService()
         // writeTimer->start(1000);
         auto statusText = QString("Listening for Ble connection %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
-        qDebug() << statusText;
     }
     else
     {
         auto statusText = QString("Ble connection can not start for %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
-        qDebug() << statusText;
     }
 }
 
@@ -158,7 +155,6 @@ void GattServer::stopBleService()
         // Emit appropriate status information
         auto statusText = QString("Ble service stopped for %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
-        qDebug() << statusText;
     }
 }
 

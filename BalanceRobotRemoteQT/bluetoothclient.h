@@ -14,7 +14,7 @@
 #include <qregularexpression.h>
 #include <deviceinfo.h>
 
-#define UARTSERVICEUUID     "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define SCANPARAMETERSUUID  "00001813-0000-1000-8000-00805f9b34fb"
 #define RXUUID              "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define TXUUID              "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
@@ -60,6 +60,7 @@ private slots:
     void controllerError(QLowEnergyController::Error);
     void deviceConnected();
     void deviceDisconnected();
+    void errorOccurred(QLowEnergyController::Error newError);
 
     /* Slotes for QLowEnergyService */
     void serviceStateChanged(QLowEnergyService::ServiceState s);
