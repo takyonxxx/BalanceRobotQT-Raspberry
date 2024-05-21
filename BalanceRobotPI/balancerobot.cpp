@@ -361,5 +361,5 @@ void BalanceRobot::init()
     robotControl = RobotControl::getInstance();
     robotControl->start();
 
-//    translator->start();
+    // translator->start();
 }

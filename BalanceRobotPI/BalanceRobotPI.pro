@@ -57,12 +57,8 @@ DISTFILES +=
 #sudo apt-get install qtmultimedia5-dev
 #sudo apt install libqt5multimedia5-plugins
 #sudo apt-get install libflac-dev
-#sudo apt-get install espeak
-# flac -c -d *flac | aplay
-#espeak voice folder under /usr/lib/arm-linux-gnueabihf/espeak-data/voices/!v
-#i did not use libespeak instead i use system command,
-#for install libespeak and compile visit:
-#https://walker.cs.grinnell.edu/MyroC/linux/myroc-installation-notes-linux.php?MyroC_release=3.2&MyroC_subrelease=a&eSpeak_release=2.0
-#ffmpeg -f alsa -ar 48000 -ac 2 -i hw:0 testfile.flac
-
-
+#sudo apt-get update
+#sudo apt-get install libi2c-dev
+#git clone https://github.com/WiringPi/WiringPi.git
+#cd WiringPi
+#sudo ./build
