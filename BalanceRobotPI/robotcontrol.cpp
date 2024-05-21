@@ -48,6 +48,8 @@ void RobotControl::loadSettings()
     aggKd = settings.value("aggKd", "").toString().toDouble();
     aggSD = settings.value("aggVs", "").toString().toDouble();
     aggAC = settings.value("angleCorrection", "").toString().toDouble();
+
+    qDebug() << aggKp << aggKi << aggKd << aggSD << aggAC;
 }
 
 void RobotControl::saveSettings()
@@ -169,11 +171,11 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 15.0;
-    aggKi = 10.0;
-    aggKd = 0.5;
+    aggKp = 12.0;
+    aggKi = 8.0;
+    aggKd = 0.3;
     aggSD = 4.0; //speed diff
-    aggAC = 1.2; //angel correction
+    aggAC = 1.0; //angel correction
 }
 
 void RobotControl::stop()
