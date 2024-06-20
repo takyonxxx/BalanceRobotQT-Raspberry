@@ -15,11 +15,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->m_textStatus->setStyleSheet("font-size: 12pt; color: #cccccc; background-color: #003333;");
 
-    ui->labelPP->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelPI->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelPD->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelDS->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelAC->setStyleSheet("font-size: 16pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelPP->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelPI->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelPD->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelDS->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
+    ui->labelAC->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
     ui->lineEdit_Speak->setStyleSheet("font-size: 18pt; color: #ffffff; background-color: #FF4633;");
 
     ui->m_pBForward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
