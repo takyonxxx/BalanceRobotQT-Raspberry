@@ -207,7 +207,6 @@ void RobotControl::encodeL(void)
         Speed_L += 1;
     else
         Speed_L -= 1;
-
 }
 
 void RobotControl::encodeR(void)
@@ -269,13 +268,13 @@ bool RobotControl::initwiringPi()
 void RobotControl::correctSpeedDiff()
 {
     errorSpeed = diffSpeed - lastSpeedError;
-    speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
+    speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
     lastSpeedError = diffSpeed;
-
 }
 
 void RobotControl::calculatePwm()
 {
+
     if( currentAngle > 45 || currentAngle < -45)
     {
         pwm = 0;
@@ -320,36 +319,30 @@ void RobotControl::calculatePwm()
 
     diffSpeed = Speed_R + Speed_L;
     diffAllSpeed += diffSpeed;
+
+    if(diffSpeed == 0)
+    {
+        speedAdjust = 0;
+        diffAllSpeed = 0;
+    }
+
     correctSpeedDiff();
-
-    float ftmp = 0;
-    ftmp = (Speed_L + Speed_R) * 0.5;
-    if( ftmp > 0)
-        avgPosition = ftmp + 0.5;
-    else
-        avgPosition = ftmp - 0.5;
-    addPosition += avgPosition;  //position  
-    auto addPositionf = constrain(addPosition, -pwmLimit, pwmLimit) * 0.1;
-
-    addPositionf = 0.0f;
 
     //Set angle setpoint and compensate to reach equilibrium point
     anglePID.setSetpoint(targetAngle + aggAC);
-    anglePID.setTunings(aggKp, aggKi, aggKd / 10.0);
+    anglePID.setTunings(aggKp, aggKi, aggKd / 10);
 
     //Compute Angle PID (input is current angle)
     Output = anglePID.compute(Input);
 
     pwm = -static_cast<int>(Output) - needSpeed;
 
-    pwm_r =int(pwm - aggSD * speedAdjust - addPositionf - needTurnR);
-    pwm_l =int(pwm + aggSD * speedAdjust + addPositionf - needTurnL);
-
+    pwm_r = int(pwm + aggSD * speedAdjust  + needTurnR);
+    pwm_l = int(pwm + aggSD * speedAdjust  + needTurnL);
 
     if(needTurnR != 0 || needTurnL != 0)
     {
         diffSpeed = 0;
-        diffAllSpeed = 0;
     }
 
     Speed_L = 0;
@@ -383,6 +376,8 @@ void RobotControl::controlRobot()
         digitalWrite(PWML2, LOW);
         pwm_l = -pwm_l;
     }
+
+    qDebug() << pwm_r << pwm_l << diffSpeed << speedAdjust;
 
     softPwmWrite(PWML, pwm_l);
     softPwmWrite(PWMR, pwm_r);
@@ -459,7 +454,7 @@ void RobotControl::calculateGyro()
     currentAngle = (DataAvg[0]+DataAvg[1]+DataAvg[2])/3;
 
     currentGyro = gyroXrate;
-    //qDebug("currentAngle: %.1f", currentAngle);
+    //qDebug() << QString("currentAngle: %1").arg(QString::number(currentAngle, 'f', 1));
 }
 
 
