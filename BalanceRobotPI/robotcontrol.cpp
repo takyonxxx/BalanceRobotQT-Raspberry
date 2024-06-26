@@ -335,7 +335,7 @@ void RobotControl::calculatePwm()
     //Compute Angle PID (input is current angle)
     Output = anglePID.compute(Input);
 
-    pwm = -static_cast<int>(Output) - needSpeed;
+    pwm = -static_cast<int>(Output) + needSpeed;
 
     pwm_r = int(pwm + aggSD * speedAdjust  + needTurnR);
     pwm_l = int(pwm + aggSD * speedAdjust  + needTurnL);
