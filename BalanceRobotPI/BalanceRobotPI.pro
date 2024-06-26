@@ -55,6 +55,8 @@ DISTFILES +=
 #sudo apt-get install sox libsox-fmt-all
 #sudo apt-get install pulseaudio alsa-tools
 #sudo apt-get install qtmultimedia5-dev
+#sudo apt-get install libqt5bluetooth5 libqt5bluetooth5-bin
+#sudo apt-get install qtconnectivity5-dev
 #sudo apt install libqt5multimedia5-plugins
 #sudo apt-get install libflac-dev
 #sudo apt-get update
