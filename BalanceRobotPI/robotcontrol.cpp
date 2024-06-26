@@ -171,11 +171,11 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 12.0;
-    aggKi = 8.0;
-    aggKd = 0.3;
+    aggKp = 10.0;
+    aggKi = 6.0;
+    aggKd = 0.8;
     aggSD = 4.0; //speed diff
-    aggAC = 1.0; //angel correction
+    aggAC = 4.0; //angel correction
 }
 
 void RobotControl::stop()
