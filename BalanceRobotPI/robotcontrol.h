@@ -117,10 +117,6 @@ private:
     Kalman kalmanY{};
 
     uint32_t timer{0};
-    uint32_t timer_speed{0};
-    double timer_speed_total{0};
-    bool reset_timer_speed{false};
-
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
 

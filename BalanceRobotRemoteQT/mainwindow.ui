@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>435</width>
-    <height>563</height>
+    <height>588</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -62,7 +62,7 @@
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>30</height>
+          <height>35</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -159,7 +159,7 @@ QScrollBar::add-page:horizontal {
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>30</height>
+          <height>35</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -198,7 +198,7 @@ QScrollBar::add-page:horizontal {
 }</string>
         </property>
         <property name="maximum">
-         <number>100</number>
+         <number>50</number>
         </property>
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -253,7 +253,7 @@ QScrollBar::add-page:horizontal {
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>30</height>
+          <height>35</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -347,7 +347,7 @@ QScrollBar::add-page:horizontal {
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>30</height>
+          <height>35</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -441,7 +441,7 @@ QScrollBar::add-page:horizontal {
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>30</height>
+          <height>35</height>
          </size>
         </property>
         <property name="styleSheet">

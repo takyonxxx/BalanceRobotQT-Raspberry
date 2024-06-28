@@ -28,10 +28,10 @@
 #define PWML   37
 
 //encoder define
-#define SPD_INT_L 16   //interrupt R Phys:16
-#define SPD_PUL_L 12   //Phys:12
+#define SPD_INT_L 12   //interrupt R Phys:12
+#define SPD_PUL_L 16   //Phys:16
 #define SPD_INT_R 22   //interrupt L Phys:22
-#define SPD_PUL_R 18   //Phys:18
+#define SPD_PUL_R 18   //Phys:16
 
 #define Ref_Meters		180.0		// Reference for meters in adaptive predictive control
 #define NL				0.005		// Noise Level for Adaptive Mechanism.

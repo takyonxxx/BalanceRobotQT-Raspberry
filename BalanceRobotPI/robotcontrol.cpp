@@ -162,8 +162,8 @@ void RobotControl::ResetValues()
     speedAdjust = 0;
     errorSpeed = 0;
 
-    SKp = 1.0;
-    SKi = 0.5;
+    SKp = 4.5;
+    SKi = 0.15;
     SKd = 0.3;
     DataAvg[0]=0; DataAvg[1]=0; DataAvg[2]=0;
     mpu_test = false;
@@ -171,11 +171,11 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    aggKp = 10.0;
-    aggKi = 6.0;
-    aggKd = 0.8;
-    aggSD = 4.0; //speed diff
-    aggAC = 4.0; //angel correction
+    aggKp = 9.0;
+    aggKi = 0.3;
+    aggKd = 0.6;
+    aggSD = 1.0;
+    aggAC = 5.0; //angel correction
 }
 
 void RobotControl::stop()
@@ -204,17 +204,17 @@ bool RobotControl::initGyroMeter()
 void RobotControl::encodeL(void)
 {
     if (digitalRead(SPD_PUL_L))
-        Speed_L += 1;
-    else
         Speed_L -= 1;
+    else
+        Speed_L += 1;
 }
 
 void RobotControl::encodeR(void)
 {
     if (digitalRead(SPD_PUL_R))
-        Speed_R += 1;
-    else
         Speed_R -= 1;
+    else
+        Speed_R += 1;
 }
 
 bool RobotControl::initwiringPi()
@@ -268,7 +268,7 @@ bool RobotControl::initwiringPi()
 void RobotControl::correctSpeedDiff()
 {
     errorSpeed = diffSpeed - lastSpeedError;
-    speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
+    speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
     lastSpeedError = diffSpeed;
 }
 
@@ -287,58 +287,28 @@ void RobotControl::calculatePwm()
         Speed_L = 0;
         Speed_R = 0;
         Input = 0;
-        reset_timer_speed = true;
-        timer_speed_total = 0.0;
         return;
-    } 
-
-    double dt_control = (double)(micros() - timer_speed) / 1000000; // Calculate delta time
-    timer_speed = micros();
-
-    if(dt_control > 0.1)
-        return;
-
-    if(reset_timer_speed)
-    {
-        timer_speed_total += dt_control;
-
-        if (timer_speed_total >= 0.5)
-        {
-            reset_timer_speed = false;
-            timer_speed_total = 0.0;
-        }
-
-        if (reset_timer_speed)
-        {
-            return;
-        }
     }
 
     Input = currentAngle;
-    targetAngle = 0.0;
+    targetAngle = -2.5;
 
-    diffSpeed = Speed_R + Speed_L;
+    diffSpeed = Speed_R - Speed_L;
     diffAllSpeed += diffSpeed;
-
-    if(diffSpeed == 0)
-    {
-        speedAdjust = 0;
-        diffAllSpeed = 0;
-    }
 
     correctSpeedDiff();
 
     //Set angle setpoint and compensate to reach equilibrium point
     anglePID.setSetpoint(targetAngle + aggAC);
-    anglePID.setTunings(aggKp, aggKi, aggKd / 10);
+    anglePID.setTunings(aggKp, aggKi / 10 , aggKd / 10);
 
     //Compute Angle PID (input is current angle)
     Output = anglePID.compute(Input);
 
     pwm = -static_cast<int>(Output) + needSpeed;
 
-    pwm_r = int(pwm + aggSD * speedAdjust  + needTurnR);
-    pwm_l = int(pwm + aggSD * speedAdjust  + needTurnL);
+    pwm_r = int(pwm + 2*needTurnR + aggSD * speedAdjust);
+    pwm_l = int(pwm + 2*needTurnL - aggSD * speedAdjust);
 
     if(needTurnR != 0 || needTurnL != 0)
     {
@@ -376,8 +346,6 @@ void RobotControl::controlRobot()
         digitalWrite(PWML2, LOW);
         pwm_l = -pwm_l;
     }
-
-    qDebug() << pwm_r << pwm_l << diffSpeed << speedAdjust;
 
     softPwmWrite(PWML, pwm_l);
     softPwmWrite(PWMR, pwm_r);
@@ -474,6 +442,6 @@ void RobotControl::run()
         calculatePwm();
         controlRobot();
 
-        QThread::usleep(10);
+        QThread::msleep(5);
     }
 }
