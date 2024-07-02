@@ -28,6 +28,10 @@ public:
     float getSetpoint();
     void setPidTuning(PIDTuning tunning);
     void setTunings(float Kp, float Ki, float Kd);
+    void resetIntegral() {
+        Ci = 0;
+    }
+
 private:
     PIDTuning pidTunning{CONSERVATIVE};
     float lastError;

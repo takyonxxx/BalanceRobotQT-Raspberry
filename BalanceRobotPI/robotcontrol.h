@@ -33,6 +33,7 @@ public:
     void calculateGyro();
     void controlRobot();
     void ResetValues();
+    void resetControlVariables();
     void stop();
 
     static void encodeL(void);
@@ -91,6 +92,7 @@ private:
     float Output{0};
     float accX, accY, accZ;
     float gyroX, gyroY, gyroZ;
+    double gyroXrate;
     float gyroXangle, gyroYangle; // Angle calculate using the gyro only
     float compAngleX, compAngleY; // Calculated angle using a complementary filter
     float kalAngleX, kalAngleY; // Calculated angle using a Kalman filter

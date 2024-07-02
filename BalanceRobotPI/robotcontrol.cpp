@@ -176,6 +176,8 @@ void RobotControl::ResetValues()
     aggKd = 0.6;
     aggSD = 1.0;
     aggAC = 5.0; //angel correction
+
+    gyroXrate = 0;
 }
 
 void RobotControl::stop()
@@ -272,51 +274,141 @@ void RobotControl::correctSpeedDiff()
     lastSpeedError = diffSpeed;
 }
 
+//void RobotControl::calculatePwm()
+//{
+
+//    if( currentAngle > 45 || currentAngle < -45)
+//    {
+//        pwm = 0;
+//        pwm_l = 0;
+//        pwm_r = 0;
+//        diffSpeed = 0;
+//        diffAllSpeed = 0;
+//        speedAdjust = 0;
+//        addPosition = 0;
+//        Speed_L = 0;
+//        Speed_R = 0;
+//        Input = 0;
+//        return;
+//    }
+
+//    Input = currentAngle;
+//    targetAngle = -2.5;
+
+//    diffSpeed = Speed_R - Speed_L;
+//    diffAllSpeed += diffSpeed;
+
+//    correctSpeedDiff();
+
+//    //Set angle setpoint and compensate to reach equilibrium point
+//    anglePID.setSetpoint(targetAngle + aggAC);
+//    anglePID.setTunings(aggKp, aggKi / 10 , aggKd / 10);
+
+//    //Compute Angle PID (input is current angle)
+//    Output = anglePID.compute(Input);
+
+//    pwm = -static_cast<int>(Output) + needSpeed;
+
+//    pwm_r = int(pwm + 2*needTurnR + aggSD * speedAdjust);
+//    pwm_l = int(pwm + 2*needTurnL - aggSD * speedAdjust);
+
+//    if(needTurnR != 0 || needTurnL != 0)
+//    {
+//        diffSpeed = 0;
+//    }
+
+//    Speed_L = 0;
+//    Speed_R = 0;
+//}
+
 void RobotControl::calculatePwm()
 {
+    const float ANGLE_LIMIT = 45.0f;
+    const float DEAD_ZONE = 0.5f;
+    const float COMPLEMENTARY_FILTER_ALPHA = 0.98f;
 
-    if( currentAngle > 45 || currentAngle < -45)
+    // Complementary filter for angle estimation
+    float accelAngle = atan2(accY, accZ) * RAD_TO_DEG;
+    currentAngle = COMPLEMENTARY_FILTER_ALPHA * (currentAngle + gyroXrate * timeDiff) + (1 - COMPLEMENTARY_FILTER_ALPHA) * accelAngle;
+
+    if (std::abs(currentAngle) > ANGLE_LIMIT)
     {
-        pwm = 0;
-        pwm_l = 0;
-        pwm_r = 0;
-        diffSpeed = 0;
-        diffAllSpeed = 0;
-        speedAdjust = 0;
-        addPosition = 0;
-        Speed_L = 0;
-        Speed_R = 0;
-        Input = 0;
+        resetControlVariables();
         return;
     }
 
+    // Dead zone implementation
+    if (std::abs(currentAngle) < DEAD_ZONE)
+    {
+        currentAngle = 0;
+    }
+
     Input = currentAngle;
-    targetAngle = -2.5;
+    targetAngle = 0.0f;
 
     diffSpeed = Speed_R - Speed_L;
     diffAllSpeed += diffSpeed;
 
-    correctSpeedDiff();
+    // Low-pass filter for speed adjustment
+    speedAdjust = speedAdjust * 0.7f + (constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * (diffSpeed - lastSpeedError))), -pwmLimit, pwmLimit)) * 0.3f;
+    lastSpeedError = diffSpeed;
 
-    //Set angle setpoint and compensate to reach equilibrium point
+    // Dynamic PID tuning based on angle error
+    float angleError = std::abs(Input - targetAngle);
+    float dynamicKp = aggKp + (angleError * 0.1f); // Increase Kp for larger errors
+    float dynamicKi = (angleError < 5.0f) ? aggKi : 0; // Use Ki only for small errors
+    float dynamicKd = aggKd + (angleError * 0.05f); // Increase Kd for larger errors
+
+    anglePID.setTunings(dynamicKp, dynamicKi / 10, dynamicKd / 10);
     anglePID.setSetpoint(targetAngle + aggAC);
-    anglePID.setTunings(aggKp, aggKi / 10 , aggKd / 10);
 
-    //Compute Angle PID (input is current angle)
+    // Compute Angle PID with anti-windup
     Output = anglePID.compute(Input);
+
+    // Implement integral windup prevention
+    if (std::abs(Output) >= pwmLimit)
+    {
+        anglePID.resetIntegral();
+    }
 
     pwm = -static_cast<int>(Output) + needSpeed;
 
-    pwm_r = int(pwm + 2*needTurnR + aggSD * speedAdjust);
-    pwm_l = int(pwm + 2*needTurnL - aggSD * speedAdjust);
+    // Apply non-linear scaling to turning
+    float turnFactor = 1.0f + std::abs(currentAngle) / ANGLE_LIMIT;
+    int scaledTurnL = needTurnL * turnFactor;
+    int scaledTurnR = needTurnR * turnFactor;
 
-    if(needTurnR != 0 || needTurnL != 0)
+    pwm_r = int(pwm + 2 * scaledTurnR + aggSD * speedAdjust);
+    pwm_l = int(pwm + 2 * scaledTurnL - aggSD * speedAdjust);
+
+    // Reset differential speed when turning
+    if (needTurnR != 0 || needTurnL != 0)
     {
         diffSpeed = 0;
+        diffAllSpeed = 0;
     }
 
+    // Limit PWM values
+    pwm_r = constrain(pwm_r, -pwmLimit, pwmLimit);
+    pwm_l = constrain(pwm_l, -pwmLimit, pwmLimit);
+
     Speed_L = 0;
-    Speed_R = 0;   
+    Speed_R = 0;
+}
+
+void RobotControl::resetControlVariables()
+{
+    pwm = 0;
+    pwm_l = 0;
+    pwm_r = 0;
+    diffSpeed = 0;
+    diffAllSpeed = 0;
+    speedAdjust = 0;
+    addPosition = 0;
+    Speed_L = 0;
+    Speed_R = 0;
+    Input = 0;
+    anglePID.resetIntegral();
 }
 
 void RobotControl::controlRobot()
@@ -337,7 +429,7 @@ void RobotControl::controlRobot()
     {
         digitalWrite(PWMR1, LOW);
         digitalWrite(PWMR2, HIGH);
-        pwm_r =- pwm_r;  //cchange to positive
+        pwm_r = -pwm_r;
     }
 
     if (pwm_l<0)
@@ -367,6 +459,8 @@ void RobotControl::calculateGyro()
     gyroX = (int16_t)(gx);
     gyroY = (int16_t)(gy);
     gyroZ = (int16_t)(gz);
+
+    gyroXrate = gyroX / 131.0;
 
     //qDebug("accX: %.1f  accY: %.1f accZ %.1f  gyroX: %.1f gyroY: %.1f  gyroZ: %.1f\n", accX, accY, accZ, gyroX, gyroY, gyroZ);
 
