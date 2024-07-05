@@ -101,7 +101,7 @@ QScrollBar::add-page:horizontal {
 }</string>
         </property>
         <property name="maximum">
-         <number>50</number>
+         <number>100</number>
         </property>
         <property name="pageStep">
          <number>10</number>
@@ -113,6 +113,12 @@ QScrollBar::add-page:horizontal {
       </item>
       <item>
        <widget class="QLabel" name="labelPP">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>30</width>
@@ -198,7 +204,7 @@ QScrollBar::add-page:horizontal {
 }</string>
         </property>
         <property name="maximum">
-         <number>50</number>
+         <number>100</number>
         </property>
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -207,6 +213,12 @@ QScrollBar::add-page:horizontal {
       </item>
       <item>
        <widget class="QLabel" name="labelPI">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>30</width>
@@ -301,6 +313,12 @@ QScrollBar::add-page:horizontal {
       </item>
       <item>
        <widget class="QLabel" name="labelPD">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>30</width>
@@ -395,6 +413,12 @@ QScrollBar::add-page:horizontal {
       </item>
       <item>
        <widget class="QLabel" name="labelDS">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>30</width>
@@ -492,6 +516,12 @@ QScrollBar::add-page:horizontal {
       </item>
       <item>
        <widget class="QLabel" name="labelAC">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>30</width>

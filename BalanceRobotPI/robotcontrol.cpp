@@ -150,7 +150,7 @@ void RobotControl::ResetValues()
 
     currentAngle = 0.0;
     currentGyro = 0.0;
-    pwmLimit = 100;
+    pwmLimit = 255;
     needSpeed = 0;
     needTurnL = 0;
     needTurnR = 0;
@@ -206,17 +206,21 @@ bool RobotControl::initGyroMeter()
 void RobotControl::encodeL(void)
 {
     if (digitalRead(SPD_PUL_L))
-        Speed_L -= 1;
-    else
         Speed_L += 1;
+    else
+        Speed_L -= 1;
+
+    // qDebug() << "Speed_L" << Speed_L;
 }
 
 void RobotControl::encodeR(void)
 {
     if (digitalRead(SPD_PUL_R))
-        Speed_R -= 1;
-    else
         Speed_R += 1;
+    else
+        Speed_R -= 1;
+
+     // qDebug() << "Speed_R" << Speed_R;
 }
 
 bool RobotControl::initwiringPi()
@@ -270,60 +274,13 @@ bool RobotControl::initwiringPi()
 void RobotControl::correctSpeedDiff()
 {
     errorSpeed = diffSpeed - lastSpeedError;
-    speedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit);
+    // Low-pass filter for speed adjustment
+    speedAdjust = speedAdjust * 0.7f + (constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)), -pwmLimit, pwmLimit)) * 0.3f;
     lastSpeedError = diffSpeed;
 }
 
-//void RobotControl::calculatePwm()
-//{
-
-//    if( currentAngle > 45 || currentAngle < -45)
-//    {
-//        pwm = 0;
-//        pwm_l = 0;
-//        pwm_r = 0;
-//        diffSpeed = 0;
-//        diffAllSpeed = 0;
-//        speedAdjust = 0;
-//        addPosition = 0;
-//        Speed_L = 0;
-//        Speed_R = 0;
-//        Input = 0;
-//        return;
-//    }
-
-//    Input = currentAngle;
-//    targetAngle = -2.5;
-
-//    diffSpeed = Speed_R - Speed_L;
-//    diffAllSpeed += diffSpeed;
-
-//    correctSpeedDiff();
-
-//    //Set angle setpoint and compensate to reach equilibrium point
-//    anglePID.setSetpoint(targetAngle + aggAC);
-//    anglePID.setTunings(aggKp, aggKi / 10 , aggKd / 10);
-
-//    //Compute Angle PID (input is current angle)
-//    Output = anglePID.compute(Input);
-
-//    pwm = -static_cast<int>(Output) + needSpeed;
-
-//    pwm_r = int(pwm + 2*needTurnR + aggSD * speedAdjust);
-//    pwm_l = int(pwm + 2*needTurnL - aggSD * speedAdjust);
-
-//    if(needTurnR != 0 || needTurnL != 0)
-//    {
-//        diffSpeed = 0;
-//    }
-
-//    Speed_L = 0;
-//    Speed_R = 0;
-//}
-
 void RobotControl::calculatePwm()
 {
-    const float ANGLE_LIMIT = 45.0f;
     const float DEAD_ZONE = 0.5f;
     const float COMPLEMENTARY_FILTER_ALPHA = 0.98f;
 
@@ -344,14 +301,12 @@ void RobotControl::calculatePwm()
     }
 
     Input = currentAngle;
-    targetAngle = 0.0f;
+    targetAngle = -2.5f;
 
     diffSpeed = Speed_R - Speed_L;
-    diffAllSpeed += diffSpeed;
+    diffAllSpeed += diffSpeed;    
 
-    // Low-pass filter for speed adjustment
-    speedAdjust = speedAdjust * 0.7f + (constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * (diffSpeed - lastSpeedError))), -pwmLimit, pwmLimit)) * 0.3f;
-    lastSpeedError = diffSpeed;
+    correctSpeedDiff();
 
     // Dynamic PID tuning based on angle error
     float angleError = std::abs(Input - targetAngle);
@@ -388,7 +343,6 @@ void RobotControl::calculatePwm()
         diffAllSpeed = 0;
     }
 
-    // Limit PWM values
     pwm_r = constrain(pwm_r, -pwmLimit, pwmLimit);
     pwm_l = constrain(pwm_l, -pwmLimit, pwmLimit);
 
@@ -528,9 +482,9 @@ void RobotControl::run()
     {
         const std::lock_guard<std::mutex> lock(mutex_loop);
 
-        mpu_test = gyroMPU->testConnection();
-        if(!mpu_test)
-            continue;
+        // mpu_test = gyroMPU->testConnection();
+        // if(!mpu_test)
+        //     continue;
 
         calculateGyro();
         calculatePwm();

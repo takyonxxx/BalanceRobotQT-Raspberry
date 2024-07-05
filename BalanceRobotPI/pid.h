@@ -6,7 +6,7 @@
 #define SPEED_KI 			0.0
 #define SPEED_KD 			0.0
 #define ANGLE_SETPOINT 		0.0
-#define ANGLE_LIMIT 		0.0
+#define ANGLE_LIMIT 		45.0f
 #define ANGLE_KP_AGGR 		0.0
 #define ANGLE_KI_AGGR 		0.0
 #define ANGLE_KD_AGGR 		0.0
