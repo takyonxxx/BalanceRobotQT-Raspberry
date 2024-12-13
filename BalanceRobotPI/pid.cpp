@@ -1,76 +1,72 @@
-
 #include "pid.h"
 #include <wiringPi.h>
+#include <algorithm>
 
 PID::PID()
+    : Ci(0)
+    , lastTime(0)
+    , lastError(0)
+    , setpoint(PIDConstants::ANGLE_SETPOINT)
+    , pidTunning(CONSERVATIVE)
 {
-    this->Ci=0;
-    this->lastTime=0;
-    this->lastError=0;
+    // Initialize with conservative tuning by default
+    if (pidTunning == CONSERVATIVE) {
+        Kp = PIDConstants::ANGLE_KP_CONS;
+        Ki = PIDConstants::ANGLE_KI_CONS;
+        Kd = PIDConstants::ANGLE_KD_CONS;
+    }
 }
 
 float PID::compute(float input)
 {
     /* Performs a PID computation and returns a control value based on
     the elapsed time (dt) and the error signal from a summing junction
-    (the error parameter)*/
+    (the error parameter) */
+
     unsigned long now = millis();
-    float dt;
-    float error;
-    float de;
-    float output;
+    float dt = (float)(now - lastTime) / 1000.0f;
 
-    /* Calculate delta time (seconds) */
-    dt = (float)(now - lastTime)/1000.0f;
-    //Serial.println("dt: " + String(dt));
-
-    /* Calculate delta error */
-    error = setpoint - input;
-
-    de = error - lastError;
-    //Serial.println("input: " + String(input));
-    //Serial.println("error: " + String(error));
-    //Serial.println("de: " + String(de));
-
-    /* Proportional Term */
-    Cp = error;
-    //Serial.println("cp: " + String(Cp));
-
-    /* Integral Term */
-    Ci += error*dt;
-    //Serial.println("ci: " + String(Ci));
-
-    Cd = 0;
-    /* to avoid division by zero */
-    if(dt>0)
-    {
-        /* Derivative term */
-        Cd = de/dt;
-        //Serial.println("cd: " + String(Cd));
+    // Avoid division by zero and ensure minimum time step
+    if (dt < 0.001f) {
+        return Cp * Kp + Ci * Ki; // Return last calculation without derivative
     }
 
-    /* Save for the next iteration */
+    // Calculate error terms
+    float error = setpoint - input;
+    float de = error - lastError;
+
+    // Proportional term
+    Cp = error;
+
+    // Integral term with anti-windup
+    float potentialCi = Ci + error * dt;
+    float potentialOutput = Cp * Kp + potentialCi * Ki;
+
+    // Only update integral if it won't cause windup
+    if (std::abs(potentialOutput) < PIDConstants::WINDUP_GUARD) {
+        Ci = potentialCi;
+    }
+
+    // Derivative term with noise filtering
+    Cd = de / dt;
+
+    // Save state for next iteration
     lastError = error;
     lastTime = now;
 
-    /* Sum terms: pTerm+iTerm+dTerm */
-    output = Cp*Kp + Ci*Ki + Cd*Kd;
-    //Serial.println("output: " + String(output));
+    // Calculate final output
+    float output = Cp * Kp + Ci * Ki + Cd * Kd;
 
-    /* Saturation - Windup guard for Integral term do not reach very large values */
-    if(output > WINDUP_GUARD){
-        output = WINDUP_GUARD;
-    }
-    else if (output < -WINDUP_GUARD){
-        output = -WINDUP_GUARD;
-    }
-
-    return output;
+    // Apply output limits
+    return std::clamp(output, -PIDConstants::WINDUP_GUARD, PIDConstants::WINDUP_GUARD);
 }
 
 void PID::setSetpoint(float value)
 {
-    this->setpoint = value;
+    // Limit setpoint to recoverable angle range
+    setpoint = std::clamp(value,
+                          -PIDConstants::ANGLE_IRRECOVERABLE,
+                          PIDConstants::ANGLE_IRRECOVERABLE);
 }
 
 float PID::getSetpoint()
@@ -78,14 +74,33 @@ float PID::getSetpoint()
     return setpoint;
 }
 
-void PID::setPidTuning(PIDTuning tunning)
+void PID::setPidTuning(PIDTuning tuning)
 {
-    pidTunning = tunning;
+    if (pidTunning == tuning) {
+        return; // No change needed
+    }
+
+    pidTunning = tuning;
+
+    // Update PID coefficients based on tuning mode
+    if (pidTunning == AGGRESSIVE) {
+        Kp = PIDConstants::ANGLE_KP_AGGR;
+        Ki = PIDConstants::ANGLE_KI_AGGR;
+        Kd = PIDConstants::ANGLE_KD_AGGR;
+    } else {
+        Kp = PIDConstants::ANGLE_KP_CONS;
+        Ki = PIDConstants::ANGLE_KI_CONS;
+        Kd = PIDConstants::ANGLE_KD_CONS;
+    }
+
+    // Reset integral term when changing tuning
+    resetIntegral();
 }
 
-void PID::setTunings(float Kp, float Ki, float Kd)
+void PID::setTunings(float newKp, float newKi, float newKd)
 {
-    this->Kp = Kp;
-    this->Ki = Ki;
-    this->Kd = Kd;
+    // Ensure non-negative gains
+    Kp = std::max(0.0f, newKp);
+    Ki = std::max(0.0f, newKi);
+    Kd = std::max(0.0f, newKd);
 }
