@@ -44,10 +44,16 @@ void GattServer::handleConnected()
         emit sendInfo(statusText);
         qDebug() << statusText;
 
-        // Bluetooth servisini doğrula
-        const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
+        // Use the custom service UUID defined in the header
+        QBluetoothUuid customServiceUuid = QBluetoothUuid(QString(SCANPARAMETERSUUID));
+        const ServicePtr service = services.value(customServiceUuid);
+
         if (!service) {
-            qDebug() << "Warning: Service not found in handleConnected()";
+            qDebug() << "Warning: Service not found in handleConnected(), looking for:" << customServiceUuid.toString();
+            qDebug() << "Available services:";
+            for (const auto& uuid : services.keys()) {
+                qDebug() << "Service UUID:" << uuid.toString();
+            }
             return;
         }
 
@@ -223,7 +229,6 @@ void GattServer::writeValue(const QByteArray &value)
             return;
         }
 
-        qDebug() << "Writing value:" << value;
         service->writeCharacteristic(cCharacteristic, value);
     }
     catch (const std::exception& e) {
@@ -285,26 +290,43 @@ void GattServer::stopBleService()
 
 void GattServer::readValue()
 {
-    const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
-    Q_ASSERT(service);
+    // Use the custom service UUID
+    QBluetoothUuid customServiceUuid = QBluetoothUuid(QString(SCANPARAMETERSUUID));
+    const ServicePtr service = services.value(customServiceUuid);
 
-    QLowEnergyCharacteristic cCharacteristic = service->characteristic(QBluetoothUuid(QUuid(TXUUID)));
-    Q_ASSERT(cCharacteristic.isValid());
+    if (!service) {
+        qDebug() << "Error: Service not found in readValue()";
+        return;
+    }
+
+    QBluetoothUuid txUuid = QBluetoothUuid(QString(TXUUID));
+    QLowEnergyCharacteristic cCharacteristic = service->characteristic(txUuid);
+
+    if (!cCharacteristic.isValid()) {
+        qDebug() << "Error: TX characteristic not valid";
+        return;
+    }
+
     service->readCharacteristic(cCharacteristic);
 }
 
 void GattServer::onCharacteristicChanged(const QLowEnergyCharacteristic &c, const QByteArray &value)
 {
+    // Print raw data for debugging
+    QString hexData;
+    for (int i = 0; i < value.size(); i++) {
+        hexData += QString("%1 ").arg((unsigned char)value.at(i), 2, 16, QChar('0'));
+    }
+
     try {
-        // Gelen karakteristiğin doğru bir UUID'ye sahip olduğunu kontrol edelim
+        // Regular processing for other data
         if (c.uuid() == QBluetoothUuid(QString(TXUUID))) {
-            qDebug() << "Received data from TX characteristic:" << value;
-            emit dataReceived(value);
-        }
-        else {
-            qDebug() << "Received data from unexpected characteristic:" << c.uuid().toString() << value;
-            // Verinin işlenmesine devam edilebilir, ancak farklı bir kaynak olduğunu biliriz
-            emit dataReceived(value);
+
+            if (!value.isEmpty()) {
+                QByteArray safeCopy(value); // Create a copy of the data
+                QMetaObject::invokeMethod(this, "safeDataReceived", Qt::QueuedConnection,
+                                          Q_ARG(QByteArray, safeCopy));
+            }
         }
     }
     catch (const std::exception& e) {
@@ -312,6 +334,19 @@ void GattServer::onCharacteristicChanged(const QLowEnergyCharacteristic &c, cons
     }
     catch (...) {
         qDebug() << "Unknown exception in onCharacteristicChanged";
+    }
+}
+
+void GattServer::safeDataReceived(const QByteArray &data) {
+    try {
+        // Process data safely here
+        emit dataReceived(data);
+    }
+    catch (const std::exception& e) {
+        qDebug() << "Exception in safeDataReceived: " << e.what();
+    }
+    catch (...) {
+        qDebug() << "Unknown exception in safeDataReceived";
     }
 }
 
@@ -333,7 +368,10 @@ void GattServer::reConnect()
 
             addService(serviceData);
 
-            const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
+            // Use the custom service UUID
+            QBluetoothUuid customServiceUuid = QBluetoothUuid(QString(SCANPARAMETERSUUID));
+            const ServicePtr service = services.value(customServiceUuid);
+
             if (service.isNull()) {
                 qDebug() << "Error: Service pointer is nullptr in reConnect.";
                 qDebug() << "Available services:";
@@ -343,8 +381,10 @@ void GattServer::reConnect()
                 return;
             }
 
-            QObject::connect(service.data(), &QLowEnergyService::characteristicChanged, this, &GattServer::onCharacteristicChanged);
-            QObject::connect(service.data(), &QLowEnergyService::characteristicRead, this, &GattServer::onCharacteristicChanged);
+            QObject::connect(service.data(), &QLowEnergyService::characteristicChanged,
+                             this, &GattServer::onCharacteristicChanged);
+            QObject::connect(service.data(), &QLowEnergyService::characteristicRead,
+                             this, &GattServer::onCharacteristicChanged);
 
             leController->startAdvertising(params, advertisingData);
 

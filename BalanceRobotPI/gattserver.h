@@ -8,9 +8,10 @@
 #include <QtCore/qlist.h>
 #include <QtCore/qscopedpointer.h>
 
-#define SCANPARAMETERSUUID   "00001813-0000-1000-8000-00805f9b34fb"
-#define RXUUID        "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-#define TXUUID        "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+// Make sure these UUIDs match exactly what's in your BluetoothClient
+#define SCANPARAMETERSUUID "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+#define RXUUID "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+#define TXUUID "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 
 QT_USE_NAMESPACE
 
@@ -65,6 +66,7 @@ private slots:
     void onSensorReceived(QString);
     void handleConnected();
     void handleDisconnected();
+    void safeDataReceived(const QByteArray &data);
     void errorOccurred(QLowEnergyController::Error newError);
 };
 

@@ -1,9 +1,13 @@
 #include "pid.h"
 #include <wiringPi.h>
 #include <algorithm>
+#include <limits.h>
+#include <cmath>
 
 PID::PID()
-    : Ci(0)
+    : Cp(0)
+    , Ci(0)
+    , Cd(0)
     , lastTime(0)
     , lastError(0)
     , setpoint(PIDConstants::ANGLE_SETPOINT)
@@ -22,9 +26,16 @@ float PID::compute(float input)
     /* Performs a PID computation and returns a control value based on
     the elapsed time (dt) and the error signal from a summing junction
     (the error parameter) */
-
     unsigned long now = millis();
-    float dt = (float)(now - lastTime) / 1000.0f;
+
+    // Improved time delta calculation with overflow protection
+    float dt;
+    if (now >= lastTime) {
+        dt = (float)(now - lastTime) / 1000.0f;
+    } else {
+        // Handle timer overflow
+        dt = (float)((ULONG_MAX - lastTime) + now) / 1000.0f;
+    }
 
     // Avoid division by zero and ensure minimum time step
     if (dt < 0.001f) {
@@ -33,6 +44,12 @@ float PID::compute(float input)
 
     // Calculate error terms
     float error = setpoint - input;
+
+    // Optional: Add deadband for small errors
+    if (fabs(error) < 0.1f) {
+        error = 0;
+    }
+
     float de = error - lastError;
 
     // Proportional term
@@ -48,7 +65,10 @@ float PID::compute(float input)
     }
 
     // Derivative term with noise filtering
-    Cd = de / dt;
+    // Add low-pass filter to reduce noise sensitivity
+    const float alpha = 0.2f;  // Filtering factor (0.0-1.0)
+    float rawDerivative = de / dt;
+    Cd = alpha * rawDerivative + (1.0f - alpha) * Cd;
 
     // Save state for next iteration
     lastError = error;
@@ -103,4 +123,19 @@ void PID::setTunings(float newKp, float newKi, float newKd)
     Kp = std::max(0.0f, newKp);
     Ki = std::max(0.0f, newKi);
     Kd = std::max(0.0f, newKd);
+}
+
+void PID::resetIntegral()
+{
+    Ci = 0;
+}
+
+// New method to completely reset PID state
+void PID::reset()
+{
+    Cp = 0;
+    Ci = 0;
+    Cd = 0;
+    lastError = 0;
+    lastTime = millis();
 }

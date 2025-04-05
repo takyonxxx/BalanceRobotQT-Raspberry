@@ -79,7 +79,8 @@ bool RobotControl::initGyroMeter()
 
 void RobotControl::encodeL(void)
 {
-    if (digitalRead(SPD_PUL_L))
+    int pulValue = digitalRead(SPD_PUL_L);
+    if (pulValue)
         Speed_L += 1;
     else
         Speed_L -= 1;
@@ -87,7 +88,8 @@ void RobotControl::encodeL(void)
 
 void RobotControl::encodeR(void)
 {
-    if (digitalRead(SPD_PUL_R))
+    int pulValue = digitalRead(SPD_PUL_R);
+    if (pulValue)
         Speed_R += 1;
     else
         Speed_R -= 1;
@@ -119,14 +121,20 @@ bool RobotControl::initwiringPi()
     softPwmCreate(PWML, 0, pwmLimit);
     softPwmCreate(PWMR, 0, pwmLimit);
 
+    // In your initialization code
+    pinMode(SPD_PUL_L, INPUT);
+    pinMode(SPD_PUL_R, INPUT);
+    pullUpDnControl(SPD_PUL_L, PUD_UP); // Enable pull-up resistor
+    pullUpDnControl(SPD_PUL_R, PUD_UP); // Enable pull-up resistor
+
     // Setup speed sensors
-    if (wiringPiISR(SPD_INT_L, INT_EDGE_FALLING, &encodeL) < 0)
+    if (wiringPiISR(SPD_INT_L, INT_EDGE_BOTH, &encodeL) < 0)
     {
         fprintf(stderr, "Unable to setup ISR for left channel: %s\n", strerror(errno));
         return false;
     }
 
-    if (wiringPiISR(SPD_INT_R, INT_EDGE_FALLING, &encodeR) < 0)
+    if (wiringPiISR(SPD_INT_R, INT_EDGE_BOTH, &encodeR) < 0)
     {
         fprintf(stderr, "Unable to setup ISR for right channel: %s\n", strerror(errno));
         return false;
@@ -195,6 +203,7 @@ void RobotControl::resetControlVariables()
     Speed_R = 0;
     Input = 0;
     anglePID.resetIntegral();
+    anglePID.reset();
 }
 
 void RobotControl::calculatePwm()
@@ -213,13 +222,9 @@ void RobotControl::calculatePwm()
     }
 
     Input = currentAngle;
-    targetAngle = 0.0f;  // Hedef açı
+    targetAngle = 2*aggAC;   // Hedef açı
 
-    // Hız farkı hesaplama ve düzeltme
-    diffSpeed = Speed_R - Speed_L;
-    diffAllSpeed += diffSpeed;
     correctSpeedDiff();
-
     // Dinamik PID ayarları
     float angleError = std::abs(Input - targetAngle);
     float dynamicKp = aggKp + (angleError * 0.05f);
@@ -229,9 +234,8 @@ void RobotControl::calculatePwm()
     // PID değerlerini uygula
     anglePID.setTunings(dynamicKp, dynamicKi, dynamicKd);
     Output = anglePID.compute(Input);
-
     // PWM hesaplama
-    pwm = -static_cast<int>(Output) + needSpeed;
+    pwm = -static_cast<int>(Output) + needSpeed * 1.5f;
 
     // Dönüş faktörü hesaplama
     float turnFactor = 1.0f + std::abs(currentAngle) / 60.0f;
@@ -249,19 +253,19 @@ void RobotControl::calculatePwm()
     int baseR = pwm + 2 * scaledTurnR;
     int baseL = pwm + 2 * scaledTurnL;
 
-    // speedAdjust değerini uygula - daha dengeli uygulama
-    int pwmR = static_cast<int>(rightFactor * (baseR + static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
-    int pwmL = static_cast<int>(leftFactor * (baseL - static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
+    // Bu kalibrasyon faktörlerini sınıfınıza ekleyin
+    float leftMotorCalibration = 1.0f;
+    float rightMotorCalibration = 1.0f;  // Sağ motor gücünü %20 arttırın
+
+    // Sonra calculatePwm() içinde uygulayın
+    int pwmR = static_cast<int>(rightFactor * rightMotorCalibration * (baseR + static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
+    int pwmL = static_cast<int>(leftFactor * leftMotorCalibration * (baseL - static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
 
     // PWM değerlerini sınırla
     if (pwmR > pwmLimit) pwmR = pwmLimit;
     if (pwmR < -pwmLimit) pwmR = -pwmLimit;
     if (pwmL > pwmLimit) pwmL = pwmLimit;
     if (pwmL < -pwmLimit) pwmL = -pwmLimit;
-
-    // Debug - PWM değerlerini ve aktüel düzeltme faktörlerini göster
-    // qDebug() << "Angle:" << currentAngle << "PWM_L:" << pwmL << "PWM_R:" << pwmR
-    //          << "Factors L:" << leftFactor << "R:" << rightFactor;
 
     pwm_r = pwmR;
     pwm_l = pwmL;
@@ -273,49 +277,58 @@ void RobotControl::calculatePwm()
         diffAllSpeed = 0;
     }
 
-    // Hız sayaçlarını sıfırla
-    Speed_L = 0;
-    Speed_R = 0;
-
     // Motor kontrolünü çağır
     controlRobot();
+
+    Speed_L = 0;
+    Speed_R = 0;
 }
 
 void RobotControl::correctSpeedDiff()
 {
-    // Mevcut hız farkı hesaplama
+    // Calculate current speed difference
+    diffSpeed = Speed_R - Speed_L;
+
+    // Update total speed counters
+    totalSpeedL += Speed_L;
+    totalSpeedR += Speed_R;
+
+    // Calculate the accumulated speed difference
+    int totalDiff = totalSpeedR - totalSpeedL;
+
+    // Prevent excessive accumulation
+    if (abs(totalSpeedL) > 10000 || abs(totalSpeedR) > 10000) {
+        totalSpeedL /= 2;
+        totalSpeedR /= 2;
+    }
+
+    // Calculate error change
     errorSpeed = diffSpeed - lastSpeedError;
 
-    // Integral birikimini sınırla
+    // Limit integral term accumulation
+    diffAllSpeed += diffSpeed;
     if (diffAllSpeed > 5000) diffAllSpeed = 5000;
     if (diffAllSpeed < -5000) diffAllSpeed = -5000;
 
-    // Motor hız farkını düzeltmek için offset ekle
-    float balanceOffset = -5.0f;  // Negatif offset
+    // PID-based speed correction - MUCH GENTLER VALUES
+    float newSpeedAdjust = (0.5f * diffSpeed) +        // Reduced from 5.0 to 0.5
+                           (0.01f * diffAllSpeed) +     // Reduced from 0.05 to 0.01
+                           (0.2f * errorSpeed) +        // Reduced from 1.0 to 0.2
+                           (0.005f * totalDiff);        // Reduced from 0.02 to 0.005
 
-    // PID tabanlı hız düzeltme - daha hassas
-    float newSpeedAdjust = (5.0f * (diffSpeed + balanceOffset)) + (0.05f * diffAllSpeed) + (1.0f * errorSpeed);
+    // Much slower transition
+    speedAdjust = speedAdjust * 0.9f + newSpeedAdjust * 0.1f;  // More dampening
 
-    // Yumuşak geçiş için filtre
-    speedAdjust = speedAdjust * 0.6f + newSpeedAdjust * 0.4f;
+    // Limit correction range - more conservative
+    if (speedAdjust > pwmLimit/4) speedAdjust = pwmLimit/4;     // Reduced from /2 to /4
+    if (speedAdjust < -pwmLimit/4) speedAdjust = -pwmLimit/4;   // Reduced from /2 to /4
 
-    // Düzeltme aralığını sınırla
-    if (speedAdjust > pwmLimit/2) speedAdjust = pwmLimit/2;
-    if (speedAdjust < -pwmLimit/2) speedAdjust = -pwmLimit/2;
-
-    // Bir sonraki iterasyon için son hata
+    // Save error for next iteration
     lastSpeedError = diffSpeed;
-
-    // Debug
-    // qDebug() << "Speed Diff:" << diffSpeed << "Adjust:" << speedAdjust
-    //          << "Speeds L:" << Speed_L << "R:" << Speed_R;
 }
 
 void RobotControl::controlRobot()
 {
-    // PWM değerlerini göster
-    qDebug() << pwm_l << pwm_r;
-
     // Right motor control
     if (pwm_r > 0)
     {

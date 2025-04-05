@@ -67,6 +67,9 @@ private:
     void resetControlVariables();
     void stopMotors();
 
+    int totalSpeedL = 0;
+    int totalSpeedR = 0;
+
     // Thread implementation
     void run() override;
 

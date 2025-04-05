@@ -30,21 +30,21 @@ public:
     float getSetpoint();
     void setPidTuning(PIDTuning tunning);
     void setTunings(float Kp, float Ki, float Kd);
-    void resetIntegral() {
-        Ci = 0;
-    }
+    void resetIntegral();
+    void reset();
 
 private:
-    PIDTuning pidTunning{CONSERVATIVE};
-    float lastError{0.0f};
-    unsigned long lastTime{0};
-    float setpoint{0.0f};
     float Cp{0.0f};
     float Ci{0.0f};
     float Cd{0.0f};
     float Kp{0.0f};
     float Ki{0.0f};
     float Kd{0.0f};
+
+    unsigned long lastTime{0};
+    float lastError{0.0f};
+    float setpoint{0.0f};
+    PIDTuning pidTunning{CONSERVATIVE};
 };
 
 #endif // PID_H

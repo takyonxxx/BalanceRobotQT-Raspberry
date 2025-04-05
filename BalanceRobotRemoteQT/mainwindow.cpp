@@ -13,24 +13,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     setWindowTitle(tr("BalanceRobot Remote Control"));
 
-    ui->m_textStatus->setStyleSheet("font-size: 12pt; color: #cccccc; background-color: #003333;");
-
-    ui->labelPP->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelPI->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelPD->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelDS->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
-    ui->labelAC->setStyleSheet("font-size: 22pt; color: #ffffff; background-color: #FF4633;");
-    ui->lineEdit_Speak->setStyleSheet("font-size: 18pt; color: #ffffff; background-color: #FF4633;");
-
-    ui->m_pBForward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBBackward->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBLeft->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
-    ui->m_pBRight->setStyleSheet("font-size: 24pt; color: #ffffff; rgba(255, 255, 255, 0);");
-
-
-    ui->m_pBConnect->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #336699;");
-    ui->m_pBExit->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #336699;");
-    ui->m_pBSpeak->setStyleSheet("font-size: 24pt; font: bold; color: #ffffff; background-color: #FF4633;");
+    // Apply common styles with proper scaling for different devices
+    setupCommonStyles();
 
     m_bleConnection = new BluetoothClient();
 
@@ -53,32 +37,153 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->m_pBExit, SIGNAL(clicked()),this, SLOT(on_Exit()));
 
-    QPixmap pixmapf(":/icons/forward.png");
-    QIcon ForwardIcon(pixmapf.scaled(96, 64));
-    ui->m_pBForward->setIcon(ForwardIcon);
-    ui->m_pBForward->setIconSize(pixmapf.scaled(96, 64).rect().size());
-    ui->m_pBForward->setFixedSize(pixmapf.scaled(96, 64).rect().size());
-
-    QPixmap pixmapb(":/icons/back.png");
-    QIcon BackwardIcon(pixmapb.scaled(96, 64));
-    ui->m_pBBackward->setIcon(BackwardIcon);
-    ui->m_pBBackward->setIconSize(pixmapb.scaled(96, 64).rect().size());
-    ui->m_pBBackward->setFixedSize(pixmapb.scaled(96, 64).rect().size());
-
-    QPixmap pixmapl(":/icons/left.png");
-    QIcon LeftIcon(pixmapl.scaled(96, 64));
-    ui->m_pBLeft->setIcon(LeftIcon);
-    ui->m_pBLeft->setIconSize(pixmapl.scaled(96, 64).rect().size());
-    ui->m_pBLeft->setFixedSize(pixmapl.scaled(96, 64).rect().size());
-
-    QPixmap pixmapr(":/icons/right.png");
-    QIcon RightIcon(pixmapr.scaled(96, 64));
-    ui->m_pBRight->setIcon(RightIcon);
-    ui->m_pBRight->setIconSize(pixmapr.scaled(96, 64).rect().size());
-    ui->m_pBRight->setFixedSize(pixmapr.scaled(96, 64).rect().size());
-
     statusChanged("No Device Connected.");
+}
 
+#if defined(Q_OS_ANDROID)
+void MainWindow::requestBluetoothPermissions()
+{
+    QBluetoothPermission bluetoothPermission;
+    bluetoothPermission.setCommunicationModes(QBluetoothPermission::Access);
+
+    switch (qApp->checkPermission(bluetoothPermission)) {
+    case Qt::PermissionStatus::Undetermined:
+        qApp->requestPermission(bluetoothPermission, this,
+                                [this](const QPermission &permission) {
+                                    if (qApp->checkPermission(permission) == Qt::PermissionStatus::Granted) {
+                                        statusChanged("Bluetooth permission granted. Starting scan...");
+                                        m_bleConnection->startScan();
+                                    } else {
+                                        statusChanged("Bluetooth permission denied. Cannot proceed.");
+                                    }
+                                });
+        break;
+    case Qt::PermissionStatus::Granted:
+        statusChanged("Bluetooth permission already granted. Starting scan...");
+        m_bleConnection->startScan();
+        break;
+    case Qt::PermissionStatus::Denied:
+        statusChanged("Bluetooth permission denied. Please enable in Settings.");
+        break;
+    }
+}
+#endif
+
+void MainWindow::setupCommonStyles()
+{
+    // Determine if we're on Android and set scale factor accordingly
+#ifdef Q_OS_ANDROID
+    // Higher scale factor for Android
+    m_scaleFactor = 1.25;
+#else
+    // Normal scale for desktop
+    m_scaleFactor = 1.0;
+#endif
+
+    // Apply styles to text status area
+    ui->m_textStatus->setStyleSheet("color: #cccccc; background-color: #003333;");
+    ui->m_textStatus->setFont(getScaledFont(12));
+
+    // Apply styles to labels
+    QString labelStyle = getLabelStyle("#FF4633");
+    ui->labelPP->setStyleSheet(labelStyle);
+    ui->labelPI->setStyleSheet(labelStyle);
+    ui->labelPD->setStyleSheet(labelStyle);
+    ui->labelDS->setStyleSheet(labelStyle);
+    ui->labelAC->setStyleSheet(labelStyle);
+
+    // Apply style to line edit
+    ui->lineEdit_Speak->setStyleSheet("color: #ffffff; background-color: #FF4633;");
+    ui->lineEdit_Speak->setFont(getScaledFont(18));
+
+    // Apply styles to control buttons
+    ui->m_pBForward->setStyleSheet("color: #ffffff; background-color: transparent;");
+    ui->m_pBBackward->setStyleSheet("color: #ffffff; background-color: transparent;");
+    ui->m_pBLeft->setStyleSheet("color: #ffffff; background-color: transparent;");
+    ui->m_pBRight->setStyleSheet("color: #ffffff; background-color: transparent;");
+
+    ui->m_pBForward->setMaximumHeight(30);
+    ui->m_pBBackward->setMaximumHeight(30);
+
+    // Apply styles to action buttons
+    QString blueButtonStyle = getButtonStyle("#336699");
+    QString redButtonStyle = getButtonStyle("#FF4633");
+
+    ui->m_pBConnect->setStyleSheet(blueButtonStyle);
+    ui->m_pBExit->setStyleSheet(blueButtonStyle);
+    ui->m_pBSpeak->setStyleSheet(redButtonStyle);
+
+    // Set scaled fonts for labels
+    ui->labelPP->setFont(getScaledFont(22));
+    ui->labelPI->setFont(getScaledFont(22));
+    ui->labelPD->setFont(getScaledFont(22));
+    ui->labelDS->setFont(getScaledFont(22));
+    ui->labelAC->setFont(getScaledFont(22));
+
+    // Set scaled fonts for buttons
+    ui->m_pBConnect->setFont(getScaledFont(24, true));
+    ui->m_pBExit->setFont(getScaledFont(24, true));
+    ui->m_pBSpeak->setFont(getScaledFont(24, true));
+
+    // Setup scaled icons for direction buttons
+    setupScaledIcons();
+}
+
+QFont MainWindow::getScaledFont(int baseSize, bool isBold)
+{
+    QFont font;
+    font.setPointSize(static_cast<int>(baseSize * m_scaleFactor));
+    if (isBold) {
+        font.setBold(true);
+    }
+    return font;
+}
+
+QString MainWindow::getButtonStyle(const QString &bgColor)
+{
+    return QString("color: #ffffff; background-color: %1;").arg(bgColor);
+}
+
+QString MainWindow::getLabelStyle(const QString &bgColor)
+{
+    return QString("color: #ffffff; background-color: %1;").arg(bgColor);
+}
+
+void MainWindow::setupScaledIcons()
+{
+    // Calculate icon size based on scale factor
+    int iconWidth = static_cast<int>(96 * m_scaleFactor);
+    int iconHeight = static_cast<int>(64 * m_scaleFactor);
+
+    QSize iconSize(iconWidth, iconHeight);
+
+    // Forward button
+    QPixmap pixmapf(":/icons/forward.png");
+    QIcon ForwardIcon(pixmapf.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui->m_pBForward->setIcon(ForwardIcon);
+    ui->m_pBForward->setIconSize(iconSize);
+    ui->m_pBForward->setFixedSize(iconSize);
+
+    // Backward button
+    QPixmap pixmapb(":/icons/back.png");
+    QIcon BackwardIcon(pixmapb.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui->m_pBBackward->setIcon(BackwardIcon);
+    ui->m_pBBackward->setIconSize(iconSize);
+    ui->m_pBBackward->setFixedSize(iconSize);
+
+    // Left button
+    QPixmap pixmapl(":/icons/left.png");
+    QIcon LeftIcon(pixmapl.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui->m_pBLeft->setIcon(LeftIcon);
+    ui->m_pBLeft->setIconSize(iconSize);
+    ui->m_pBLeft->setFixedSize(iconSize);
+
+    // Right button
+    QPixmap pixmapr(":/icons/right.png");
+    QIcon RightIcon(pixmapr.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui->m_pBRight->setIcon(RightIcon);
+    ui->m_pBRight->setIconSize(iconSize);
+    ui->m_pBRight->setFixedSize(iconSize);
 }
 
 void MainWindow::changedState(BluetoothClient::bluetoothleState state){
@@ -127,7 +232,7 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
         requestData(mPP);
         requestData(mPI);
         requestData(mPD);
-        requestData(mDS);
+        requestData(mSD);
         requestData(mAC);
 
         break;
@@ -175,7 +280,7 @@ void MainWindow::DataHandler(QByteArray data)
             ui->scrollPD->setValue(value);
             break;
         }
-        case mDS:
+        case mSD:
         {
             ui->scrollDS->setValue(value);
             break;
@@ -217,7 +322,14 @@ void MainWindow::on_ConnectClicked()
 {
     if(ui->m_pBConnect->text() == QString("Connect"))
     {
+#if defined(Q_OS_ANDROID)
+        // On Android, request permissions first
+        requestBluetoothPermissions();
+#else \
+    // On desktop platforms, just start scanning directly
+        statusChanged("Starting Bluetooth scan...");
         m_bleConnection->startScan();
+#endif
     }
     else
     {
@@ -307,7 +419,7 @@ void MainWindow::on_scrollPD_valueChanged(int value)
 
 void MainWindow::on_scrollDS_valueChanged(int value)
 {
-    sendCommand(mDS, static_cast<uint8_t>(value));
+    sendCommand(mSD, static_cast<uint8_t>(value));
     ui->labelDS->setText(QString::number(static_cast<double>(value/10.0), 'f', 1));
 }
 

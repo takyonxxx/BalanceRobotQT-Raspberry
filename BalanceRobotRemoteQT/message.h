@@ -17,7 +17,7 @@
 #define mPI         0xc1 //Integral control
 #define mPD         0xc2 //Derivative constant
 #define mAC         0xd0 //angle correction
-#define mDS         0xd1 //speed diff constant wheel
+#define mSD         0xd1 //speed diff constant wheel
 #define mSpeak      0xe0 //speak
 #define mData       0xe1 //data
 
@@ -27,7 +27,7 @@
 //max input bluetooth buffer in this chip allows a payload max 0x38
 
 typedef struct {
-    uint8_t header;    
+    uint8_t header;
     uint8_t len;
     uint8_t rw;
     uint8_t command;
