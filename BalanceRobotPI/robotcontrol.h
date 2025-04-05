@@ -5,8 +5,8 @@
 #include <QFile>
 #include <QThread>
 #include <QSettings>
-#include "constants.h"
 #include "pid.h"
+#include "constants.h"
 #include "i2cdev.h"
 #include "mpu6050.h"
 #include "kalman.h"

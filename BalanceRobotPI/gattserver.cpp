@@ -35,11 +35,32 @@ void GattServer::onSensorReceived(QString sensor_value)
 
 void GattServer::handleConnected()
 {
-    remoteDeviceUuid = leController.data()->remoteDeviceUuid();
-    m_ConnectionState = true;
-    emit connectionState(m_ConnectionState);
-    auto statusText = QString("Connected to device %1").arg(remoteDeviceUuid.toString());
-    emit sendInfo(statusText);
+    try {
+        // Bağlantı kurulduktan sonra veri işleme
+        remoteDeviceUuid = leController.data()->remoteDeviceUuid();
+        m_ConnectionState = true;
+        emit connectionState(m_ConnectionState);
+        auto statusText = QString("Connected to device %1").arg(remoteDeviceUuid.toString());
+        emit sendInfo(statusText);
+        qDebug() << statusText;
+
+        // Bluetooth servisini doğrula
+        const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
+        if (!service) {
+            qDebug() << "Warning: Service not found in handleConnected()";
+            return;
+        }
+
+        // Servis başlatma onayı mesajı gönder
+        QByteArray welcomeMsg = "Balance Robot ready!";
+        writeValue(welcomeMsg);
+    }
+    catch (const std::exception& e) {
+        qDebug() << "Exception in handleConnected: " << e.what();
+    }
+    catch (...) {
+        qDebug() << "Unknown exception in handleConnected";
+    }
 }
 
 void GattServer::handleDisconnected()
@@ -75,22 +96,28 @@ void GattServer::addService(const QLowEnergyServiceData &serviceData)
 
 void GattServer::startBleService()
 {
-
     leController.reset(QLowEnergyController::createPeripheral());
 
+    // UUID değerlerini doğrudan kullan - bu değerler header dosyasında #define olarak tanımlanmış
+    QBluetoothUuid customServiceUuid = QBluetoothUuid(QString(SCANPARAMETERSUUID));
+
     serviceData.setType(QLowEnergyServiceData::ServiceTypePrimary);
-    serviceData.setUuid(QBluetoothUuid::ServiceClassUuid::ScanParameters);
+    serviceData.setUuid(customServiceUuid);
+
+    // Önceden tanımlanmış RX/TX UUID'lerini kullan
+    QBluetoothUuid rxUuid = QBluetoothUuid(QString(RXUUID));
+    QBluetoothUuid txUuid = QBluetoothUuid(QString(TXUUID));
 
     QLowEnergyCharacteristicData charRxData;
-    charRxData.setUuid(QBluetoothUuid(QUuid(RXUUID)));
-    charRxData.setProperties(QLowEnergyCharacteristic::Read | QLowEnergyCharacteristic::Notify) ;
+    charRxData.setUuid(rxUuid);
+    charRxData.setProperties(QLowEnergyCharacteristic::Read | QLowEnergyCharacteristic::Notify);
     charRxData.setValue(QByteArray(2, 0));
     const QLowEnergyDescriptorData rxClientConfig(QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration, QByteArray(2, 0));
     charRxData.addDescriptor(rxClientConfig);
     serviceData.addCharacteristic(charRxData);
 
     QLowEnergyCharacteristicData charTxData;
-    charTxData.setUuid(QBluetoothUuid(QUuid(TXUUID)));
+    charTxData.setUuid(txUuid);
     charTxData.setValue(QByteArray(2, 0));
     charTxData.setProperties(QLowEnergyCharacteristic::Write);
     const QLowEnergyDescriptorData txClientConfig(QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration, QByteArray(2, 0));
@@ -99,41 +126,139 @@ void GattServer::startBleService()
 
     addService(serviceData);
 
-    const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
-    Q_ASSERT(service);
+    // Servis değişkeni - customServiceUuid kullanıyoruz
+    const ServicePtr service = services.value(customServiceUuid);
+    if (!service) {
+        qDebug() << "Error: Service could not be created with UUID:" << customServiceUuid.toString();
+        return;
+    }
 
+    // Bağlantıları ayarla
     QObject::connect(leController.data(), &QLowEnergyController::connected, this, &GattServer::handleConnected);
     QObject::connect(leController.data(), &QLowEnergyController::disconnected, this, &GattServer::handleDisconnected);
-//    QObject::connect(leController.data(), &QLowEnergyController::errorOccurred, this, &GattServer::errorOccurred);
-    QObject::connect(leController.data(), SIGNAL(error(QLowEnergyController::Error)), this, SLOT(errorOccurred(QLowEnergyController::Error)));
+    QObject::connect(leController.data(), QOverload<QLowEnergyController::Error>::of(&QLowEnergyController::errorOccurred),
+                     this, &GattServer::errorOccurred);
 
     QObject::connect(service.data(), &QLowEnergyService::characteristicChanged, this, &GattServer::onCharacteristicChanged);
     QObject::connect(service.data(), &QLowEnergyService::characteristicRead, this, &GattServer::onCharacteristicChanged);
 
+    // Servis verilerini ayarla
     advertisingData.setDiscoverability(QLowEnergyAdvertisingData::DiscoverabilityGeneral);
-    advertisingData.setServices(services.keys());
+    advertisingData.setServices(QList<QBluetoothUuid>() << customServiceUuid);
     advertisingData.setIncludePowerLevel(true);
     advertisingData.setLocalName("Balance Robot");
 
-    // We have to check if advertising succeeded ot not. If there was an advertising error we will
-    // try to reinitialize our bluetooth service
-    while (leController->state() != QLowEnergyController::AdvertisingState) {
-        qDebug() << "Attempting to start advertising...";
-        leController->startAdvertising(QLowEnergyAdvertisingParameters(), advertisingData, advertisingData);
-        QThread::msleep(1000);  // Add a delay to avoid tight loop
-        //run this if not work "rfkill unblock bluetooth"
+    // ServicesData'yı da ayarla
+    QLowEnergyAdvertisingData scanResponseData;
+    scanResponseData.setServices(QList<QBluetoothUuid>() << customServiceUuid);
+
+    // Bluetooth servisini yeniden başlatma
+    system("rfkill unblock bluetooth");
+    QThread::msleep(1000);
+
+    // Servis parametrelerini ayarla
+    QLowEnergyAdvertisingParameters params;
+    params.setMode(QLowEnergyAdvertisingParameters::AdvInd);
+    params.setInterval(100, 200);
+
+    // Servis vermeyi başlat
+    leController->startAdvertising(params, advertisingData, scanResponseData);
+
+    qDebug() << "Servis UUID:" << customServiceUuid.toString();
+    qDebug() << "RX UUID:" << rxUuid.toString();
+    qDebug() << "TX UUID:" << txUuid.toString();
+    qDebug() << "Servis durumu:" << leController->state();
+
+    if(leController->state() != QLowEnergyController::AdvertisingState) {
+        qDebug() << "Servis verme başarısız oldu, Bluetooth servisini yeniden başlatıyorum...";
+        resetBluetoothService();
+
+        // Yeniden deneme
+        QThread::msleep(2000);
+        leController->startAdvertising(params, advertisingData, scanResponseData);
+        qDebug() << "Yeniden deneme sonrası durum:" << leController->state();
     }
 
-    if(leController->state()== QLowEnergyController::AdvertisingState)
+    if(leController->state() == QLowEnergyController::AdvertisingState)
     {
-        // writeTimer->start(1000);
-        auto statusText = QString("Listening for Ble connection %1").arg(advertisingData.localName());
+        auto statusText = QString("Listening for Ble connection %1 with service UUID %2")
+        .arg(advertisingData.localName())
+            .arg(customServiceUuid.toString());
         emit sendInfo(statusText);
+        qDebug() << statusText;
     }
     else
     {
         auto statusText = QString("Ble connection can not start for %1").arg(advertisingData.localName());
         emit sendInfo(statusText);
+        qDebug() << statusText;
+    }
+
+    // RXUUID ve TXUUID sabitlerine değer atama kaldırıldı çünkü bunlar #define ile tanımlanmış
+}
+
+void GattServer::writeValue(const QByteArray &value)
+{
+    try {
+        if (leController == nullptr || leController->state() != QLowEnergyController::ConnectedState) {
+            qDebug() << "Warning: Attempting to write value while not connected";
+            return;
+        }
+
+        // Tanımlı hizmet UUID'sini kullan
+        QBluetoothUuid customServiceUuid = QBluetoothUuid(QString(SCANPARAMETERSUUID));
+        const ServicePtr service = services.value(customServiceUuid);
+
+        if (!service) {
+            qDebug() << "Error: Service not found in writeValue(), looking for:" << customServiceUuid.toString();
+            qDebug() << "Available services:" << services.keys();
+            return;
+        }
+
+        // Tanımlı RX UUID'sini kullan
+        QBluetoothUuid rxUuid = QBluetoothUuid(QString(RXUUID));
+        QLowEnergyCharacteristic cCharacteristic = service->characteristic(rxUuid);
+        if (!cCharacteristic.isValid()) {
+            qDebug() << "Error: Invalid characteristic in writeValue(), looking for:" << QString(RXUUID);
+            return;
+        }
+
+        qDebug() << "Writing value:" << value;
+        service->writeCharacteristic(cCharacteristic, value);
+    }
+    catch (const std::exception& e) {
+        qDebug() << "Exception in writeValue: " << e.what();
+    }
+    catch (...) {
+        qDebug() << "Unknown exception in writeValue";
+    }
+}
+
+// resetBluetoothService fonksiyonu iyileştirildi
+void GattServer::resetBluetoothService()
+{
+    try {
+        if(leController->state() == QLowEnergyController::AdvertisingState)
+            leController->stopAdvertising();
+
+        qDebug() << "Resetting Ble connection...";
+
+        // Bluetooth servisini yeniden başlatma
+        system("sudo rfkill unblock bluetooth");
+        QThread::msleep(1000);
+        system("sudo service bluetooth restart");
+        QThread::msleep(2000);
+        system("sudo hciconfig hci0 reset");
+        QThread::msleep(1000);
+
+        // Bazı durumlarda BLE aygıtının yeniden başlatılması gerekebilir
+        system("sudo hciconfig hci0 down");
+        QThread::msleep(500);
+        system("sudo hciconfig hci0 up");
+        QThread::msleep(1000);
+    }
+    catch(const std::exception& e) {
+        qDebug() << "Error during Bluetooth reset: " << e.what();
     }
 }
 
@@ -168,20 +293,26 @@ void GattServer::readValue()
     service->readCharacteristic(cCharacteristic);
 }
 
-void GattServer::writeValue(const QByteArray &value)
-{
-    const ServicePtr service = services.value(QBluetoothUuid::ServiceClassUuid::ScanParameters);
-    Q_ASSERT(service);
-
-    QLowEnergyCharacteristic cCharacteristic = service->characteristic(QBluetoothUuid(QUuid(RXUUID)));
-    Q_ASSERT(cCharacteristic.isValid());
-    service->writeCharacteristic(cCharacteristic, value);
-}
-
 void GattServer::onCharacteristicChanged(const QLowEnergyCharacteristic &c, const QByteArray &value)
 {
-    Q_UNUSED(c)
-    emit dataReceived(value);
+    try {
+        // Gelen karakteristiğin doğru bir UUID'ye sahip olduğunu kontrol edelim
+        if (c.uuid() == QBluetoothUuid(QString(TXUUID))) {
+            qDebug() << "Received data from TX characteristic:" << value;
+            emit dataReceived(value);
+        }
+        else {
+            qDebug() << "Received data from unexpected characteristic:" << c.uuid().toString() << value;
+            // Verinin işlenmesine devam edilebilir, ancak farklı bir kaynak olduğunu biliriz
+            emit dataReceived(value);
+        }
+    }
+    catch (const std::exception& e) {
+        qDebug() << "Exception in onCharacteristicChanged: " << e.what();
+    }
+    catch (...) {
+        qDebug() << "Unknown exception in onCharacteristicChanged";
+    }
 }
 
 void GattServer::writeValuePeriodically()
@@ -235,22 +366,3 @@ void GattServer::reConnect()
     }
 }
 
-
-void GattServer::resetBluetoothService()
-{
-    try{
-
-        if(leController->state()==QLowEnergyController::AdvertisingState)
-            leController->stopAdvertising();
-
-        qDebug() << "Resetting Ble connection.";
-
-        system("sudo service bluetooth stop");
-        QThread::sleep(1);
-        system("sudo service bluetooth start");
-        QThread::sleep(1);
-    }
-    catch(const std::exception& e) {
-        qDebug() << "Error reset: " << e.what();
-    }
-}

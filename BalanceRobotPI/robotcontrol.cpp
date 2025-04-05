@@ -136,18 +136,6 @@ bool RobotControl::initwiringPi()
     return true;
 }
 
-void RobotControl::correctSpeedDiff()
-{
-    errorSpeed = diffSpeed - lastSpeedError;
-
-    // More conservative speed adjustment with stronger low-pass filter
-    float newSpeedAdjust = constrain(int((SKp * diffSpeed) + (SKi * diffAllSpeed) + (SKd * errorSpeed)),
-                                     -pwmLimit/2, pwmLimit/2);  // Reduced adjustment range
-
-    speedAdjust = speedAdjust * 0.8f + newSpeedAdjust * 0.2f;  // Smoother transitions
-    lastSpeedError = diffSpeed;
-}
-
 void RobotControl::stopMotors()
 {
     // Immediately stop motors
@@ -209,9 +197,124 @@ void RobotControl::resetControlVariables()
     anglePID.resetIntegral();
 }
 
+void RobotControl::calculatePwm()
+{
+    float accelAngle = atan2(accY, accZ) * RAD_TO_DEG;
+
+    // Sensör füzyonu
+    const float gyroWeight = 0.98f;
+    currentAngle = gyroWeight * (currentAngle + gyroXrate * timeDiff) + (1.0f - gyroWeight) * accelAngle;
+
+    // Aşırı açıları kontrol et
+    if (std::abs(currentAngle) > 45.0f)
+    {
+        stopMotors();
+        return;
+    }
+
+    Input = currentAngle;
+    targetAngle = 0.0f;  // Hedef açı
+
+    // Hız farkı hesaplama ve düzeltme
+    diffSpeed = Speed_R - Speed_L;
+    diffAllSpeed += diffSpeed;
+    correctSpeedDiff();
+
+    // Dinamik PID ayarları
+    float angleError = std::abs(Input - targetAngle);
+    float dynamicKp = aggKp + (angleError * 0.05f);
+    float dynamicKi = (angleError < 8.0f) ? aggKi : 0;
+    float dynamicKd = aggKd + (angleError * 0.01f);
+
+    // PID değerlerini uygula
+    anglePID.setTunings(dynamicKp, dynamicKi, dynamicKd);
+    Output = anglePID.compute(Input);
+
+    // PWM hesaplama
+    pwm = -static_cast<int>(Output) + needSpeed;
+
+    // Dönüş faktörü hesaplama
+    float turnFactor = 1.0f + std::abs(currentAngle) / 60.0f;
+    int scaledTurnL = needTurnL * turnFactor;
+    int scaledTurnR = needTurnR * turnFactor;
+
+    // Hız düzeltme faktörü
+    float speedAdjustFactor = aggSD * 0.8f;
+
+    // Açıya bağlı motor dengesi düzeltme faktörleri - iyileştirilmiş faktörler
+    float leftFactor = 1.0f;
+    float rightFactor = 1.0f;
+
+    // Final PWM hesaplama - açıya bağlı faktörleri uygula
+    int baseR = pwm + 2 * scaledTurnR;
+    int baseL = pwm + 2 * scaledTurnL;
+
+    // speedAdjust değerini uygula - daha dengeli uygulama
+    int pwmR = static_cast<int>(rightFactor * (baseR + static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
+    int pwmL = static_cast<int>(leftFactor * (baseL - static_cast<int>(speedAdjustFactor * speedAdjust / 2)));
+
+    // PWM değerlerini sınırla
+    if (pwmR > pwmLimit) pwmR = pwmLimit;
+    if (pwmR < -pwmLimit) pwmR = -pwmLimit;
+    if (pwmL > pwmLimit) pwmL = pwmLimit;
+    if (pwmL < -pwmLimit) pwmL = -pwmLimit;
+
+    // Debug - PWM değerlerini ve aktüel düzeltme faktörlerini göster
+    // qDebug() << "Angle:" << currentAngle << "PWM_L:" << pwmL << "PWM_R:" << pwmR
+    //          << "Factors L:" << leftFactor << "R:" << rightFactor;
+
+    pwm_r = pwmR;
+    pwm_l = pwmL;
+
+    // Dönüş komutu varsa hız farkını sıfırla
+    if (needTurnR != 0 || needTurnL != 0)
+    {
+        diffSpeed = 0;
+        diffAllSpeed = 0;
+    }
+
+    // Hız sayaçlarını sıfırla
+    Speed_L = 0;
+    Speed_R = 0;
+
+    // Motor kontrolünü çağır
+    controlRobot();
+}
+
+void RobotControl::correctSpeedDiff()
+{
+    // Mevcut hız farkı hesaplama
+    errorSpeed = diffSpeed - lastSpeedError;
+
+    // Integral birikimini sınırla
+    if (diffAllSpeed > 5000) diffAllSpeed = 5000;
+    if (diffAllSpeed < -5000) diffAllSpeed = -5000;
+
+    // Motor hız farkını düzeltmek için offset ekle
+    float balanceOffset = -5.0f;  // Negatif offset
+
+    // PID tabanlı hız düzeltme - daha hassas
+    float newSpeedAdjust = (5.0f * (diffSpeed + balanceOffset)) + (0.05f * diffAllSpeed) + (1.0f * errorSpeed);
+
+    // Yumuşak geçiş için filtre
+    speedAdjust = speedAdjust * 0.6f + newSpeedAdjust * 0.4f;
+
+    // Düzeltme aralığını sınırla
+    if (speedAdjust > pwmLimit/2) speedAdjust = pwmLimit/2;
+    if (speedAdjust < -pwmLimit/2) speedAdjust = -pwmLimit/2;
+
+    // Bir sonraki iterasyon için son hata
+    lastSpeedError = diffSpeed;
+
+    // Debug
+    // qDebug() << "Speed Diff:" << diffSpeed << "Adjust:" << speedAdjust
+    //          << "Speeds L:" << Speed_L << "R:" << Speed_R;
+}
+
 void RobotControl::controlRobot()
 {
-    qDebug() << "PWM Values - Left:" << pwm_l << "Right:" << pwm_r;
+    // PWM değerlerini göster
+    qDebug() << pwm_l << pwm_r;
 
     // Right motor control
     if (pwm_r > 0)
@@ -233,16 +336,16 @@ void RobotControl::controlRobot()
         softPwmWrite(PWMR, 0);
     }
 
-    // Left motor control - Direction reversed compared to right motor
+    // Left motor control - Sol motor ters monte edilmiş olabilir
     if (pwm_l > 0)
     {
-        digitalWrite(PWML1, LOW);    // İleri (ters)
+        digitalWrite(PWML1, LOW);    // İleri (ters monte edilmiş)
         digitalWrite(PWML2, HIGH);
         softPwmWrite(PWML, pwm_l);
     }
     else if (pwm_l < 0)
     {
-        digitalWrite(PWML1, HIGH);   // Geri (ters)
+        digitalWrite(PWML1, HIGH);   // Geri (ters monte edilmiş)
         digitalWrite(PWML2, LOW);
         softPwmWrite(PWML, -pwm_l);
     }
@@ -252,70 +355,6 @@ void RobotControl::controlRobot()
         digitalWrite(PWML2, LOW);
         softPwmWrite(PWML, 0);
     }
-
-    // qDebug() << "Motor Pins Status - PWML1:" << digitalRead(PWML1)
-    //          << "PWML2:" << digitalRead(PWML2)
-    //          << "PWMR1:" << digitalRead(PWMR1)
-    //          << "PWMR2:" << digitalRead(PWMR2);
-}
-
-void RobotControl::calculatePwm()
-{
-    float accelAngle = atan2(accY, accZ) * RAD_TO_DEG;
-    currentAngle = 0.96f * (currentAngle + gyroXrate * timeDiff) + 0.04f * accelAngle;
-
-    if (std::abs(currentAngle) > 45.0f)
-    {
-        stopMotors();
-        return;
-    }
-
-    if (std::abs(currentAngle) < 0.5f)
-    {
-        currentAngle = 0;
-    }
-
-    Input = currentAngle;
-    targetAngle = -2.5f;
-
-    diffSpeed = Speed_R - Speed_L;
-    diffAllSpeed += diffSpeed;
-
-    correctSpeedDiff();
-
-    float angleError = std::abs(Input - targetAngle);
-    float dynamicKp = aggKp + (angleError * 0.1f);
-    float dynamicKi = (angleError < 5.0f) ? aggKi : 0;
-    float dynamicKd = aggKd + (angleError * 0.05f);
-
-    anglePID.setTunings(dynamicKp, dynamicKi, dynamicKd);
-    Output = anglePID.compute(Input);
-
-    // Orijinal PWM hesaplama mantığı
-    pwm = -static_cast<int>(Output) + needSpeed;
-
-    float turnFactor = 1.0f + std::abs(currentAngle) / 45.0f;
-    int scaledTurnL = needTurnL * turnFactor;
-    int scaledTurnR = needTurnR * turnFactor;
-
-    pwm_r = constrain(int(pwm + 2 * scaledTurnR + aggSD * speedAdjust), -pwmLimit, pwmLimit);
-    pwm_l = constrain(int(pwm + 2 * scaledTurnL - aggSD * speedAdjust), -pwmLimit, pwmLimit);
-
-    // qDebug() << "Motor Values - Base PWM:" << pwm
-    //          << "Speed Adjust:" << speedAdjust
-    //          << "Final PWM L:" << pwm_l
-    //          << "Final PWM R:" << pwm_r;
-
-    if (needTurnR != 0 || needTurnL != 0)
-    {
-        diffSpeed = 0;
-        diffAllSpeed = 0;
-    }
-
-    Speed_L = 0;
-    Speed_R = 0;
-
-    controlRobot();
 }
 
 void RobotControl::calculateGyro()
@@ -346,9 +385,7 @@ void RobotControl::calculateGyro()
     currentGyro = gyroXrate;
 
     // Debug processed values
-    // qDebug() << "Processed - Angle:" << currentAngle
-    //          << "GyroRate:" << gyroXrate
-    //          << "TimeDiff:" << timeDiff;
+    // qDebug() << "Processed - Angle:" << currentAngle;
 }
 
 void RobotControl::ResetValues()
@@ -358,7 +395,7 @@ void RobotControl::ResetValues()
     targetAngle = -2.5f;
     currentAngle = 0.0;
     currentGyro = 0.0;
-    pwmLimit = 100;
+    pwmLimit = 255;
     needSpeed = 0;
     needTurnL = 0;
     needTurnR = 0;
@@ -370,11 +407,6 @@ void RobotControl::ResetValues()
     speedAdjust = 0;
     errorSpeed = 0;
 
-    // Starting PID values
-    SKp = 3.5;
-    SKi = 0.05;
-    SKd = 0.4;
-
     DataAvg[0]=0; DataAvg[1]=0; DataAvg[2]=0;
     mpu_test = false;
 
@@ -382,12 +414,17 @@ void RobotControl::ResetValues()
     pwm_l = 0;
     pwm_r = 0;
 
-    // Starting with more conservative values
-    aggKp = 5.0;
-    aggKi = 0.4;
-    aggKd = 0.2;
-    aggSD = 0.8;
     aggAC = 3.0;
+
+    SKp = 2.5;
+    SKi = 0.03;
+    SKd = 0.3;
+
+    // Ana PID değerleri
+    aggKp = 8.0;
+    aggKi = 0.6;
+    aggKd = 0.4;
+    aggSD = 0.6;
 
     gyroXrate = 0;
 
@@ -405,6 +442,6 @@ void RobotControl::run()
         const std::lock_guard<std::mutex> lock(mutex_loop);
         calculateGyro();
         calculatePwm();
-        QThread::msleep(5);
+        QThread::msleep(1);
     }
 }
