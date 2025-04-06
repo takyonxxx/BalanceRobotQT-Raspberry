@@ -353,7 +353,7 @@ void RobotControl::correctSpeedDiff()
     speedAdjust = std::clamp(speedAdjust, -15.0f, 15.0f);
 
     // Reset the speed counters periodically to avoid overflow
-    if (abs(Speed_L) > 5 || abs(Speed_R) > 5) {
+    if (abs(Speed_L) > 500 || abs(Speed_R) > 500) {
         Speed_L = 0;
         Speed_R = 0;
         diffAllSpeed = 0;
