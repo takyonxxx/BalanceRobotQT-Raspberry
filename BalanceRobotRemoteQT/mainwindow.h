@@ -56,6 +56,8 @@ private slots:
     void on_m_pBSpeak_clicked();
     void on_m_pBFormat_clicked();
 
+    void on_m_pBArmed_clicked();
+
 signals:
     void connectToDevice(int i);
 

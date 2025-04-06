@@ -57,6 +57,10 @@ public:
     int getNeedTurnR() const { return needTurnR; }
     void setNeedTurnR(int newNeedTurnR) { needTurnR = newNeedTurnR; }
 
+    void setIsArmed(bool newIsArmed);
+
+    bool getIsArmed() const;
+
 private:
     // Control algorithms
     void calculateGyro();
@@ -136,6 +140,8 @@ private:
 
     // Timing
     uint32_t timer{0};
+
+    bool isArmed = false;
 
     // Singleton instance
     static RobotControl* theInstance_;

@@ -112,6 +112,7 @@ void MainWindow::setupCommonStyles()
     ui->m_pBConnect->setStyleSheet(blueButtonStyle);
     ui->m_pBExit->setStyleSheet(blueButtonStyle);
     ui->m_pBSpeak->setStyleSheet(redButtonStyle);
+    ui->m_pBArmed->setStyleSheet(blueButtonStyle);
 
     // Set scaled fonts for labels
     ui->labelPP->setFont(getScaledFont(22));
@@ -124,6 +125,7 @@ void MainWindow::setupCommonStyles()
     ui->m_pBConnect->setFont(getScaledFont(24, true));
     ui->m_pBExit->setFont(getScaledFont(24, true));
     ui->m_pBSpeak->setFont(getScaledFont(24, true));
+    ui->m_pBArmed->setFont(getScaledFont(24, true));
 
     // Setup scaled icons for direction buttons
     setupScaledIcons();
@@ -229,11 +231,13 @@ void MainWindow::changedState(BluetoothClient::bluetoothleState state){
     }
     case BluetoothClient::AcquireData:
     {
+        sendCommand(mArmed, 0);
         requestData(mPP);
         requestData(mPI);
         requestData(mPD);
         requestData(mSD);
         requestData(mAC);
+        requestData(mArmed);
 
         break;
     }
@@ -288,6 +292,11 @@ void MainWindow::DataHandler(QByteArray data)
         case mAC:
         {
             ui->scrollAC->setValue(value);
+            break;
+        }
+        case mArmed:
+        {
+            qDebug() << value;
             break;
         }
         case mData:
@@ -486,3 +495,18 @@ void MainWindow::on_m_pBFormat_clicked()
 {
     ui->lineEdit_Speak->setText("espeak -vtr+f6");
 }
+
+void MainWindow::on_m_pBArmed_clicked()
+{
+    if(ui->m_pBArmed->text() == "Arm")
+    {
+        sendCommand(mArmed, 0);
+        ui->m_pBArmed->setText("DisArm");
+    }
+    else
+    {
+        sendCommand(mDisArmed, 0);
+        ui->m_pBArmed->setText("Arm");
+    }
+}
+

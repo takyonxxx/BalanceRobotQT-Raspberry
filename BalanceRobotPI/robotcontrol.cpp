@@ -197,6 +197,9 @@ void RobotControl::resetControlVariables()
 
 void RobotControl::calculatePwm()
 {
+    if(!isArmed)
+        return;
+
     float accelAngle = atan2(accY, accZ) * RAD_TO_DEG;
 
     // Sensör füzyonu
@@ -482,4 +485,14 @@ void RobotControl::run()
         calculatePwm();
         QThread::msleep(5);
     }
+}
+
+bool RobotControl::getIsArmed() const
+{
+    return isArmed;
+}
+
+void RobotControl::setIsArmed(bool newIsArmed)
+{
+    isArmed = newIsArmed;
 }

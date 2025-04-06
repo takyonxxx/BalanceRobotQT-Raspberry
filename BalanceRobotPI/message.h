@@ -9,6 +9,8 @@
 #define mHeader     0xb0 //Fix header
 #define mWrite      0x01 //Write request
 #define mRead       0x02 //Read request
+#define mArmed      0x03
+#define mDisArmed   0x04
 #define mForward    0xa0
 #define mBackward   0xa1
 #define mLeft       0xb0

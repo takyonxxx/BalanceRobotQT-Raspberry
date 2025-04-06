@@ -127,49 +127,6 @@ void BalanceRobot::onDataReceived(QByteArray data)
     }
 
     try {
-        // Handle the specific pattern that was causing crashes
-        if (data.size() == 4 &&
-            (unsigned char)data.at(0) == mHeader &&
-            (unsigned char)data.at(1) == 0x00 &&
-            (unsigned char)data.at(2) == mRead) {
-
-            uint8_t cmd = (unsigned char)data.at(3);
-
-            // Safer approach: Use a separate try/catch for this critical section
-            try {
-                // Process the read request directly based on the command
-                if (robotControl != nullptr) {  // Null pointer check
-                    switch (cmd) {
-                    case mPP:
-                        sendData(mPP, (int)robotControl->getAggKp());
-                        break;
-                    case mPI:
-                        sendData(mPI, (int)(10*robotControl->getAggKi()));
-                        break;
-                    case mPD:
-                        sendData(mPD, (int)(10*robotControl->getAggKd()));
-                        break;
-                    case mAC:
-                        sendData(mAC, (int)(10*robotControl->getAggAC()));
-                        break;
-                    case mSD:
-                        sendData(mSD, (int)(10*robotControl->getAggSD()));
-                        break;
-                    default:
-                        qDebug() << "Unknown command code in direct read request: 0x" << QString::number(cmd, 16);
-                        break;
-                    }
-                } else {
-                    qDebug() << "WARNING: robotControl is null when processing direct read";
-                }
-            } catch (const std::exception &e) {
-                qDebug() << "Exception when processing direct read request:" << e.what();
-            } catch (...) {
-                qDebug() << "Unknown exception when processing direct read request";
-            }
-            return; // Return after handling the special case, whether successful or not
-        }
-
         // Normal message parsing for other message formats
         uint8_t parsedCommand = 0;
         uint8_t rw = 0;
@@ -216,6 +173,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
             case mSD:
                 sendData(mSD, (int)(10*robotControl->getAggSD()));
                 break;
+            case mArmed:
+                sendData(mArmed, (int)(robotControl->getIsArmed()));
+                break;
             default:
                 qDebug() << "Unknown command in read operation:" << parsedCommand;
                 break;
@@ -256,6 +216,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
             case mRight:
                 robotControl->setNeedTurnR(value);
                 break;
+            case mArmed:
+                robotControl->setIsArmed(true);
+                break;
+            case mDisArmed:
+                robotControl->setIsArmed(false);
+                break;
             default:
                 qDebug() << "Unknown command in write operation:" << parsedCommand;
                 break;
@@ -295,6 +261,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         if(!mSendIp)
         {
             sendString(mData, ip);
+            sendData(mArmed, (int)(robotControl->getIsArmed()));
             mSendIp = true;
         }
 
@@ -362,4 +329,5 @@ void BalanceRobot::init()
 
     robotControl = RobotControl::getInstance();
     robotControl->start();
+    robotControl->setIsArmed(true);
 }
