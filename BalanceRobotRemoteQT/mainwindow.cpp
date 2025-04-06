@@ -107,7 +107,7 @@ void MainWindow::setupCommonStyles()
 
     // Apply styles to action buttons
     QString blueButtonStyle = getButtonStyle("#336699");
-    QString redButtonStyle = getButtonStyle("#FF4633");
+    QString redButtonStyle = getButtonStyle("#900C3F");
 
     ui->m_pBConnect->setStyleSheet(blueButtonStyle);
     ui->m_pBExit->setStyleSheet(blueButtonStyle);

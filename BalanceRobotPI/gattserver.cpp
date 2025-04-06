@@ -39,7 +39,7 @@ void GattServer::handleConnected()
         // Bağlantı kurulduktan sonra veri işleme
         remoteDeviceUuid = leController.data()->remoteDeviceUuid();
         m_ConnectionState = true;
-        emit connectionState(m_ConnectionState);
+
         auto statusText = QString("Connected to device %1").arg(remoteDeviceUuid.toString());
         emit sendInfo(statusText);
         qDebug() << statusText;
@@ -60,6 +60,7 @@ void GattServer::handleConnected()
         // Servis başlatma onayı mesajı gönder
         QByteArray welcomeMsg = "Balance Robot ready!";
         writeValue(welcomeMsg);
+        emit connectionState(m_ConnectionState);
     }
     catch (const std::exception& e) {
         qDebug() << "Exception in handleConnected: " << e.what();

@@ -28,6 +28,7 @@ BalanceRobot::~BalanceRobot()
 
 void BalanceRobot::onConnectionStatedChanged(bool state)
 {
+    mSendIp=false;
 }
 
 void BalanceRobot::createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result)
@@ -290,7 +291,13 @@ void BalanceRobot::onDataReceived(QByteArray data)
                        + QString(" ");
 
         qDebug() << pidInfo;
-        sendString(mData, pidInfo);
+        //sendString(mData, pidInfo);
+        if(!mSendIp)
+        {
+            sendString(mData, ip);
+            mSendIp = true;
+        }
+
     } catch (const std::exception &e) {
         qDebug() << "Exception in onDataReceived:" << e.what();
     } catch (...) {
@@ -330,7 +337,6 @@ void BalanceRobot::sendString(uint8_t command, QString value)
 
 void BalanceRobot::init()
 {
-    QString device, ip, mac, mask;
     int conn_try = 0;
     while(ip.size() == 0)
     {

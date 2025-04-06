@@ -27,9 +27,17 @@ RobotControl::RobotControl(QObject *parent) : QThread(parent)
     if(!initwiringPi()) return;
     if(!initGyroMeter()) return;
 
-    // Initialize by taking multiple readings
-    for(int i=0; i<255; i++)
+    // Robotun başlangıçta dik olduğunu varsayarak kalibrasyon yap
+    for(int i=0; i<100; i++) {
         calculateGyro();
+        QThread::msleep(5); // Örnekler arasında kısa beklemeler
+    }
+
+    // İlk açı değerini hemen ayarla - ilk ivmeölçer verisini doğrudan kullan
+    float initialAccelAngle = atan2(accY, accZ) * RAD_TO_DEG;
+    currentAngle = initialAccelAngle;
+    DataAvg[0] = DataAvg[1] = DataAvg[2] = currentAngle;
+
 }
 
 RobotControl::~RobotControl()
@@ -399,10 +407,6 @@ void RobotControl::calculateGyro()
 
     gyroMPU->getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
-    // Debug sensor readings
-    // qDebug() << "Raw Gyro - AX:" << ax << "AY:" << ay << "AZ:" << az
-    //          << "GX:" << gx << "GY:" << gy << "GZ:" << gz;
-
     accX = static_cast<float>(ax);
     accY = static_cast<float>(ay);
     accZ = static_cast<float>(az);
@@ -418,9 +422,6 @@ void RobotControl::calculateGyro()
 
     currentAngle = (DataAvg[0] + DataAvg[1] + DataAvg[2])/3;
     currentGyro = gyroXrate;
-
-    // Debug processed values
-    // qDebug() << "Processed - Angle:" << currentAngle;
 }
 
 void RobotControl::ResetValues()
@@ -470,6 +471,8 @@ void RobotControl::ResetValues()
 
 void RobotControl::run()
 {
+    stopMotors();
+
     timer = micros();
 
     while (!m_stop)

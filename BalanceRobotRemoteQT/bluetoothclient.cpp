@@ -308,7 +308,6 @@ void BluetoothClient::updateData(const QLowEnergyCharacteristic &c, const QByteA
     for (char byte : value) {
         hexData += QString("%1 ").arg(static_cast<unsigned char>(byte), 2, 16, QChar('0'));
     }
-    emit statusChanged("Received data: " + hexData.trimmed());
 
     // Process the data safely
     try {
