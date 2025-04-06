@@ -343,6 +343,8 @@ void BalanceRobot::init()
 
     qDebug() << ip << mac;
 
+    // speaker = Speaker::getInstance();
+
     gattServer = GattServer::getInstance();
     if (gattServer)
     {

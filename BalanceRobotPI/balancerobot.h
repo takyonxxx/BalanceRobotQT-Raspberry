@@ -3,6 +3,7 @@
 
 #include "robotcontrol.h"
 #include <gattserver.h>
+#include "speaker.h"
 
 class BalanceRobot : public QObject
 {
@@ -28,6 +29,7 @@ private:
 
     RobotControl *robotControl{};
     GattServer *gattServer{};
+    Speaker *speaker{};
 
     Message message;
     QStringList keyList{};
