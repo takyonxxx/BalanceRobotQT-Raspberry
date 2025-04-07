@@ -64,4 +64,4 @@ DISTFILES +=
 #git clone https://github.com/WiringPi/WiringPi.git
 #cd WiringPi
 #sudo ./build
-#rtsp://192.168.1.8:8554/
+#rtsp://192.168.1.8:8554/webcam
