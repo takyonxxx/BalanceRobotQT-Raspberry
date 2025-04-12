@@ -76,6 +76,10 @@ private:
 #if defined(Q_OS_ANDROID)
     void requestBluetoothPermissions();
 #endif
+#if defined(Q_OS_IOS)
+    void requestiOSBluetoothPermissions();
+    bool m_iOSBluetoothInitialized =false;
+#endif
 
     // Member variables
     int remoteConstant;

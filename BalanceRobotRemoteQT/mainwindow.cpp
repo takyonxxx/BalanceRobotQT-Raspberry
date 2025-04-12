@@ -40,6 +40,32 @@ MainWindow::MainWindow(QWidget *parent) :
     statusChanged("No Device Connected.");
 }
 
+#if defined(Q_OS_IOS)
+void MainWindow::requestiOSBluetoothPermissions()
+{
+    if (m_iOSBluetoothInitialized) {
+        // Don't initialize multiple times
+        return;
+    }
+
+    statusChanged("Initializing Bluetooth on iOS...");
+
+    // iOS requires Core Bluetooth framework permissions
+    // We need to ensure the Bluetooth manager is properly initialized before scanning
+
+    // Use timer to ensure proper initialization sequence
+    QTimer::singleShot(1000, this, [this]() {
+        statusChanged("Starting Bluetooth scan on iOS...");
+
+        // Set flag to avoid multiple initialization
+        m_iOSBluetoothInitialized = true;
+
+        // Start the scan which will trigger the permission dialog
+        m_bleConnection->startScan();
+    });
+}
+#endif
+
 #if defined(Q_OS_ANDROID)
 void MainWindow::requestBluetoothPermissions()
 {
@@ -332,10 +358,11 @@ void MainWindow::on_ConnectClicked()
     if(ui->m_pBConnect->text() == QString("Connect"))
     {
 #if defined(Q_OS_ANDROID)
-        // On Android, request permissions first
         requestBluetoothPermissions();
-#else \
-    // On desktop platforms, just start scanning directly
+#elif defined(Q_OS_IOS)
+        requestiOSBluetoothPermissions();
+#else
+        // Desktop platforms - typically don't need special permission handling
         statusChanged("Starting Bluetooth scan...");
         m_bleConnection->startScan();
 #endif
