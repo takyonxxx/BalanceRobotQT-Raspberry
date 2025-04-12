@@ -31,6 +31,8 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        bluetoothService.delegate = self
+        
         setupBluetoothService()
         configureButtons()
         configureTextBrowser()
@@ -138,7 +140,6 @@ class ViewController: UIViewController {
                         // Add the delayed data request here
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             let payload = Data([0x00])
-                            self.addToTextBrowser(text: "Requesting initial data...")
                             self.bluetoothService.requestData(msgId: mPP, data: payload)
                             self.bluetoothService.requestData(msgId: mPI, data: payload)
                             self.bluetoothService.requestData(msgId: mPD, data: payload)
@@ -249,5 +250,19 @@ class ViewController: UIViewController {
         exitAppAlert.addAction(resetApp)
         exitAppAlert.addAction(laterAction)
         present(exitAppAlert, animated: true, completion: nil)
+    }
+}
+
+extension ViewController: BluetoothServiceDelegate {
+    func didReceiveIPAddress(_ ipAddress: String) {
+        self.addToTextBrowser(text: "IP Address: \(ipAddress)")
+    }
+    
+    func didReceiveMessage(_ message: String) {
+        self.addToTextBrowser(text: message)
+    }
+    
+    func didUpdateRobotArmedState(_ isArmed: Bool) {
+        //self.addToTextBrowser(text: "Robot state: \(isArmed ? "Armed" : "Disarmed")")
     }
 }

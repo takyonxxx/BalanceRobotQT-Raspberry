@@ -9,6 +9,15 @@
 import Foundation
 import CoreBluetooth
 
+protocol BluetoothServiceDelegate: AnyObject {
+    func didReceiveIPAddress(_ ipAddress: String)
+    func didReceiveMessage(_ message: String)
+    func didUpdateRobotArmedState(_ isArmed: Bool)
+}
+
+// Add this property to BluetoothService class
+weak var delegate: BluetoothServiceDelegate?
+
 extension BluetoothService: CBPeripheralDelegate {
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -118,21 +127,27 @@ extension BluetoothService: CBPeripheralDelegate {
             if parsedPack.data.count > 0 {
                 if let ipString = String(data: parsedPack.data, encoding: .utf8) {
                     print("Received IP address: \(ipString)")
+                    delegate?.didReceiveIPAddress(ipString)
                 } else if let ipString = String(data: parsedPack.data, encoding: .ascii) {
                     // Try ASCII encoding as fallback
                     print("Received IP address (ASCII): \(ipString)")
+                    delegate?.didReceiveIPAddress(ipString)
                 } else {
                     // If string conversion fails, show hex representation
                     let hexData = parsedPack.data.map { String(format: "%02X", $0) }.joined(separator: " ")
                     print("Received data that couldn't be converted to string: \(hexData)")
+                    delegate?.didReceiveMessage("Received binary data: \(hexData)")
                 }
             } else {
                 print("Received mData command with empty data")
+                delegate?.didReceiveMessage("Received empty data command")
             }
         } else if parsedPack.command == mArmed {
             if parsedPack.data.count > 0 {
                 let value = parsedPack.data[0]
-                print("Robot armed state: \(value != 0 ? "Armed" : "Disarmed")")
+                let isArmed = value != 0
+                print("Robot armed state: \(isArmed ? "Armed" : "Disarmed")")
+                delegate?.didUpdateRobotArmedState(isArmed)
             }
         } else if parsedPack.data.count > 0 {
             let value = parsedPack.data[0]
@@ -150,9 +165,11 @@ extension BluetoothService: CBPeripheralDelegate {
                     PIDSettings.shared.setACValue(value: Float(value))
                 default:
                     print("Unhandled command with data: 0x\(String(format: "%02X", parsedPack.command))")
+                    delegate?.didReceiveMessage("Unhandled command: 0x\(String(format: "%02X", parsedPack.command))")
             }
         } else {
             print("Command received with no data payload: 0x\(String(format: "%02X", parsedPack.command))")
+            delegate?.didReceiveMessage("Command received with no data: 0x\(String(format: "%02X", parsedPack.command))")
         }
     }
     

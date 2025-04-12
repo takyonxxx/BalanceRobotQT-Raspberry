@@ -23,6 +23,8 @@ class BluetoothService: NSObject { // 1.
     var rxCharacteristic:CBCharacteristic? = nil
     let messageService = MessageService()
     
+    weak var delegate: BluetoothServiceDelegate?
+    
     var bluetoothState: CBManagerState {
         return self.centralManager.state
     }
