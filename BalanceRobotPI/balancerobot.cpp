@@ -209,7 +209,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
             {
                 auto soundText = QString(parsedValue.data());
                 qDebug() << "Speak command received:" << soundText;
-                // Add your speak command processing here
+                speaker->speak(soundText);
             }
             break;
             case mForward:
@@ -317,7 +317,8 @@ void BalanceRobot::init()
 
     qDebug() << ip << mac;
 
-    // speaker = Speaker::getInstance();
+    speaker = Speaker::getInstance();
+    speaker->setLanguageCode(SType::TR);
 
     gattServer = GattServer::getInstance();
     if (gattServer)

@@ -163,9 +163,6 @@ class ViewController: UIViewController {
         
         let data = Data(text.utf8)
         self.bluetoothService.sendCommand(msgId: mSpeak, data: data)
-        
-        // Clear the text field after sending
-        self.editSpeak.text = ""
     }
     
     // MARK: - Direction Button Actions
