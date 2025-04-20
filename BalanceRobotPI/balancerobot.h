@@ -34,7 +34,7 @@ private:
     Message message;
     QStringList keyList{};
     QString device, ip, mac, mask;
-    bool mSendIp = false;
+    bool mIpSend = false;
 
 };
 

@@ -28,7 +28,6 @@ BalanceRobot::~BalanceRobot()
 
 void BalanceRobot::onConnectionStatedChanged(bool state)
 {
-    mSendIp=false;
 }
 
 void BalanceRobot::createMessage(uint8_t msgId, uint8_t rw, QByteArray payload, QByteArray *result)
@@ -157,6 +156,15 @@ void BalanceRobot::onDataReceived(QByteArray data)
 
         // Process based on read/write flag
         if (rw == mRead) {
+
+            if(!mIpSend)
+            {
+                getDeviceInfo(device, ip, mac, mask);
+                sendString(mData, ip);
+                qDebug() << ip << mac;
+                mIpSend = true;
+            }
+
             switch (parsedCommand) {
             case mPP:
                 sendData(mPP, (int)robotControl->getAggKp());
@@ -257,13 +265,6 @@ void BalanceRobot::onDataReceived(QByteArray data)
                        + QString(" ");
 
         qDebug() << pidInfo;
-        //sendString(mData, pidInfo);
-        if(!mSendIp)
-        {
-            sendString(mData, ip);
-            sendData(mArmed, (int)(robotControl->getIsArmed()));
-            mSendIp = true;
-        }
 
     } catch (const std::exception &e) {
         qDebug() << "Exception in onDataReceived:" << e.what();
