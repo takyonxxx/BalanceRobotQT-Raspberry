@@ -378,6 +378,7 @@ void RobotControl::resetControlState()
     speedOffsetFilt_ = 0.0f;
     brakePulseFrames_ = 0;
     brakePulseValue_ = 0.0f;
+    spdPidIntegral_ = 0.0f;
     // Position hold — re-lock at whatever the current chassis position is.
     long encL_eff = encoderInvertL_ ? -encLeftTicks_  : encLeftTicks_;
     long encR_eff = encoderInvertR_ ? -encRightTicks_ : encRightTicks_;
@@ -526,39 +527,60 @@ void RobotControl::controlLoop(float /*dt*/)
     lastChassisPos_ = chassisPos;
     chassisVelFilt_ = (1.0f - POS_VEL_ALPHA) * chassisVelFilt_ + POS_VEL_ALPHA * (float)velRaw;
 
-    // Target tilt from speed command:
-    //   needSpeed -180 → target tilt +Xdeg (forward lean)
-    //   needSpeed +180 → target tilt -Xdeg (backward lean)
+    // Target tilt from speed command — TWO-MODE strategy.
     //
-    // CRITICAL: a static MAX_SPEED_TILT means constant acceleration.
-    // The robot keeps speeding up until pitch can't keep up and falls.
-    // Solution: as the chassis builds speed in the COMMANDED direction,
-    // reduce the tilt — so the system targets a *speed*, not endless
-    // acceleration. The encoder velocity gives us this signal cleanly.
-    constexpr float MAX_SPEED_TILT_DEG = 2.0f;
-    constexpr float CRUISE_VEL_THRESHOLD = 3.0f;   // ticks/loop — start fading at ~15 cm/s
-    constexpr float STOP_VEL_THRESHOLD   = 6.0f;   // ticks/loop — zero tilt at ~30 cm/s
+    // Mode A (OPEN-LOOP, default when no encoder velocity available):
+    //   joystick → fixed tilt magnitude → constant acceleration.
+    //   Simple, but the robot keeps speeding up because nothing limits
+    //   acceleration. Use only as a fallback.
+    //
+    // Mode B (CLOSED-LOOP SPEED PID, default — uses encoders):
+    //   joystick → target chassis velocity (ticks/loop).
+    //   PID measures actual velocity vs target and adjusts tilt to make
+    //   the robot reach and HOLD that speed. Going up a slope, sand, or
+    //   carpet — the system automatically compensates by tilting more
+    //   to maintain the requested speed. Joystick centered → target 0,
+    //   robot brakes to a stop, then position hold takes over.
+    //
+    // Velocity-PID parameters tuned conservatively. The output is a
+    // tilt angle (not PWM), so it adds to the targetAngle the pitch
+    // PID is chasing.
+    constexpr float MAX_SPEED_TILT_DEG  = 2.0f;
+    constexpr float MAX_TARGET_VEL      = 6.0f;   // ticks/loop @ full stick → ~30 cm/s
+    constexpr float SPD_PID_KP          = 0.30f;
+    constexpr float SPD_PID_KI          = 0.005f;
+    constexpr float SPD_PID_I_LIMIT     = 1.0f;   // ±1° from integrator
 
-    float baseTilt = -(float)curSpeed / 180.0f * MAX_SPEED_TILT_DEG;
-    baseTilt = std::clamp(baseTilt, -MAX_SPEED_TILT_DEG, MAX_SPEED_TILT_DEG);
+    // Map joystick (-180..+180) → target velocity (-MAX..+MAX).
+    // Sign: forward command (negative curSpeed) → positive target vel
+    // (forward chassis motion matches positive encoder ticks).
+    float targetVel = -(float)curSpeed / 180.0f * MAX_TARGET_VEL;
+    targetVel = std::clamp(targetVel, -MAX_TARGET_VEL, MAX_TARGET_VEL);
 
-    // Velocity in the same sign convention as baseTilt.
-    // baseTilt sign: forward command → positive baseTilt (before pidInvert)
-    // velocity sign: forward motion → positive chassisVel (encoders normalized)
-    // So a velocity matching the command direction has the SAME sign as
-    // baseTilt — we fade tilt when |vel| is in the requested direction.
-    float velSameDir = (baseTilt >= 0) ? chassisVelFilt_ : -chassisVelFilt_;
-    float speedTiltTarget = baseTilt;
-    if (velSameDir > CRUISE_VEL_THRESHOLD) {
-        float fade = std::max(0.0f,
-            1.0f - (velSameDir - CRUISE_VEL_THRESHOLD) /
-                   (STOP_VEL_THRESHOLD - CRUISE_VEL_THRESHOLD));
-        speedTiltTarget = baseTilt * fade;
+    float velErr = targetVel - chassisVelFilt_;
+    spdPidIntegral_ += SPD_PID_KI * velErr;
+    spdPidIntegral_ = std::clamp(spdPidIntegral_, -SPD_PID_I_LIMIT, SPD_PID_I_LIMIT);
+    // Reset integral if no command — let position hold do its job.
+    if (curSpeed == 0) {
+        spdPidIntegral_ *= 0.95f;   // gentle decay rather than snap-to-zero
     }
+    float speedTiltTarget = velErr * SPD_PID_KP + spdPidIntegral_;
+    speedTiltTarget = std::clamp(speedTiltTarget,
+                                 -MAX_SPEED_TILT_DEG, MAX_SPEED_TILT_DEG);
 
-    // SYMMETRIC smoothing — ramps both up AND down slowly.
-    constexpr float TILT_ALPHA = 0.04f;   // ~125 ms time constant
-    speedOffsetFilt_ += TILT_ALPHA * (speedTiltTarget - speedOffsetFilt_);
+    // SLEW-RATE LIMIT — hard cap on how fast speedOffsetFilt_ can change
+    // per loop. Previously used a low-pass alpha (0.04 ≈ 125 ms time const),
+    // but a filter never enforces a *limit* — it just smooths. A direct
+    // tilt step would still produce noticeable ramp. Hard slew gives more
+    // predictable handling and prevents speed-tilt spikes from kicking
+    // the chassis.
+    //   MAX_TILT_DELTA_PER_LOOP = 0.015°/loop  →  ~3°/sec ramp rate
+    //   So 0 → 2° takes about 670 ms (smooth perceptual response).
+    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.015f;
+    float tiltDelta = speedTiltTarget - speedOffsetFilt_;
+    if (tiltDelta >  MAX_TILT_DELTA_PER_LOOP) tiltDelta =  MAX_TILT_DELTA_PER_LOOP;
+    if (tiltDelta < -MAX_TILT_DELTA_PER_LOOP) tiltDelta = -MAX_TILT_DELTA_PER_LOOP;
+    speedOffsetFilt_ += tiltDelta;
 
     float speedTilt = speedOffsetFilt_;
     if (pidInvert_) speedTilt = -speedTilt;   // match motor/pid sign convention
@@ -647,7 +669,41 @@ void RobotControl::controlLoop(float /*dt*/)
     targetAngle_ = std::clamp(targetAngle_, -12.0f, 12.0f);
 
     anglePid.setSetpoint(targetAngle_);
-    anglePid.setTunings(aggKp, aggKi * 0.01f, aggKd);
+
+    // -------- Dynamic pitch PID gain shaping --------
+    //
+    // The slider values aggKp/aggKi/aggKd are the *steady-state* gains.
+    // Three safeguards reduce specific terms in transient situations
+    // to avoid PWM saturation and integral wind-up:
+    //
+    // (a) Integral wind-up protection (motion):
+    //     When the chassis is moving fast (|vel| > 3 ticks/loop ≈ 15 cm/s)
+    //     the integrator is paused (Ki → 0). Pitch error during motion
+    //     is momentary, not a steady offset to compensate for.
+    //
+    // (b) Integral wind-up protection (arming):
+    //     For the first second after arming, Ki is held at 0. The arm
+    //     ramp is scaling PWM down anyway; the integrator would otherwise
+    //     accumulate a giant bias by the time PWM is fully available.
+    //
+    // (c) Kd fade for fast pitch motion:
+    //     When the gyro pitch rate is very high (|gyroX| > 100 °/s) the
+    //     robot is already swinging hard; adding more D just clips PWM
+    //     to the rail. Linear fade above 100°/s, zero above 200°/s.
+    float effKi = aggKi * 0.01f;
+    if (std::fabs(chassisVelFilt_) > 3.0f) {
+        effKi = 0.0f;
+    }
+    if (armRampCount_ < ARM_RAMP_SAMPLES) {
+        effKi = 0.0f;
+    }
+    float effKd = aggKd;
+    float absGyroX = std::fabs(gyroRateX_);
+    if (absGyroX > 100.0f) {
+        float fade = std::max(0.0f, 1.0f - (absGyroX - 100.0f) / 100.0f);
+        effKd = aggKd * fade;
+    }
+    anglePid.setTunings(aggKp, effKi, effKd);
 
     float pidOut = anglePid.compute(currentAngle_, gyroRateX_);
     if (pidInvert_) pidOut = -pidOut;
@@ -732,9 +788,52 @@ void RobotControl::controlLoop(float /*dt*/)
     if (motorInvertL_) rawL = -rawL;
     if (motorInvertR_) rawR = -rawR;
 
-    // Soft start
-    if (armRampCount_ < 20) {
-        float k = (float)armRampCount_ / 20.0f;
+    // -------- Slip / airborne detection --------
+    //
+    // If the wheels are spinning fast (|encoder vel| large) but the robot
+    // body is NOT rotating much (|gyroX| small), the wheels have lost
+    // traction OR the robot is being held up off the ground. In either
+    // case, pumping more PWM is pointless and will cause a violent jolt
+    // when traction returns. Cut motor output and let the loop catch up.
+    //
+    // Thresholds:
+    //   |vel| > 8 ticks/loop      ≈ 40 cm/s wheel speed
+    //   |gyroX| < 30 °/s          robot body essentially still
+    // When both true, suspect slip → output 0 this cycle.
+    float velAbsCheck   = std::fabs(chassisVelFilt_);
+    float gyroAbsCheck  = std::fabs(gyroRateX_);
+    if (velAbsCheck > 8.0f && gyroAbsCheck < 30.0f) {
+        rawL = 0;
+        rawR = 0;
+    }
+
+    // -------- Predictive max-effort recovery --------
+    //
+    // The product (currentAngle - targetAngle) * gyroRateX is positive when
+    // the robot is leaning AND the gyro confirms the lean is accelerating
+    // in the same direction. That's the signature of an unrecoverable
+    // fall starting to build. The normal PID gain may not catch up in
+    // time. When this product exceeds a threshold, slam the motors at
+    // max counter-effort to break the divergence before pitch becomes
+    // unrecoverable.
+    //
+    // Threshold: |angle * gyroX| > 600 = 6° × 100°/s, or 3° × 200°/s.
+    // At these values the robot has 0.1-0.3 seconds before tipping past
+    // the 40° fall-out angle.
+    float angErr = currentAngle_ - targetAngle_;
+    float divergence = angErr * gyroRateX_;
+    if (divergence > 600.0f) {
+        int sign = (angErr > 0) ? +1 : -1;
+        if (pidInvert_) sign = -sign;
+        rawL = sign * PWM_LIMIT;
+        rawR = sign * PWM_LIMIT;
+    }
+
+    // Soft start — 1 second linear PWM ramp (200 loops at 200 Hz).
+    // Combined with integral suppression below, this prevents the robot
+    // from snapping its motors when first armed.
+    if (armRampCount_ < ARM_RAMP_SAMPLES) {
+        float k = (float)armRampCount_ / (float)ARM_RAMP_SAMPLES;
         rawL = (int)(rawL * k);
         rawR = (int)(rawR * k);
         armRampCount_++;

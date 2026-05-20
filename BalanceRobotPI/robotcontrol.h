@@ -137,6 +137,7 @@ private:
     static constexpr int   ARM_STABLE_SAMPLES  = 60;
     static constexpr float LOOP_DT_TARGET      = 0.005f;
     static constexpr int   LOOP_DT_US          = 5000;
+    static constexpr int   ARM_RAMP_SAMPLES    = 200;   // 1 sec @ 200 Hz
 
     // -------- IMU --------
     int16_t ax_{0}, ay_{0}, az_{0};
@@ -222,6 +223,7 @@ private:
     bool  posHoldActive_{false};
     long  lastChassisPos_{0};
     float chassisVelFilt_{0.0f};
+    float spdPidIntegral_{0.0f};   // integral term for the speed PID
     static constexpr float POS_GAIN_DEG_PER_TICK              = 0.0015f;
     static constexpr float POS_VEL_GAIN_DEG_PER_TICK_PER_LOOP = 0.09f;
     static constexpr float POS_VEL_ALPHA                      = 0.5f;
