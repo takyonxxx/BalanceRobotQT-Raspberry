@@ -227,6 +227,27 @@ private:
     static constexpr float POS_VEL_ALPHA                      = 0.5f;
     static constexpr float POS_MAX_TILT_DEG                   = 1.0f;
 
+    // Yaw hold (encoder-based — replaces gyro-Z rate control).
+    //
+    // Gyro Z drifts and is noisy. Wheel encoders give the *actual* yaw
+    // angle as (encR - encL) — no integration drift since it's a direct
+    // tick difference. When the user isn't commanding a turn, lock the
+    // current (encR - encL) and apply a PD correction (turnBias) to
+    // restore it if the robot drifts off course.
+    //
+    // Tuning (initial guesses):
+    //   YAW_P: 100 tick offset (~50 cm wheel separation walked off
+    //          course ~5 cm sideways) → 15 PWM turnBias. P = 0.15
+    //   YAW_D: 5 tick/loop rotation rate → 10 PWM damping. D = 2.0
+    long  lockedYawDiff_{0};            // (encR_eff - encL_eff) at lock
+    bool  yawHoldActive_{false};
+    float yawDiffVelFilt_{0.0f};
+    long  lastYawDiff_{0};
+    static constexpr float YAW_GAIN_PWM_PER_TICK          = 0.15f;
+    static constexpr float YAW_VEL_GAIN_PWM_PER_TICK_LOOP = 2.0f;
+    static constexpr float YAW_VEL_ALPHA                  = 0.5f;
+    static constexpr int   YAW_MAX_PWM                    = 30;
+
     // İşaret bayrakları
     bool pidInvert_{true};
     bool motorInvertL_{false};

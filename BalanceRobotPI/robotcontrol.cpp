@@ -385,6 +385,11 @@ void RobotControl::resetControlState()
     lastChassisPos_ = lockedPos_;
     chassisVelFilt_ = 0.0f;
     posHoldActive_ = false;
+    // Yaw hold — re-lock current heading
+    lockedYawDiff_ = encR_eff - encL_eff;
+    lastYawDiff_ = lockedYawDiff_;
+    yawDiffVelFilt_ = 0.0f;
+    yawHoldActive_ = false;
 }
 
 void RobotControl::stopMotors()
@@ -657,45 +662,69 @@ void RobotControl::controlLoop(float /*dt*/)
         autoZeroIntegral = std::clamp(autoZeroIntegral, -8.0f, 8.0f);
     }
 
-    // -------- Yaw kontrolü --------
-    // Kullanıcı dönüş komutu (needTurnL/R) veriyorsa yaw kilidi kapalı,
-    // robot serbestçe dönsün. Komut yoksa gyroZ ile sıfırda tut.
+    // -------- Yaw control (encoder-based) --------
+    //
+    // When the user is NOT commanding a turn (yawLock on, turnBias 0),
+    // hold the chassis heading using the wheel encoder difference:
+    //     yawDiff = encR_eff - encL_eff   (signed, in ticks)
+    // A non-zero yawDiff means the wheels have spun by different amounts —
+    // i.e. the robot has rotated. We lock yawDiff at the moment the turn
+    // command ends and apply a PD correction (added to motor PWM) to
+    // restore it if the robot drifts off heading.
+    //
+    // Why this beats gyro Z:
+    //   - No bias drift (yawDiff is a direct measurement, no integration).
+    //   - Insensitive to vibration (encoder ticks are discrete events).
+    //   - Same encoders we already trust for position hold.
     int turnBias = 0;
     int needL = needTurnL.load();
     int needR = needTurnR.load();
     if (needR > 0)      turnBias = +needR;
     else if (needL > 0) turnBias = -needL;
 
-    yawCorrection_ = 0.0f;
-    if (turnBias == 0 && yawLock.load()) {
-        // Yaw kazançlarını güncelle (UI'dan değiştirilebilir)
-        yawPid.setTunings(aggSD * 0.1f, aggSD * 0.001f, 0.0f);
-        // FİLTRELİ gyroZ kullan — ham veri çok gürültülü
-        yawCorrection_ = yawPid.compute(gyroRateZFilt_);
-        if (yawInvert_) yawCorrection_ = -yawCorrection_;
+    long yawDiff = encR_eff - encL_eff;
+    float yawDiffVelRaw = (float)(yawDiff - lastYawDiff_);
+    lastYawDiff_ = yawDiff;
+    yawDiffVelFilt_ = (1.0f - YAW_VEL_ALPHA) * yawDiffVelFilt_
+                    + YAW_VEL_ALPHA * yawDiffVelRaw;
 
-        // ÖNEMLİ: pitch denge stresi varsa yaw'ı bastır.
-        // Robot büyük açıyla eğikken yaw düzeltmesi motor PWM'sini bozar
-        // ve denge düşer. Önce ayakta kalmaya odaklan.
-        //   |angle| < 2°  → yaw tam çalışır
-        //   |angle| > 6°  → yaw tamamen bastırılır
-        //   arada       → lineer azaltma
+    float yawCorrection = 0.0f;
+    if (turnBias == 0 && yawLock.load()) {
+        if (!yawHoldActive_) {
+            lockedYawDiff_ = yawDiff;
+            yawHoldActive_ = true;
+        }
+        long yawErr = yawDiff - lockedYawDiff_;
+        float pTerm = (float)yawErr           * YAW_GAIN_PWM_PER_TICK;
+        float dTerm = yawDiffVelFilt_         * YAW_VEL_GAIN_PWM_PER_TICK_LOOP;
+        yawCorrection = pTerm + dTerm;
+        if (yawInvert_) yawCorrection = -yawCorrection;
+        yawCorrection = std::clamp(yawCorrection,
+                                   (float)-YAW_MAX_PWM, (float)YAW_MAX_PWM);
+
+        // Suppress yaw correction when pitch is under stress — keeping
+        // upright is more important than holding heading. Linear fade
+        // between 2° and 6° pitch error.
         float absAng = std::fabs(currentAngle_ - targetAngle_);
         float yawScale = 1.0f;
         if (absAng >= 6.0f)      yawScale = 0.0f;
         else if (absAng >= 2.0f) yawScale = (6.0f - absAng) / 4.0f;
-        yawCorrection_ *= yawScale;
+        yawCorrection *= yawScale;
     } else {
-        yawPid.resetIntegral();
+        // Turn command active OR yaw lock disabled — let lockedYawDiff_
+        // chase the current diff so release re-engages cleanly.
+        yawHoldActive_ = false;
+        lockedYawDiff_ = yawDiff;
     }
+    yawCorrection_ = yawCorrection;   // also stored as member for telemetry
 
     // -------- Motor çıkışları --------
     // Note: speed command no longer added here — it's baked into targetAngle_
     // above, so pidOut already contains the motion-driving component via the
     // tilt error term.
-    int yawDiff = (int)std::round(yawCorrection_);
-    int rawL = (int)std::round(pidOut) - turnBias - yawDiff;
-    int rawR = (int)std::round(pidOut) + turnBias + yawDiff;
+    int yawPwm = (int)std::round(yawCorrection_);
+    int rawL = (int)std::round(pidOut) - turnBias - yawPwm;
+    int rawR = (int)std::round(pidOut) + turnBias + yawPwm;
 
     rawL = std::clamp(rawL, -PWM_LIMIT, PWM_LIMIT);
     rawR = std::clamp(rawR, -PWM_LIMIT, PWM_LIMIT);
