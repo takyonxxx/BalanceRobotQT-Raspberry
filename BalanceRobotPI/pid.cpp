@@ -38,6 +38,11 @@ void PID::setDerivativeFilter(float alpha)
     derivAlpha_ = std::clamp(alpha, 0.0f, 1.0f);
 }
 
+void PID::setIntegralOutputCap(float cap)
+{
+    integralOutputCap_ = std::max(0.0f, cap);
+}
+
 void PID::resetIntegral()
 {
     integral_ = 0.0f;
@@ -113,6 +118,16 @@ float PID::compute(float input, float measuredRate)
 
     // I — önce ekle, sonra back-calculation ile düzelt
     float trialIntegral = integral_ + error * dt;
+    
+    // Integral output cap: prevent the I-term from contributing more than
+    // ±integralOutputCap_ to the output. Clamp the integrator itself so
+    // that next time around it doesn't have a giant value to unwind.
+    if (integralOutputCap_ > 0.0f && Ki_ > 0.0f) {
+        float iLimit = integralOutputCap_ / Ki_;
+        if (trialIntegral >  iLimit) trialIntegral =  iLimit;
+        if (trialIntegral < -iLimit) trialIntegral = -iLimit;
+    }
+    
     float trialI = Ki_ * trialIntegral;
     float trialOutput = P + trialI + D;
 

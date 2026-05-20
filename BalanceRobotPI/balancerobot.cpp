@@ -193,7 +193,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         switch (parsedCommand) {
         case mPP:    sendData(mPP, (uint8_t)std::clamp<int>((int)robotControl->getAggKp(), 0, 255)); break;
         case mPI:    sendData(mPI, (uint8_t)std::clamp<int>((int)(robotControl->getAggKi()), 0, 255)); break;
-        case mPD:    sendData(mPD, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggKd()), 0, 255)); break;
+        case mPD:    sendData(mPD, (uint8_t)std::clamp<int>((int)(100*robotControl->getAggKd()), 0, 255)); break;
         case mAC:    sendData(mAC, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggAC()), 0, 255)); break;
         case mSD:    sendData(mSD, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggSD()), 0, 255)); break;
         case mArmed: sendData(mArmed, robotControl->getIsArmed() ? 1 : 0); break;
@@ -208,7 +208,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         switch (parsedCommand) {
         case mPP: robotControl->setAggKp((float)value); break;
         case mPI: robotControl->setAggKi((float)value); break;          // gerçek Ki PID içinde *0.01 ölçeklenir
-        case mPD: robotControl->setAggKd(value / 10.0f); break;
+        case mPD: robotControl->setAggKd(value / 100.0f); break;
         case mAC: robotControl->setAggAC(value / 10.0f); break;
         case mSD: robotControl->setAggSD(value / 10.0f); break;
         case mForward:  robotControl->setNeedSpeed(-1 * value); break;

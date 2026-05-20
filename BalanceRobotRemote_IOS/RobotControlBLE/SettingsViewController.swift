@@ -16,7 +16,7 @@ class SettingsViewController: UIViewController {
     // PID sliders
     private let pSlider = LabeledSlider(title: "P (Proportional)", min: 0, max: 100, format: "%.0f")
     private let iSlider = LabeledSlider(title: "I (Integral)",     min: 0, max: 255, format: "%.2f", scaleDivider: 100)
-    private let dSlider = LabeledSlider(title: "D (Derivative)",   min: 0, max: 50,  format: "%.2f", scaleDivider: 10)
+    private let dSlider = LabeledSlider(title: "D (Derivative)",   min: 0, max: 50,  format: "%.2f", scaleDivider: 100)
     private let acSlider = LabeledSlider(title: "Angle trim (AC)", min: 0, max: 50,  format: "%.1f°", scaleDivider: 10)
     private let sdSlider = LabeledSlider(title: "Yaw gain (SD)",   min: 0, max: 100, format: "%.2f", scaleDivider: 10)
     
@@ -362,12 +362,18 @@ class SettingsViewController: UIViewController {
         
         // 1) Pi side — send each default via BLE. Sliders update themselves
         //    locally and the Pi will echo back the new values via mPP/mPI/...
+        //    Slider raw values match the byte values sent over BLE:
+        //      mPP byte = Kp                (Kp 20  → byte 20)
+        //      mPI byte = Ki × 100          (Ki 0.5 → byte 50)
+        //      mPD byte = Kd × 100          (Kd 0.15 → byte 15)
+        //      mAC byte = AC × 10           (AC 0    → byte 0)
+        //      mSD byte = SD × 10           (SD 2.0  → byte 20)
         let robotDefaults: [(Byte, UInt8, Float)] = [
-            (mPP, 18,  18),   // Kp
-            (mPI, 80,  80),   // Ki
-            (mPD, 1,   1),    // Kd ×10
-            (mAC, 0,   0),    // AC ×10
-            (mSD, 20,  20),   // SD ×10
+            (mPP, 20,  20),    // Kp = 20
+            (mPI, 50,  50),    // Ki = 0.5 (real); slider raw 50
+            (mPD, 15,  15),    // Kd = 0.15
+            (mAC, 0,   0),     // AC = 0
+            (mSD, 20,  20),    // SD = 2.0
         ]
         for (cmd, byte, sliderValue) in robotDefaults {
             sendByte(cmd, byte: byte)

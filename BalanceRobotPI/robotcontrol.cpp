@@ -1,6 +1,7 @@
 #include "robotcontrol.h"
 #include <cmath>
 #include <algorithm>
+#include <vector>
 #include <unistd.h>
 #include <sys/time.h>
 
@@ -50,6 +51,11 @@ RobotControl::RobotControl(QObject *parent) : QThread(parent)
     // Tighter derivative low-pass: 0.10 instead of 0.15 smooths more
     // high-frequency gyro noise that was driving the back-and-forth oscillation.
     anglePid.setDerivativeFilter(0.10f);
+    // Integral output cap: stop wind-up at ±50 PWM. The I-term is there to
+    // compensate steady-state bias (CG offset, motor mismatch), not to
+    // dominate the control loop. Without this cap, Ki=0.8 was creating
+    // ~1 Hz oscillations as integral built up, overshot, and unwound.
+    anglePid.setIntegralOutputCap(50.0f);
     anglePid.setSetpoint(0.0f);
 
     // Yaw PID — gyro Z hızı sıfırda tutulur, çıkış motor diferansiyeli.
@@ -82,9 +88,13 @@ RobotControl::~RobotControl()
 void RobotControl::loadSettings()
 {
     QSettings settings(m_sSettingsFile, QSettings::IniFormat);
-    aggKp     = settings.value("aggKp",     18.0f).toFloat();
-    aggKi     = settings.value("aggKi",     80.0f).toFloat();
-    aggKd     = settings.value("aggKd",      0.1f).toFloat();
+    aggKp     = settings.value("aggKp",     20.0f).toFloat();
+    aggKi     = settings.value("aggKi",     50.0f).toFloat();
+    // Kd default is 0.15 — but the iOS BLE protocol uses 1-byte mPD with
+    // *10 scaling, so iOS cannot send exactly 0.15 (it can only send 0.1
+    // or 0.2). On clean Pi start the file is missing and we use 0.15.
+    // If iOS issues "Reset to Defaults", it will send byte=2 → 0.20.
+    aggKd     = settings.value("aggKd",      0.15f).toFloat();
     aggSD     = settings.value("aggSD",      2.0f).toFloat();   // yaw Kp
     aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
     trimFine  = settings.value("trimFine",   0.0f).toFloat();
@@ -181,30 +191,94 @@ void RobotControl::readImu()
 
 void RobotControl::calibrateGyroBias()
 {
-    qDebug("Calibrating gyro bias - keep the robot still...");
-    const int N = 400;        // ~2 sn @ 5ms
-    double sx = 0, sy = 0, sz = 0;
-    for (int i = 0; i < N; ++i) {
-        readImu();
-        sx += gx_;
-        sy += gy_;
-        sz += gz_;
-        QThread::msleep(5);
+    // Acceptable thresholds:
+    //   - bias magnitude on each axis  : < 5 °/s (typical < 1 °/s)
+    //   - sample stddev on each axis   : < 3 °/s (motion during cal)
+    // If either is exceeded we retry. After several failed attempts we
+    // give up and keep whatever we got, but warn loudly.
+    const int   N            = 400;     // ~2 s @ 5 ms
+    const float BIAS_MAX     = 5.0f;    // °/s
+    const float JITTER_MAX   = 3.0f;    // °/s sample stddev
+    const int   MAX_ATTEMPTS = 3;
+
+    for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt) {
+        qDebug("Calibrating gyro bias (attempt %d/%d) - keep the robot still...",
+               attempt, MAX_ATTEMPTS);
+
+        // Two-pass: mean, then stddev to detect motion during cal.
+        double sx = 0, sy = 0, sz = 0;
+        std::vector<float> bufX(N), bufY(N), bufZ(N);
+
+        for (int i = 0; i < N; ++i) {
+            readImu();
+            float xf = (float)gx_ / 131.0f;
+            float yf = (float)gy_ / 131.0f;
+            float zf = (float)gz_ / 131.0f;
+            bufX[i] = xf; bufY[i] = yf; bufZ[i] = zf;
+            sx += xf; sy += yf; sz += zf;
+            QThread::msleep(5);
+        }
+
+        float mx = (float)(sx / N);
+        float my = (float)(sy / N);
+        float mz = (float)(sz / N);
+
+        // Stddev — how much was the gyro signal moving during the window?
+        double varX = 0, varY = 0, varZ = 0;
+        for (int i = 0; i < N; ++i) {
+            float dx = bufX[i] - mx; varX += dx*dx;
+            float dy = bufY[i] - my; varY += dy*dy;
+            float dz = bufZ[i] - mz; varZ += dz*dz;
+        }
+        float sdX = std::sqrt(varX / N);
+        float sdY = std::sqrt(varY / N);
+        float sdZ = std::sqrt(varZ / N);
+
+        bool motion = (sdX > JITTER_MAX) || (sdY > JITTER_MAX) || (sdZ > JITTER_MAX);
+        bool absurd = (std::fabs(mx) > BIAS_MAX)
+                   || (std::fabs(my) > BIAS_MAX)
+                   || (std::fabs(mz) > BIAS_MAX);
+
+        qDebug() << "  mean X=" << mx << " Y=" << my << " Z=" << mz;
+        qDebug() << "  stddev X=" << sdX << " Y=" << sdY << " Z=" << sdZ;
+
+        if (!motion && !absurd) {
+            // Looks good — commit and exit
+            gyroBiasX_ = mx;
+            gyroBiasY_ = my;
+            gyroBiasZ_ = mz;
+
+            QSettings bias(m_sBiasFile, QSettings::IniFormat);
+            bias.setValue("gx", gyroBiasX_);
+            bias.setValue("gy", gyroBiasY_);
+            bias.setValue("gz", gyroBiasZ_);
+            bias.sync();
+
+            gyroCalibrated_ = true;
+            qDebug() << "Gyro bias OK: X=" << gyroBiasX_
+                     << " Y=" << gyroBiasY_
+                     << " Z=" << gyroBiasZ_ << "°/s";
+            return;
+        }
+
+        if (motion) {
+            qDebug("  ⚠ motion detected during calibration — please hold the robot perfectly still.");
+        }
+        if (absurd) {
+            qDebug("  ⚠ bias magnitude exceeds %.1f°/s — sensor or position issue.", BIAS_MAX);
+        }
+        if (attempt < MAX_ATTEMPTS) {
+            qDebug("  Retrying in 1 second...");
+            QThread::msleep(1000);
+        }
     }
-    gyroBiasX_ = (float)(sx / N) / 131.0f;
-    gyroBiasY_ = (float)(sy / N) / 131.0f;
-    gyroBiasZ_ = (float)(sz / N) / 131.0f;
 
-    QSettings bias(m_sBiasFile, QSettings::IniFormat);
-    bias.setValue("gx", gyroBiasX_);
-    bias.setValue("gy", gyroBiasY_);
-    bias.setValue("gz", gyroBiasZ_);
-    bias.sync();
-
-    gyroCalibrated_ = true;
-    qDebug() << "Gyro bias: X=" << gyroBiasX_
-             << " Y=" << gyroBiasY_
-             << " Z=" << gyroBiasZ_ << "°/s";
+    // All attempts failed. Use the LAST measurement but don't persist it
+    // to disk — next start will retry. Warn user.
+    qDebug("  ✗ Calibration FAILED after %d attempts. Robot may not balance properly.", MAX_ATTEMPTS);
+    qDebug("    Place the robot flat on a hard surface and restart.");
+    // gyroBiasX_/Y_/Z_ retain whatever loadSettings() previously loaded
+    // (or zeros on first run). Better than committing garbage.
 }
 
 void RobotControl::updateEstimates(float dt)
@@ -249,6 +323,7 @@ void RobotControl::resetControlState()
     brakeCounter_ = 0;
     brakeBiasAngle_ = 0.0f;
     brakeDirection_ = 0;
+    speedOffsetFilt_ = 0.0f;
 }
 
 void RobotControl::stopMotors()
@@ -463,7 +538,15 @@ void RobotControl::controlLoop(float /*dt*/)
     }
 
     // -------- Hız offset'i (BLE forward/backward) --------
-    float speedOffset = -(float)needSpeed.load();   // negatif = ileri
+    // Raw target offset from BLE. Negative = forward.
+    float speedOffsetTarget = -(float)needSpeed.load();
+    // Low-pass filter the offset so a sudden joystick push doesn't
+    // step-inject 180 PWM and shake the robot. Time constant ~0.25 s.
+    // alpha = dt / (tau + dt), with dt = 5 ms → alpha ≈ 0.020.
+    // Smaller alpha = smoother ramp, less command-induced oscillation.
+    constexpr float SPEED_ALPHA = 0.03f;
+    speedOffsetFilt_ += SPEED_ALPHA * (speedOffsetTarget - speedOffsetFilt_);
+    float speedOffset = speedOffsetFilt_;
 
     // -------- Motor çıkışları --------
     int yawDiff = (int)std::round(yawCorrection_);

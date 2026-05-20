@@ -158,9 +158,9 @@ private:
     //   PID v2 türevi gyro°/s ile çarpıyor. Bu yüzden Kd birim ölçeği eski
     //   koddan farklıdır. Eski Kd=1.2 ≈ yeni Kd=0.1 sönüme denk gelir.
     //   Ki ise UI değerinin /100'üyle uygulanır (slider 0..255, gerçek 0..2.55).
-    float aggKp{18.0f};
-    float aggKi{80.0f};
-    float aggKd{0.1f};
+    float aggKp{20.0f};
+    float aggKi{50.0f};
+    float aggKd{0.15f};
     float aggAC{0.0f};
 
     // SD slider artık yaw PID kazancı. Slider 0..100 → gerçek Kp 0..10.0
@@ -174,6 +174,11 @@ private:
 
     int   pwmL_{0};
     int   pwmR_{0};
+
+    // Speed command low-pass filter — prevents the joystick from injecting
+    // a step into the motor PWM, which would shake the robot. Filtered
+    // value ramps toward needSpeed.
+    float speedOffsetFilt_{0.0f};
 
     // Anti-overshoot / braking after speed command release:
     // - Open-loop part: short opposing tilt pulse to bleed momentum.

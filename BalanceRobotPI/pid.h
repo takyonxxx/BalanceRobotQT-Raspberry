@@ -42,6 +42,13 @@ public:
     void  setOutputLimit(float limit);   // ±limit
     void  setDeadband(float band);
     void  setDerivativeFilter(float alpha); // 0..1
+    
+    /// Cap the I-term's contribution to the output. When the integral
+    /// would push the controller harder than ±cap, it's clamped at the
+    /// integrator level (so it can never accumulate the kind of wind-up
+    /// that causes 1-2 Hz oscillation in balance robots). Set to 0 to
+    /// disable (default).
+    void  setIntegralOutputCap(float cap);
 
     void  resetIntegral();
     void  reset();
@@ -70,6 +77,7 @@ private:
     float outputLimit_{PIDConstants::DEFAULT_OUTPUT_LIMIT};
     float deadband_{PIDConstants::DEFAULT_DEADBAND};
     float derivAlpha_{PIDConstants::DEFAULT_DERIV_ALPHA};
+    float integralOutputCap_{0.0f};   // 0 = no cap
 
     // Son hesaplama bileşenleri (telemetri için)
     float lastP_{0.0f};
