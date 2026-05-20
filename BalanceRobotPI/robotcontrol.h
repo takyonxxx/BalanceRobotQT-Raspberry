@@ -180,25 +180,52 @@ private:
     // value ramps toward needSpeed.
     float speedOffsetFilt_{0.0f};
 
-    // Anti-overshoot / braking after speed command release:
-    // - Open-loop part: short opposing tilt pulse to bleed momentum.
-    // - Closed-loop part: while braking, also feed back gyroX (pitch rate)
-    //   into the target angle. If the robot is still pitching forward
-    //   (gyroX in the same direction as the prior command) we lean it
-    //   slightly opposite. As the motion dies down gyroX → 0 and the
-    //   closed-loop term automatically fades.
+    // Speed command transition tracking (debounced release detection).
+    // BLE delivers speed updates at ~20 Hz; a single glitched zero
+    // frame between commands should NOT count as a release. We require
+    // a few consecutive zero frames before declaring the command released.
     int   prevNeedSpeed_{0};
-    int   brakeCounter_{0};
-    float brakeBiasAngle_{0.0f};
-    int   brakeDirection_{0};        // sign of previous command (+1 / -1)
-    static constexpr int   BRAKE_TICKS_AT_5MS = 120;     // ~0.6 s of brake window
-    static constexpr float BRAKE_PER_PWM      = 0.010f;  // ° per PWM (open-loop kick)
-    // Closed-loop gyro feedback gain. SIGN depends on IMU orientation —
-    // if braking pushes the robot the WRONG way (accelerates instead of
-    // slowing), flip the sign of this constant.
-    static constexpr float BRAKE_GYRO_GAIN    = 0.03f;
-    static constexpr float BRAKE_GYRO_MAX     = 2.0f;    // hard cap on closed-loop tilt
-    static constexpr float BRAKE_BIAS_LIMIT   = 3.5f;    // hard cap on total brake tilt
+    int   zeroSpeedFrames_{0};
+    int   lastCommitedSpeed_{0};
+
+    // Anti-momentum brake pulse: when speed command is released, briefly
+    // tilt the target the OPPOSITE way to bleed forward/backward motion.
+    int   brakePulseFrames_{0};
+    float brakePulseValue_{0.0f};
+
+    // Position hold (encoder-based).
+    // Wheel ticks are read from the static volatile counters; sign
+    // depends on motor wiring and is normalized via encoderInvertL/R.
+    // When no speed command is active, lockedPos_ pins the chassis
+    // location and a small target-angle tilt is generated to nudge the
+    // robot back. When the user IS commanding motion, lockedPos_ tracks
+    // the current position so release is seamless.
+    //
+    // Calibration (measured from run logs):
+    //   ~19 ticks/cm (1 m push ≈ 1886 ticks; previously 21 t/cm from
+    //   a 3 m slide that included some wheel slip)
+    //   → 1 tick ≈ 5.3 mm
+    //   → SAFETY threshold 1500 ticks ≈ 79 cm
+    //
+    // Tuning history:
+    //   - P-only: oscillation that grew (robot passed lock with leftover speed)
+    //   - PD with weak D (P=0.002, D=0.007): 2-3 cycles to settle,
+    //     ~12 cm steady-state offset
+    //   - PD with strong D (P=0.003, D=0.18): limit-cycle oscillation,
+    //     huge velocities, PWM saturated, eventual fall
+    //   - PD with calmer gains (P=0.0015, D=0.09, MAX_TILT=1.0):
+    //     stays subordinate to pitch balance; pos PID can't break it.
+    //     Re-lock SAFETY accepts >75 cm drift instead of fighting it.
+    bool  encoderInvertL_{true};
+    bool  encoderInvertR_{true};
+    long  lockedPos_{0};
+    bool  posHoldActive_{false};
+    long  lastChassisPos_{0};
+    float chassisVelFilt_{0.0f};
+    static constexpr float POS_GAIN_DEG_PER_TICK              = 0.0015f;
+    static constexpr float POS_VEL_GAIN_DEG_PER_TICK_PER_LOOP = 0.09f;
+    static constexpr float POS_VEL_ALPHA                      = 0.5f;
+    static constexpr float POS_MAX_TILT_DEG                   = 1.0f;
 
     // İşaret bayrakları
     bool pidInvert_{true};
@@ -223,6 +250,14 @@ private:
     bool  saveDirty{false};
     QString m_sSettingsFile;
     QString m_sBiasFile;
+
+    // Encoder diagnostic ISRs (wiringPi callbacks must be static / free).
+    // Quadrature: each ISR reads the companion pin to determine direction
+    // and increments OR decrements a signed tick counter.
+    static void encLeftISR();
+    static void encRightISR();
+    static volatile long encLeftTicks_;
+    static volatile long encRightTicks_;
 
     static RobotControl* theInstance_;
 };

@@ -363,15 +363,19 @@ class SettingsViewController: UIViewController {
         // 1) Pi side — send each default via BLE. Sliders update themselves
         //    locally and the Pi will echo back the new values via mPP/mPI/...
         //    Slider raw values match the byte values sent over BLE:
-        //      mPP byte = Kp                (Kp 20  → byte 20)
-        //      mPI byte = Ki × 100          (Ki 0.5 → byte 50)
-        //      mPD byte = Kd × 100          (Kd 0.15 → byte 15)
-        //      mAC byte = AC × 10           (AC 0    → byte 0)
-        //      mSD byte = SD × 10           (SD 2.0  → byte 20)
+        //      mPP byte = Kp                (Kp 25  → byte 25)
+        //      mPI byte = Ki × 100          (Ki 0.4 → byte 40)
+        //      mPD byte = Kd × 100          (Kd 0.10 → byte 10)
+        //      mAC byte = AC × 10           (AC 0   → byte 0)
+        //      mSD byte = SD × 10           (SD 2.0 → byte 20)
+        //
+        // These values match the Pi-side loadSettings() defaults so a
+        // fresh Pi (no settings.ini) and an iOS reset both end up at
+        // the same point.
         let robotDefaults: [(Byte, UInt8, Float)] = [
-            (mPP, 20,  20),    // Kp = 20
-            (mPI, 50,  50),    // Ki = 0.5 (real); slider raw 50
-            (mPD, 15,  15),    // Kd = 0.15
+            (mPP, 25,  25),    // Kp = 25
+            (mPI, 40,  40),    // Ki = 0.4 (real); slider raw 40
+            (mPD, 10,  10),    // Kd = 0.10
             (mAC, 0,   0),     // AC = 0
             (mSD, 20,  20),    // SD = 2.0
         ]
