@@ -42,15 +42,13 @@ QMAKE_LIBDIR += /usr/local/lib
 QMAKE_LIBDIR += /usr/lib/x86_64-linux-gnu
 INCLUDEPATH += /usr/local/include
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC -lespeak
+LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC
 
 
 RESOURCES +=
 
 DISTFILES +=
 
-#sudo apt install espeak
-#sudo apt install libespeak-dev
 #sudo apt-get install libasound2-dev
 #sudo apt-get install sox libsox-fmt-all
 #sudo apt-get install pulseaudio alsa-tools

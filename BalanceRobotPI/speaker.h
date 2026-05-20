@@ -2,9 +2,16 @@
 #define SPEAKER_H
 
 #include <QCoreApplication>
+#include <QString>
+#include <QObject>
 #include "constants.h"
-//#include <espeak-ng/speak_lib.h>
-#include <espeak/speak_lib.h>
+
+// Speaker — espeak komutunu shell üzerinden çağırır.
+// Avantaj: PortAudio/libespeak doğrudan bağlantısı yok, ses kartı
+// yapılandırması olmasa bile programı bozmaz (sessiz başarısızlık).
+//
+// Pi'de espeak-ng veya espeak CLI kurulu olmalı (zaten gerekliydi):
+//     sudo apt install espeak-ng
 
 class Speaker: public QObject
 {
@@ -21,11 +28,10 @@ public:
     void setLanguageCode(SType newLanguageCode);
 
 private:
-    int Buflength = 1024;
     SType languageCode{EN};
+    bool  available_{false};
+
     static Speaker *theInstance_;
-
 };
-
 
 #endif // SPEAKER_H

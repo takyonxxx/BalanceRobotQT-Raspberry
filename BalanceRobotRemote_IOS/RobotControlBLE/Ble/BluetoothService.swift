@@ -12,6 +12,16 @@ import CoreBluetooth
 class BluetoothService: NSObject { // 1.
     static let shared = BluetoothService()
     
+    /// Bluetooth durumu değiştiğinde (poweredOn, poweredOff, unauthorized, …)
+    /// post edilir. Observerlar bluetoothState'i okuyup UI'larını güncellesin.
+    static let stateDidChange = Notification.Name("BluetoothService.stateDidChange")
+    
+    /// Peripheral bağlantı durumu değiştiğinde post edilir
+    /// (didConnect, didDisconnect, didFailToConnect).
+    /// Observer'lar `BluetoothService.shared.peripheral` ve `txCharacteristic`'a
+    /// bakıp UI'larını günceller.
+    static let connectionDidChange = Notification.Name("BluetoothService.connectionDidChange")
+    
     
     let BLEServiceUuid  =   "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
     let BLERxUuid       =   "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -50,7 +60,9 @@ class BluetoothService: NSObject { // 1.
                 print("❌ Characteristic doesn't support writing!")
             }
         } else {
-            print("❌ Cannot send data - RX characteristic not found")
+            // RX yok — büyük olasılıkla peripheral az önce disconnect oldu.
+            // Tek seferde sessizce göz ardı et; ControlVC zaten state'i temizliyor.
+            // Spam'i önlemek için print yapmıyoruz.
         }
     }
     

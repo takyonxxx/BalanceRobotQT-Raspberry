@@ -13,10 +13,30 @@ protocol BluetoothServiceDelegate: AnyObject {
     func didReceiveIPAddress(_ ipAddress: String)
     func didReceiveMessage(_ message: String)
     func didUpdateRobotArmedState(_ isArmed: Bool)
+    func didReceiveTelemetry(_ telemetry: RobotTelemetry)
+    /// Pi'den gelen mPP/mPI/mPD/mAC/mSD/mAutoMode/mPositionHold cevapları.
+    /// Settings ekranı slider/switch'leri buradan günceller.
+    func didReceiveSettingValue(command: Byte, rawValue: UInt8)
 }
 
-// Add this property to BluetoothService class
-weak var delegate: BluetoothServiceDelegate?
+// Geriye uyumluluk: bu metodu implement etmeyen delegate'ler için varsayılan no-op.
+extension BluetoothServiceDelegate {
+    func didReceiveSettingValue(command: Byte, rawValue: UInt8) { }
+}
+
+// Robot canlı telemetri verisi
+public struct RobotTelemetry {
+    public var angle: Float = 0       // °
+    public var gyroRate: Float = 0    // °/s
+    public var targetAngle: Float = 0 // °
+    public var trim: Float = 0        // °
+    public var pwmL: Int16 = 0
+    public var pwmR: Int16 = 0
+    public var armed: Bool = false
+    public var fallen: Bool = false
+    public var autoMode: Bool = false
+    public var positionHold: Bool = false
+}
 
 extension BluetoothService: CBPeripheralDelegate {
     
@@ -54,12 +74,10 @@ extension BluetoothService: CBPeripheralDelegate {
             let uuid = characteristic.uuid.uuidString
             let properties = describeProperties(characteristic.properties)
             
-            // Compare case-insensitively
             if uuid.caseInsensitiveCompare(self.BLERxUuid) == .orderedSame {
                 self.rxCharacteristic = characteristic
                 print("✓ RX characteristic found with properties: \(properties)")
                 
-                // Setup notifications if needed
                 if characteristic.properties.contains(.notify) {
                     peripheral.setNotifyValue(true, for: characteristic)
                 }
@@ -68,12 +86,10 @@ extension BluetoothService: CBPeripheralDelegate {
                 self.txCharacteristic = characteristic
                 print("✓ TX characteristic found with properties: \(properties)")
                 
-                // Setup notifications
                 peripheral.setNotifyValue(true, for: characteristic)
             }
         }
         
-        // After discovery, check what we found
         if self.rxCharacteristic == nil {
             print("⚠️ RX characteristic not found in service \(service.uuid.uuidString)")
         }
@@ -81,7 +97,6 @@ extension BluetoothService: CBPeripheralDelegate {
             print("⚠️ TX characteristic not found in service \(service.uuid.uuidString)")
         }
         
-        // After checking what we found, call the callback if both characteristics are present
         if self.rxCharacteristic != nil && self.txCharacteristic != nil {
             DispatchQueue.main.async {
                 self.characteristicsDiscoveredCallback?()
@@ -89,7 +104,6 @@ extension BluetoothService: CBPeripheralDelegate {
         }
     }
 
-    // Helper function to describe characteristic properties
     func describeProperties(_ properties: CBCharacteristicProperties) -> String {
         var desc: [String] = []
         if properties.contains(.read) { desc.append("Read") }
@@ -119,57 +133,52 @@ extension BluetoothService: CBPeripheralDelegate {
             return
         }
         
-        print("Parsed command: 0x\(String(format: "%02X", parsedPack.command))")
-        print("Parsed data size: \(parsedPack.data.count)")
+        // Çok sık çıkan telemetri mesajını ayrı işleyelim
+        if parsedPack.command == mTelemetry {
+            if let tel = parseTelemetry(parsedPack.data) {
+                delegate?.didReceiveTelemetry(tel)
+            }
+            return
+        }
         
         if parsedPack.command == mData {
-            // Handle IP address string from mData command
+            // IP adresi
             if parsedPack.data.count > 0 {
                 if let ipString = String(data: parsedPack.data, encoding: .utf8) {
-                    print("Received IP address: \(ipString)")
                     delegate?.didReceiveIPAddress(ipString)
                 } else if let ipString = String(data: parsedPack.data, encoding: .ascii) {
-                    // Try ASCII encoding as fallback
-                    print("Received IP address (ASCII): \(ipString)")
                     delegate?.didReceiveIPAddress(ipString)
                 } else {
-                    // If string conversion fails, show hex representation
                     let hexData = parsedPack.data.map { String(format: "%02X", $0) }.joined(separator: " ")
-                    print("Received data that couldn't be converted to string: \(hexData)")
                     delegate?.didReceiveMessage("Received binary data: \(hexData)")
                 }
-            } else {
-                print("Received mData command with empty data")
-                delegate?.didReceiveMessage("Received empty data command")
             }
         } else if parsedPack.command == mArmed {
             if parsedPack.data.count > 0 {
                 let value = parsedPack.data[0]
                 let isArmed = value != 0
-                print("Robot armed state: \(isArmed ? "Armed" : "Disarmed")")
                 delegate?.didUpdateRobotArmedState(isArmed)
             }
         } else if parsedPack.data.count > 0 {
             let value = parsedPack.data[0]
             
             switch parsedPack.command {
-                case mPP:
-                    PIDSettings.shared.setPValue(value: Float(value))
-                case mPI:
-                    PIDSettings.shared.setIValue(value: Float(value))
-                case mPD:
-                    PIDSettings.shared.setDValue(value: Float(value))
-                case mSD:
-                    PIDSettings.shared.setSDValue(value: Float(value))
-                case mAC:
-                    PIDSettings.shared.setACValue(value: Float(value))
+                case mPP, mPI, mPD, mSD, mAC, mAutoMode, mPositionHold:
+                    // Eski PIDSettings modal'ı (görünmez) güncel kalsın
+                    switch parsedPack.command {
+                        case mPP: PIDSettings.shared.setPValue(value: Float(value))
+                        case mPI: PIDSettings.shared.setIValue(value: Float(value))
+                        case mPD: PIDSettings.shared.setDValue(value: Float(value))
+                        case mSD: PIDSettings.shared.setSDValue(value: Float(value))
+                        case mAC: PIDSettings.shared.setACValue(value: Float(value))
+                        default: break
+                    }
+                    // Yeni Settings sekmesini de bilgilendir
+                    delegate?.didReceiveSettingValue(command: parsedPack.command, rawValue: value)
                 default:
                     print("Unhandled command with data: 0x\(String(format: "%02X", parsedPack.command))")
                     delegate?.didReceiveMessage("Unhandled command: 0x\(String(format: "%02X", parsedPack.command))")
             }
-        } else {
-            print("Command received with no data payload: 0x\(String(format: "%02X", parsedPack.command))")
-            delegate?.didReceiveMessage("Command received with no data: 0x\(String(format: "%02X", parsedPack.command))")
         }
     }
     
@@ -182,5 +191,40 @@ extension BluetoothService: CBPeripheralDelegate {
     private func hexEncodedString(_ data: Data?) -> String {
         let format = "0x%02hhX "
         return data?.map { String(format: format, $0) }.joined() ?? ""
+    }
+    
+    // -------- Telemetri parsing --------
+    // Bkz. balancerobot.cpp::onTelemetryTick - paket düzeni:
+    //  [0..1] angle  (int16 BE, *100)
+    //  [2..3] gyro   (int16 BE, *10)
+    //  [4..5] target (int16 BE, *100)
+    //  [6..7] trim   (int16 BE, *100)
+    //  [8..9] pwmL   (int16 BE)
+    // [10..11] pwmR  (int16 BE)
+    //  [12]   flags
+    //  [13]   reserved
+    private func parseTelemetry(_ data: Data) -> RobotTelemetry? {
+        guard data.count >= 13 else { return nil }
+        
+        func i16(_ idx: Int) -> Int16 {
+            let hi = Int(data[idx])
+            let lo = Int(data[idx + 1])
+            let raw = (hi << 8) | lo
+            return Int16(truncatingIfNeeded: raw)
+        }
+        
+        var t = RobotTelemetry()
+        t.angle       = Float(i16(0))  / 100.0
+        t.gyroRate    = Float(i16(2))  / 10.0
+        t.targetAngle = Float(i16(4))  / 100.0
+        t.trim        = Float(i16(6))  / 100.0
+        t.pwmL        = i16(8)
+        t.pwmR        = i16(10)
+        let flags     = data[12]
+        t.armed        = (flags & 0x01) != 0
+        t.fallen       = (flags & 0x02) != 0
+        t.autoMode     = (flags & 0x04) != 0
+        t.positionHold = (flags & 0x08) != 0
+        return t
     }
 }

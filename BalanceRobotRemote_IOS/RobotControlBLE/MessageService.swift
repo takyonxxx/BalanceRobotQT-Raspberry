@@ -6,13 +6,6 @@
 //  Copyright © 2019 TÜRKAY BİLİYOR. All rights reserved.
 //
 
-//  MessageService.swift
-//  RobotControlBLE
-//
-//  Created by TÜRKAY BİLİYOR on 2.04.2019.
-//  Copyright © 2019 TÜRKAY BİLİYOR. All rights reserved.
-//
-
 import Foundation
 
 typealias Byte = UInt8
@@ -20,23 +13,30 @@ let bufferSize = 1024
 let messageFixedSize = 6
 let maxPayload = 1024
 
-// Message constants - updated to match C++ implementation
-let mHeader:Byte     = Byte(0xb0) // Fix header
-let mWrite:Byte      = Byte(0x01) // Write request
-let mRead:Byte       = Byte(0x02) // Read request
-let mArmed:Byte      = Byte(0x03) // Armed state - new
-let mDisArmed:Byte   = Byte(0x04) // Disarmed state - new
+// Mesaj sabitleri - Pi tarafı (message.h) ile bire bir eşleşmeli
+let mHeader:Byte     = Byte(0xb0)
+let mWrite:Byte      = Byte(0x01)
+let mRead:Byte       = Byte(0x02)
+let mArmed:Byte      = Byte(0x03)
+let mDisArmed:Byte   = Byte(0x04)
 let mForward:Byte    = Byte(0xa0)
 let mBackward:Byte   = Byte(0xa1)
 let mLeft:Byte       = Byte(0xb0)
 let mRight:Byte      = Byte(0xb1)
-let mPP:Byte         = Byte(0xc0) // Proportional
-let mPI:Byte         = Byte(0xc1) // Integral control
-let mPD:Byte         = Byte(0xc2) // Derivative constant
-let mAC:Byte         = Byte(0xd0) // Angle correction
-let mSD:Byte         = Byte(0xd1) // Speed diff constant wheel
-let mSpeak:Byte      = Byte(0xe0) // Speak
-let mData:Byte       = Byte(0xe1) // Data - new
+let mPP:Byte         = Byte(0xc0)
+let mPI:Byte         = Byte(0xc1)
+let mPD:Byte         = Byte(0xc2)
+let mAC:Byte         = Byte(0xd0)
+let mSD:Byte         = Byte(0xd1)
+let mSpeak:Byte      = Byte(0xe0)
+let mData:Byte       = Byte(0xe1)
+
+// v2 yeni komutlar
+let mTelemetry:Byte    = Byte(0xf0)
+let mAutoMode:Byte     = Byte(0xf1)
+let mTrimFine:Byte     = Byte(0xf2)
+let mPositionHold:Byte = Byte(0xf3)
+let mResetTrim:Byte    = Byte(0xf4)
 
 public struct MessagePack {
     var header: Byte
@@ -44,7 +44,7 @@ public struct MessagePack {
     var rw: Byte
     var command: Byte
     var data: Data
-    var checkSum: [Byte] // Added checksum field to match C++ implementation
+    var checkSum: [Byte]
     
     init(header: Byte, len: Byte, rw: Byte, command: Byte, data: Data) {
         self.header = header
@@ -52,7 +52,7 @@ public struct MessagePack {
         self.rw = rw
         self.command = command
         self.data = data
-        self.checkSum = [0, 0] // Initialize checksum
+        self.checkSum = [0, 0]
     }
 }
 
@@ -60,7 +60,6 @@ class MessageService {
     public var position = 0
     public var data: [UInt8] = []
     
-    // Helper function to print data for debugging
     func printData(data: Data) {
         for i in 0 ..< data.count {
             print(data[i])
@@ -72,37 +71,25 @@ class MessageService {
         return data
     }
     
-    // Updated to match C++ implementation with better safety
     func create_pack(readwrite: Byte, command: Byte, dataSend: Data) -> Data {
         var result = Data(capacity: bufferSize)
         
-        // Limit data length to prevent buffer overflow
         let dataLength = min(dataSend.count, maxPayload)
         let m_len = Byte(dataLength)
         
-        // Add header fields
         result.append(mHeader)
         result.append(m_len)
         result.append(readwrite)
         result.append(command)
         
-        // Add data with bounds checking
         if dataLength > 0 {
             result.append(dataSend.prefix(dataLength))
         }
         
-        // For future implementation: Calculate and append checksum
-        // Currently just placeholder (not actually used in communication)
-        // let checksum = calculateChecksum(data: result)
-        // result.append(checksum[0])
-        // result.append(checksum[1])
-        
         return result
     }
     
-    // Updated to match C++ implementation with better safety and error handling
     func parse(dataReceived: Data, messagePack: inout MessagePack) -> Bool {
-        // Safety checks
         if dataReceived.count < 4 {
             print("Error: Received data too small")
             return false
@@ -113,22 +100,17 @@ class MessageService {
             return false
         }
         
-        // Extract message fields
         messagePack.header = dataReceived[0]
         messagePack.len = dataReceived[1]
         messagePack.rw = dataReceived[2]
         messagePack.command = dataReceived[3]
         
-        // Safety check for data length
         if messagePack.len > maxPayload || Int(messagePack.len) > (dataReceived.count - 4) {
             print("Error: Invalid data length")
             return false
         }
         
-        // Clear existing data and copy new data
         messagePack.data = Data()
-        
-        // Copy data with bounds checking
         let dataStartIndex = 4
         let dataEndIndex = min(dataStartIndex + Int(messagePack.len), dataReceived.count)
         
@@ -138,11 +120,15 @@ class MessageService {
         
         return true
     }
-    
-    // For future implementation: Calculate checksum (not currently used)
-    private func calculateChecksum(data: Data) -> [Byte] {
-        // Implement checksum algorithm here if needed in the future
-        // This is just a placeholder
-        return [0, 0]
+}
+
+// MARK: - Yardımcılar
+extension Data {
+    /// Big-endian signed 16-bit oluştur
+    static func bePackInt16(_ value: Int16) -> Data {
+        var d = Data(count: 2)
+        d[0] = UInt8(truncatingIfNeeded: Int(value) >> 8)
+        d[1] = UInt8(truncatingIfNeeded: Int(value))
+        return d
     }
 }

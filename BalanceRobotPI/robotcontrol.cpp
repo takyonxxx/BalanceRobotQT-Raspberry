@@ -1,498 +1,607 @@
 #include "robotcontrol.h"
 #include <cmath>
 #include <algorithm>
+#include <unistd.h>
+#include <sys/time.h>
 
 RobotControl *RobotControl::theInstance_ = nullptr;
 
 RobotControl* RobotControl::getInstance()
 {
     if (theInstance_ == nullptr)
-    {
         theInstance_ = new RobotControl();
-    }
     return theInstance_;
 }
 
 RobotControl::RobotControl(QObject *parent) : QThread(parent)
 {
-    ResetValues();
-
     m_sSettingsFile = QCoreApplication::applicationDirPath() + "/settings.ini";
+    m_sBiasFile     = QCoreApplication::applicationDirPath() + "/imu_bias.ini";
 
-    if (QFile(m_sSettingsFile).exists())
+    if (QFile(m_sSettingsFile).exists()) {
         loadSettings();
-    else
+    } else {
         saveSettings();
-
-    if(!initwiringPi()) return;
-    if(!initGyroMeter()) return;
-
-    // Robotun başlangıçta dik olduğunu varsayarak kalibrasyon yap
-    for(int i=0; i<100; i++) {
-        calculateGyro();
-        QThread::msleep(5); // Örnekler arasında kısa beklemeler
     }
 
-    // İlk açı değerini hemen ayarla - ilk ivmeölçer verisini doğrudan kullan
-    float initialAccelAngle = atan2(accY, accZ) * RAD_TO_DEG;
-    currentAngle = initialAccelAngle;
-    DataAvg[0] = DataAvg[1] = DataAvg[2] = currentAngle;
+    if (!initwiringPi()) {
+        qDebug() << "WiringPi init failed";
+        return;
+    }
+    if (!initGyroMeter()) {
+        qDebug() << "MPU init failed";
+        return;
+    }
 
+    // Gyro bias kalibrasyonu — robot tamamen hareketsiz olmalı.
+    calibrateGyroBias();
+
+    // İlk açıyı accel'den al
+    readImu();
+    float initAngle = std::atan2((float)ay_, (float)az_) * RAD_TO_DEG;
+    currentAngle_ = initAngle;
+    kalman.setAngle(initAngle);
+
+    // Pitch PID
+    anglePid.setOutputLimit((float)PWM_LIMIT);
+    // 0.3° deadband — small wobble around vertical doesn't get amplified.
+    // Mechanical play in the wheels means anything tighter creates motor chatter.
+    anglePid.setDeadband(0.3f);
+    // Tighter derivative low-pass: 0.10 instead of 0.15 smooths more
+    // high-frequency gyro noise that was driving the back-and-forth oscillation.
+    anglePid.setDerivativeFilter(0.10f);
+    anglePid.setSetpoint(0.0f);
+
+    // Yaw PID — gyro Z hızı sıfırda tutulur, çıkış motor diferansiyeli.
+    // Sıkı sınırlarla başla: yaw, pitch dengesini bozmamalı.
+    yawPid.setOutputLimit(25.0f);     // ±25 PWM yeterli, denge bozulmaz
+    yawPid.setDeadband(5.0f);         // küçük gürültü dikkate alınmasın (°/s)
+    yawPid.setDerivativeFilter(0.20f);
+    yawPid.setSetpoint(0.0f);
+    // Kazançlar setIsArmed/controlLoop'ta aggSD'den ölçeklenerek atanır
+
+    qDebug() << "RobotControl ready. Kp=" << aggKp << "Ki=" << aggKi
+             << "Kd=" << aggKd << " trim=" << aggAC
+             << " yawKp(SD)=" << aggSD
+             << " bias=" << gyroBiasX_ << gyroBiasZ_;
 }
 
 RobotControl::~RobotControl()
 {
     m_stop = true;
-    softPwmWrite(PWML, 0);
-    softPwmWrite(PWMR, 0);
+    wait(500);
+    stopMotors();
+    // Make sure any pending settings get persisted even if the user
+    // killed the process before the 5-second save interval fired.
+    if (saveDirty) {
+        saveSettings();
+    }
     delete gyroMPU;
 }
 
 void RobotControl::loadSettings()
 {
     QSettings settings(m_sSettingsFile, QSettings::IniFormat);
-    aggKp = settings.value("aggKp", "").toString().toDouble();
-    aggKi = settings.value("aggKi", "").toString().toDouble();
-    aggKd = settings.value("aggKd", "").toString().toDouble();
-    aggSD = settings.value("aggVs", "").toString().toDouble();
-    aggAC = settings.value("angleCorrection", "").toString().toDouble();
+    aggKp     = settings.value("aggKp",     18.0f).toFloat();
+    aggKi     = settings.value("aggKi",     80.0f).toFloat();
+    aggKd     = settings.value("aggKd",      0.1f).toFloat();
+    aggSD     = settings.value("aggSD",      2.0f).toFloat();   // yaw Kp
+    aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
+    trimFine  = settings.value("trimFine",   0.0f).toFloat();
+    autoZeroIntegral = settings.value("autoZero", 0.0f).toFloat();
+
+    pidInvert_    = settings.value("pidInvert",    true ).toBool();
+    motorInvertL_ = settings.value("motorInvertL", false).toBool();
+    motorInvertR_ = settings.value("motorInvertR", false).toBool();
+    yawInvert_    = settings.value("yawInvert",    true ).toBool();
+
+    QSettings bias(m_sBiasFile, QSettings::IniFormat);
+    gyroBiasX_ = bias.value("gx", 0.0f).toFloat();
+    gyroBiasY_ = bias.value("gy", 0.0f).toFloat();
+    gyroBiasZ_ = bias.value("gz", 0.0f).toFloat();
 }
 
 void RobotControl::saveSettings()
 {
     QSettings settings(m_sSettingsFile, QSettings::IniFormat);
-    settings.setValue("aggKp", QString::number(aggKp));
-    settings.setValue("aggKi", QString::number(aggKi));
-    settings.setValue("aggKd", QString::number(aggKd));
-    settings.setValue("aggVs", QString::number(aggSD));
-    settings.setValue("angleCorrection", QString::number(aggAC));
+    settings.setValue("aggKp",     aggKp);
+    settings.setValue("aggKi",     aggKi);
+    settings.setValue("aggKd",     aggKd);
+    settings.setValue("aggSD",     aggSD);
+    settings.setValue("angleCorrection", aggAC);
+    settings.setValue("trimFine",  trimFine);
+    settings.setValue("autoZero",  autoZeroIntegral);
+    settings.setValue("pidInvert",    pidInvert_);
+    settings.setValue("motorInvertL", motorInvertL_);
+    settings.setValue("motorInvertR", motorInvertR_);
+    settings.setValue("yawInvert",    yawInvert_);
+    settings.sync();
+    saveDirty = false;
 }
 
 bool RobotControl::initGyroMeter()
 {
-    qDebug("Initializing MPU6050 device...");
-
+    qDebug("Initializing MPU6050...");
     gyroMPU = new MPU6050(MPU6050_I2C_ADDRESS);
-    if(gyroMPU)
-    {
-        gyroMPU->initialize();
-        while(!mpu_test)
-        {
-            mpu_test = gyroMPU->testConnection();
-        }
+    if (!gyroMPU) return false;
+
+    gyroMPU->initialize();
+
+    int tries = 0;
+    while (!gyroMPU->testConnection() && tries < 20) {
+        QThread::msleep(50);
+        tries++;
     }
+    bool ok = gyroMPU->testConnection();
+    qDebug(ok ? "MPU6050 OK" : "MPU6050 connection failed");
 
-    qDebug(mpu_test? "MPU6050 connection successful" : "MPU6050 connection failed");
-    return mpu_test;
-}
-
-void RobotControl::encodeL(void)
-{
-    // int pulValue = digitalRead(SPD_INT_L);
-    // if (pulValue)
-    //     Speed_L += 1;
-    // else
-    //     Speed_L -= 1;
-
-    Speed_L += 1;
-}
-
-void RobotControl::encodeR(void)
-{
-    // int pulValue = digitalRead(SPD_INT_R);
-    // if (pulValue)
-    //     Speed_R += 1;
-    // else
-    //     Speed_R -= 1;
-
-    Speed_R += 1;
+    if (ok) {
+        // DLPF 3 ≈ 44 Hz bandwidth - gyro gürültüsünü azalt
+        gyroMPU->setDLPFMode(3);
+    }
+    return ok;
 }
 
 bool RobotControl::initwiringPi()
 {
-    if (wiringPiSetupPhys() < 0)
-    {
-        fprintf(stderr, "Unable to setup wiringPiSetupGpio: %s\n", strerror(errno));
+    if (wiringPiSetupPhys() < 0) {
+        fprintf(stderr, "wiringPiSetupPhys failed: %s\n", strerror(errno));
         return false;
     }
 
-    // Set pin modes
     pinMode(PWML1, OUTPUT);
     pinMode(PWML2, OUTPUT);
     pinMode(PWMR1, OUTPUT);
     pinMode(PWMR2, OUTPUT);
-    pinMode(PWML, OUTPUT);
-    pinMode(PWMR, OUTPUT);
+    pinMode(PWML,  OUTPUT);
+    pinMode(PWMR,  OUTPUT);
 
-    // Initialize all pins to LOW
     digitalWrite(PWML1, LOW);
     digitalWrite(PWML2, LOW);
     digitalWrite(PWMR1, LOW);
     digitalWrite(PWMR2, LOW);
 
-    // Create PWM
-    softPwmCreate(PWML, 0, pwmLimit);
-    softPwmCreate(PWMR, 0, pwmLimit);
+    softPwmCreate(PWML, 0, PWM_LIMIT);
+    softPwmCreate(PWMR, 0, PWM_LIMIT);
 
-    // In your initialization code
-    pinMode(SPD_PUL_L, INPUT);
-    pinMode(SPD_PUL_R, INPUT);
-    pullUpDnControl(SPD_PUL_L, PUD_UP); // Enable pull-up resistor
-    pullUpDnControl(SPD_PUL_R, PUD_UP); // Enable pull-up resistor
+    // Encoder pinleri YAPILANDIRILMIYOR — donanım encoder'ları artık kullanılmıyor.
+    // İstenirse pinler tamamen başka amaca da kullanılabilir.
 
-    // Setup speed sensors
-    if (wiringPiISR(SPD_INT_L, INT_EDGE_BOTH, &encodeL) < 0)
-    {
-        fprintf(stderr, "Unable to setup ISR for left channel: %s\n", strerror(errno));
-        return false;
-    }
-
-    if (wiringPiISR(SPD_INT_R, INT_EDGE_BOTH, &encodeR) < 0)
-    {
-        fprintf(stderr, "Unable to setup ISR for right channel: %s\n", strerror(errno));
-        return false;
-    }
-
-    qDebug("WiringPi setup completed successfully");
+    qDebug("WiringPi ready (no encoders)");
     return true;
+}
+
+// ---------------- IMU ----------------
+
+void RobotControl::readImu()
+{
+    if (!gyroMPU) return;
+    gyroMPU->getMotion6(&ax_, &ay_, &az_, &gx_, &gy_, &gz_);
+}
+
+void RobotControl::calibrateGyroBias()
+{
+    qDebug("Calibrating gyro bias - keep the robot still...");
+    const int N = 400;        // ~2 sn @ 5ms
+    double sx = 0, sy = 0, sz = 0;
+    for (int i = 0; i < N; ++i) {
+        readImu();
+        sx += gx_;
+        sy += gy_;
+        sz += gz_;
+        QThread::msleep(5);
+    }
+    gyroBiasX_ = (float)(sx / N) / 131.0f;
+    gyroBiasY_ = (float)(sy / N) / 131.0f;
+    gyroBiasZ_ = (float)(sz / N) / 131.0f;
+
+    QSettings bias(m_sBiasFile, QSettings::IniFormat);
+    bias.setValue("gx", gyroBiasX_);
+    bias.setValue("gy", gyroBiasY_);
+    bias.setValue("gz", gyroBiasZ_);
+    bias.sync();
+
+    gyroCalibrated_ = true;
+    qDebug() << "Gyro bias: X=" << gyroBiasX_
+             << " Y=" << gyroBiasY_
+             << " Z=" << gyroBiasZ_ << "°/s";
+}
+
+void RobotControl::updateEstimates(float dt)
+{
+    // Pitch açısı: accel y/z düzleminde atan2
+    accelAngle_ = std::atan2((float)ay_, (float)az_) * RAD_TO_DEG;
+
+    // Gyro rate, bias düzeltili
+    gyroRateX_ = ((float)gx_ / 131.0f) - gyroBiasX_;
+    gyroRateZ_ = ((float)gz_ / 131.0f) - gyroBiasZ_;
+
+    // Yaw için düşük geçiren filtre — gyroZ çok gürültülü olabiliyor,
+    // PID'e ham veri vermek diferansiyele patlamalar bindirir.
+    const float yawAlpha = 0.25f;   // 0..1, küçük → daha yumuşak
+    gyroRateZFilt_ = yawAlpha * gyroRateZ_ + (1.0f - yawAlpha) * gyroRateZFilt_;
+
+    // Kalman ile pitch füzyonu
+    currentAngle_ = (float)kalman.getAngle(accelAngle_, gyroRateX_, dt);
+}
+
+// ---------------- Yardımcılar ----------------
+
+bool RobotControl::isUpright() const
+{
+    return std::fabs(currentAngle_ - (aggAC + trimFine)) < ARM_TILT_THRESHOLD
+           && std::fabs(gyroRateX_) < 40.0f;
+}
+
+bool RobotControl::isFallen() const
+{
+    return std::fabs(currentAngle_) > FALL_TILT_THRESHOLD;
+}
+
+void RobotControl::resetControlState()
+{
+    anglePid.resetIntegral();
+    yawPid.resetIntegral();
+    pwmL_ = 0;
+    pwmR_ = 0;
+    yawCorrection_ = 0.0f;
+    prevNeedSpeed_ = 0;
+    brakeCounter_ = 0;
+    brakeBiasAngle_ = 0.0f;
+    brakeDirection_ = 0;
 }
 
 void RobotControl::stopMotors()
 {
-    // Immediately stop motors
     softPwmWrite(PWML, 0);
     softPwmWrite(PWMR, 0);
-
-    // Set motor direction pins to stop
     digitalWrite(PWML1, LOW);
     digitalWrite(PWML2, LOW);
     digitalWrite(PWMR1, LOW);
     digitalWrite(PWMR2, LOW);
-
-    resetControlVariables();
+    pwmL_ = 0;
+    pwmR_ = 0;
 }
 
 void RobotControl::stop()
 {
     stopMotors();
-
-    qDebug("Robot stopped due to excessive tilt angle or external stop request");
+    qDebug("Motors stopped");
 }
 
-void RobotControl::resetControlVariables()
+void RobotControl::setIsArmed(bool armed)
 {
-    pwm = 0;
-    pwm_l = 0;
-    pwm_r = 0;
-    diffSpeed = 0;
-    diffAllSpeed = 0;
-    speedAdjust = 0;
-    addPosition = 0;
-    Speed_L = 0;
-    Speed_R = 0;
-    Input = 0;
-    anglePID.resetIntegral();
-    anglePID.reset();
-}
-
-void RobotControl::calculatePwm()
-{
-    if(!isArmed)
-        return;
-
-    float accelAngle = atan2(accY, accZ) * RAD_TO_DEG;
-
-    // Sensör füzyonu
-    const float gyroWeight = 0.98f;
-    currentAngle = gyroWeight * (currentAngle + gyroXrate * timeDiff) + (1.0f - gyroWeight) * accelAngle;
-
-    // Aşırı açıları kontrol et
-    if (std::abs(currentAngle) > 45.0f)
-    {
+    bool wasArmed = isArmed.exchange(armed);
+    if (armed && !wasArmed) {
+        resetControlState();
+        armRampCount_ = 0;
+        anglePid.setTunings(aggKp, aggKi * 0.01f, aggKd);
+        yawPid.setTunings(aggSD * 0.1f, aggSD * 0.001f, 0.0f);
+        qDebug().noquote() << QString::asprintf(
+            "ARMED — Kp=%.2f Ki=%.4f Kd=%.2f  yawKp=%.3f yawKi=%.4f  trim=%.2f  inv=%c%c%c%c",
+            aggKp, aggKi*0.01f, aggKd,
+            aggSD*0.1f, aggSD*0.001f,
+            aggAC + trimFine + autoZeroIntegral,
+            pidInvert_    ? 'P' : '-',
+            motorInvertL_ ? 'L' : '-',
+            motorInvertR_ ? 'R' : '-',
+            yawInvert_    ? 'Y' : '-');
+    } else if (!armed && wasArmed) {
         stopMotors();
-        return;
-    }
-
-    // Apply angle correction with potential speed adjustment
-    targetAngle = aggAC;
-
-    // Calculate PID output for angle control
-    Input = currentAngle;
-    anglePID.setTunings(aggKp, aggKi, aggKd);
-    anglePID.setSetpoint(targetAngle);  // Set the target angle first
-    Output = anglePID.compute(Input);   // Compute with only the input parameter
-
-    // Ters yön için PID çıktısının işaretini değiştir
-    Output = -Output;  // İşareti tersine çevir
-
-    // Apply motor speed limits with separate limits for each direction
-    if (currentAngle < 0) {  // Geri hareket
-        // Geri hareket sırasında PWM sınırını sağ motor için daha yüksek, sol motor için daha düşük tutuyoruz
-        int maxPwmLeft = pwmLimit / 2;  // Sol motor için sınırı yarıya düşür
-        int maxPwmRight = pwmLimit;     // Sağ motor için tam sınır
-
-        // Yönlere göre farklı sınırları uygula
-        if (Output < 0) {
-            // Geri hareket kontrolü
-            pwm = std::clamp(Output, static_cast<float>(-maxPwmLeft), 0.0f);
-        } else {
-            pwm = std::clamp(Output, 0.0f, static_cast<float>(maxPwmRight));
-        }
-    } else {
-        // Normal pwm sınırları
-        pwm = std::clamp(Output, static_cast<float>(-pwmLimit), static_cast<float>(pwmLimit));
-    }
-
-    // Apply speed adjustment from motor feedback
-    correctSpeedDiff();
-
-    // İleri/geri hız kontrolü için direct motor offset kullanıyoruz
-    // NeedSpeed doğrudan pwm değerine eklenir, çok daha yüksek etki için
-    float speedOffset = static_cast<float>(needSpeed);
-
-    // Motorlar arasındaki dengeyi sağlamak için kalibrasyon faktörleri
-    float leftMotorCalibration = 1.0;   // İleri yönde sol motor kalibrasyonu
-    float rightMotorCalibration = 1.0; // İleri yönde sağ motor kalibrasyonu
-
-    // Geri hareket için tamamen farklı bir kontrol yapısı uygulayalım
-    if (currentAngle < -5.0f) {  // Anlamlı bir geri hareket olduğunda
-        // Simetrik motor gücü uygula - her iki motor için aynı değer
-        int symmetricValue = std::clamp(static_cast<int>(Output), -pwmLimit, pwmLimit);
-
-        // Her iki motoru da aynı değerde çalıştır
-        pwm_l = symmetricValue;
-        pwm_r = symmetricValue;
-
-        // İleri/geri hız komutunu ekle
-        pwm_l += speedOffset;
-        pwm_r += speedOffset;
-    } else {
-        // Apply turning adjustments from user input (normal ileri hareket için)
-        if (needTurnL > 0) {
-            // Sola dönüş - Komutlar ters olduğundan düzeltilmiş hali
-            pwm_l = pwm + needTurnL;  // Sol motor daha hızlı
-            pwm_r = pwm - needTurnL;  // Sağ motor daha yavaş
-        } else if (needTurnR > 0) {
-            // Sağa dönüş - Komutlar ters olduğundan düzeltilmiş hali
-            pwm_l = pwm - needTurnR;  // Sol motor daha yavaş
-            pwm_r = pwm + needTurnR;  // Sağ motor daha hızlı
-        } else {
-            pwm_l = pwm - (speedAdjust);
-            pwm_r = pwm + (speedAdjust);
-        }
-
-        // İleri/geri hız komutunu ekle
-        pwm_l += speedOffset;
-        pwm_r += speedOffset;
-    }
-
-    pwm_l = pwm_l * leftMotorCalibration;
-    pwm_r = pwm_r * rightMotorCalibration;
-
-    // Apply final PWM values to the motors
-    pwm_l = std::clamp(pwm_l, -pwmLimit, pwmLimit);
-    pwm_r = std::clamp(pwm_r, -pwmLimit, pwmLimit);
-
-    // Debug
-    // Sensor değerlerini ve motor değerlerini düzenli olarak logla
-    // static int logCounter = 0;
-    // if (logCounter++ % 100 == 0) {  // Her 100 iterasyonda bir logla
-    //     qDebug() << "Angle:" << currentAngle
-    //              << "Target:" << targetAngle
-    //              << "GyroRate:" << gyroXrate
-    //              << "PWM_L:" << pwm_l
-    //              << "PWM_R:" << pwm_r
-    //              << "Speed_L:" << Speed_L
-    //              << "Speed_R:" << Speed_R
-    //              << "needSpeed:" << needSpeed
-    //              << "speedOffset:" << speedOffset
-    //              << "needTurnL:" << needTurnL
-    //              << "needTurnR:" << needTurnR
-    //              << "SpAdj:" << speedAdjust
-    //              << "Sym:" << (currentAngle < -5.0f);  // Simetrik mod aktif mi?
-    // }
-
-    // Control the robot with calculated PWM values
-    controlRobot();
-}
-
-void RobotControl::correctSpeedDiff()
-{
-    // Calculate current speed difference
-    diffSpeed = Speed_R - Speed_L;
-
-    // Hız sensörleri belirli bir değerin altındaysa, henüz güvenilir değil, düzeltmeyi atla
-    if (abs(Speed_L) < 100 || abs(Speed_R) < 100) {
-        speedAdjust = 0;
-        return;
-    }
-
-    // Speed_L veya Speed_R değeri anormal görünüyorsa, güvenilir düzeltme yapamayız
-    // Eşik değerlerini belirle
-    const int maxSpeedDiff = 400;
-
-    // Hız değerlerini güvenli aralıkta tut
-    if (abs(diffSpeed) > maxSpeedDiff) {
-        // Büyük bir dengesizlik var, düzeltmeyi sınırla ama sıfırlama
-        diffSpeed = (diffSpeed > 0) ? maxSpeedDiff : -maxSpeedDiff;
-    }
-
-    // Accumulate speed difference over time for smoother correction
-    diffAllSpeed += static_cast<int32_t>(diffSpeed * 0.1f);  // Integral etkisini azalt
-
-    // Limit the accumulated difference to avoid overcorrection
-    diffAllSpeed = std::clamp(diffAllSpeed, static_cast<int32_t>(-1000), static_cast<int32_t>(1000));  // Daha düşük bir limit
-
-    float adjustFactor = 1.0f;
-    float integralFactor = 0.01f;
-
-    // Hız düzeltmesi uygula
-    speedAdjust = aggSD * adjustFactor * diffSpeed + (aggSD * integralFactor) * diffAllSpeed;
-
-    // Limit the speed adjustment to avoid abrupt changes - Çok daha düşük sınır
-    speedAdjust = std::clamp(speedAdjust, -15.0f, 15.0f);
-
-    // Reset the speed counters periodically to avoid overflow
-    if (abs(Speed_L) > 100 || abs(Speed_R) > 100) {
-        Speed_L = 0;
-        Speed_R = 0;
-        diffAllSpeed = 0;
+        armRampCount_ = 0;
+        qDebug("DISARMED");
     }
 }
 
-void RobotControl::controlRobot()
+void RobotControl::resetTrim()
 {
-    // Right motor control
-    if (pwm_r > 0)
-    {
-        digitalWrite(PWMR1, HIGH);  // İleri
+    autoZeroIntegral = 0.0f;
+    trimFine = 0.0f;
+    saveDirty = true;
+    qDebug("Trim reset");
+}
+
+// ---------------- Ana kontrol döngüsü ----------------
+
+void RobotControl::controlLoop(float /*dt*/)
+{
+    // -------- Düşme / kalkış mantığı --------
+    if (isFallen()) {
+        if (!fallen_) {
+            qDebug() << "FALLEN at angle:" << currentAngle_;
+            fallen_ = true;
+            if (isArmed.load()) {
+                setIsArmed(false);
+            } else {
+                stopMotors();
+            }
+            uprightSampleCount_ = 0;
+        }
+        return;
+    } else {
+        fallen_ = false;
+    }
+
+    // Auto-arm
+    if (autoMode.load() && !isArmed.load()) {
+        if (isUpright()) {
+            uprightSampleCount_++;
+            if (uprightSampleCount_ >= ARM_STABLE_SAMPLES) {
+                qDebug("Auto-arming (upright detected)");
+                setIsArmed(true);
+                uprightSampleCount_ = 0;
+            }
+        } else {
+            uprightSampleCount_ = 0;
+        }
+        if (!isArmed.load()) return;
+    }
+
+    if (!isArmed.load()) {
+        return;
+    }
+
+    // -------- Pitch PID --------
+    targetAngle_ = aggAC + trimFine + autoZeroIntegral;
+
+    // ---- Brake assist (anti-overshoot when speed command is released) ----
+    // When the user was actively moving and now releases the joystick,
+    // the robot still has forward/back momentum. We fight it in two ways:
+    //
+    //   1. OPEN-LOOP pulse: a short tilt in the opposite direction sized
+    //      by how much PWM the user was commanding. Decays linearly.
+    //
+    //   2. CLOSED-LOOP feedback: while the brake window is active, also
+    //      add a term proportional to gyroX (pitch rate). If the robot is
+    //      still rotating in the direction it was going, lean it harder
+    //      the other way. Once it stops rotating, gyroX → 0 and the brake
+    //      automatically fades. This is the gyro-driven term you asked for.
+    int curSpeed = needSpeed.load();
+    
+    // If a new command arrives, immediately cancel any in-progress brake.
+    // Otherwise the leftover opposing tilt would fight the new command and
+    // cause visible shudder/oscillation.
+    if (curSpeed != 0 && brakeCounter_ > 0) {
+        brakeCounter_ = 0;
+        brakeBiasAngle_ = 0.0f;
+        brakeDirection_ = 0;
+    }
+    
+    if (prevNeedSpeed_ != 0 && curSpeed == 0) {
+        // Just released — arm the brake pulse opposing the previous direction.
+        brakeCounter_    = BRAKE_TICKS_AT_5MS;
+        brakeBiasAngle_  = (float)prevNeedSpeed_ * BRAKE_PER_PWM;
+        brakeBiasAngle_  = std::clamp(brakeBiasAngle_, -BRAKE_BIAS_LIMIT, BRAKE_BIAS_LIMIT);
+        brakeDirection_  = (prevNeedSpeed_ > 0) ? 1 : -1;
+        // Reset the angle integrator: while leaning forward to drive
+        // the robot, it accumulated I that would keep pushing forward.
+        anglePid.resetIntegral();
+    }
+    prevNeedSpeed_ = curSpeed;
+
+    // Brake only runs while there is no active command (brakeCounter was
+    // zeroed above if a new command came in).
+    if (brakeCounter_ > 0 && curSpeed == 0) {
+        // 1) Open-loop fade: decays linearly to zero over the window.
+        float k = (float)brakeCounter_ / (float)BRAKE_TICKS_AT_5MS;
+        float openLoop = brakeBiasAngle_ * k;
+
+        // 2) Closed-loop gyro feedback:
+        //    pidInvert mapping: if needSpeed was positive (Backward command
+        //    -> robot moves "backward" in motor terms), the robot pitches
+        //    one way; gyroX picks that up. Sign is symmetric because we
+        //    multiply by brakeDirection_:
+        //
+        //      If robot is still pitching in the original direction
+        //      (sign(gyroX) == brakeDirection_), gyroFeedback opposes it.
+        //      As the robot stops, gyroX → 0 and the term vanishes.
+        //
+        //    We only apply this when the rate is in the same direction
+        //    as the prior motion (decelerating phase). If the robot
+        //    already overshot the other way, this term goes to zero.
+        float gyroFeedback = 0.0f;
+        if ((gyroRateX_ > 0 && brakeDirection_ > 0) ||
+            (gyroRateX_ < 0 && brakeDirection_ < 0)) {
+            gyroFeedback = gyroRateX_ * BRAKE_GYRO_GAIN;
+            gyroFeedback = std::clamp(gyroFeedback, -BRAKE_GYRO_MAX, BRAKE_GYRO_MAX);
+        }
+
+        float total = openLoop + gyroFeedback;
+        total = std::clamp(total, -BRAKE_BIAS_LIMIT, BRAKE_BIAS_LIMIT);
+        targetAngle_ += total;
+        brakeCounter_--;
+    }
+
+    targetAngle_ = std::clamp(targetAngle_, -10.0f, 10.0f);
+
+    anglePid.setSetpoint(targetAngle_);
+    anglePid.setTunings(aggKp, aggKi * 0.01f, aggKd);
+
+    float pidOut = anglePid.compute(currentAngle_, gyroRateX_);
+    if (pidInvert_) pidOut = -pidOut;
+
+    // -------- Otomatik trim öğrenme (uzun süreli) --------
+    // Komut yokken ve dengedeyken, sürekli taşınan integral ofsetini yavaşça
+    // autoZeroIntegral'a aktar.
+    if (needSpeed.load() == 0 && needTurnL.load() == 0 && needTurnR.load() == 0 &&
+        std::fabs(currentAngle_ - targetAngle_) < 1.5f) {
+        float i_term = anglePid.lastI();
+        autoZeroIntegral += 0.00005f * i_term;
+        autoZeroIntegral = std::clamp(autoZeroIntegral, -8.0f, 8.0f);
+    }
+
+    // -------- Yaw kontrolü --------
+    // Kullanıcı dönüş komutu (needTurnL/R) veriyorsa yaw kilidi kapalı,
+    // robot serbestçe dönsün. Komut yoksa gyroZ ile sıfırda tut.
+    int turnBias = 0;
+    int needL = needTurnL.load();
+    int needR = needTurnR.load();
+    if (needR > 0)      turnBias = +needR;
+    else if (needL > 0) turnBias = -needL;
+
+    yawCorrection_ = 0.0f;
+    if (turnBias == 0 && yawLock.load()) {
+        // Yaw kazançlarını güncelle (UI'dan değiştirilebilir)
+        yawPid.setTunings(aggSD * 0.1f, aggSD * 0.001f, 0.0f);
+        // FİLTRELİ gyroZ kullan — ham veri çok gürültülü
+        yawCorrection_ = yawPid.compute(gyroRateZFilt_);
+        if (yawInvert_) yawCorrection_ = -yawCorrection_;
+
+        // ÖNEMLİ: pitch denge stresi varsa yaw'ı bastır.
+        // Robot büyük açıyla eğikken yaw düzeltmesi motor PWM'sini bozar
+        // ve denge düşer. Önce ayakta kalmaya odaklan.
+        //   |angle| < 2°  → yaw tam çalışır
+        //   |angle| > 6°  → yaw tamamen bastırılır
+        //   arada       → lineer azaltma
+        float absAng = std::fabs(currentAngle_ - targetAngle_);
+        float yawScale = 1.0f;
+        if (absAng >= 6.0f)      yawScale = 0.0f;
+        else if (absAng >= 2.0f) yawScale = (6.0f - absAng) / 4.0f;
+        yawCorrection_ *= yawScale;
+    } else {
+        yawPid.resetIntegral();
+    }
+
+    // -------- Hız offset'i (BLE forward/backward) --------
+    float speedOffset = -(float)needSpeed.load();   // negatif = ileri
+
+    // -------- Motor çıkışları --------
+    int yawDiff = (int)std::round(yawCorrection_);
+    int rawL = (int)std::round(pidOut + speedOffset) - turnBias - yawDiff;
+    int rawR = (int)std::round(pidOut + speedOffset) + turnBias + yawDiff;
+
+    rawL = std::clamp(rawL, -PWM_LIMIT, PWM_LIMIT);
+    rawR = std::clamp(rawR, -PWM_LIMIT, PWM_LIMIT);
+
+    if (motorInvertL_) rawL = -rawL;
+    if (motorInvertR_) rawR = -rawR;
+
+    // Soft start
+    if (armRampCount_ < 20) {
+        float k = (float)armRampCount_ / 20.0f;
+        rawL = (int)(rawL * k);
+        rawR = (int)(rawR * k);
+        armRampCount_++;
+    }
+
+    // PWM minimum threshold: anything below ±8 PWM can't overcome motor
+    // static friction anyway, so writing it just creates electrical buzz
+    // and contributes nothing to balance. Snap small PWM to zero. This
+    // suppresses the visible back-and-forth motor chatter when the robot
+    // is near vertical.
+    constexpr int PWM_MIN = 8;
+    if (std::abs(rawL) < PWM_MIN) rawL = 0;
+    if (std::abs(rawR) < PWM_MIN) rawR = 0;
+
+    pwmL_ = rawL;
+    pwmR_ = rawR;
+    applyMotors(pwmL_, pwmR_);
+}
+
+void RobotControl::applyMotors(int pwmL, int pwmR)
+{
+    // Sağ motor
+    if (pwmR > 0) {
+        digitalWrite(PWMR1, HIGH);
         digitalWrite(PWMR2, LOW);
-        softPwmWrite(PWMR, pwm_r);
-    }
-    else if (pwm_r < 0)
-    {
-        digitalWrite(PWMR1, LOW);   // Geri
+        softPwmWrite(PWMR, pwmR);
+    } else if (pwmR < 0) {
+        digitalWrite(PWMR1, LOW);
         digitalWrite(PWMR2, HIGH);
-        softPwmWrite(PWMR, -pwm_r);
-    }
-    else
-    {
-        digitalWrite(PWMR1, LOW);   // Dur
+        softPwmWrite(PWMR, -pwmR);
+    } else {
+        digitalWrite(PWMR1, LOW);
         digitalWrite(PWMR2, LOW);
         softPwmWrite(PWMR, 0);
     }
 
-    // Left motor control - Sol motor ters monte edilmiş olabilir
-    if (pwm_l > 0)
-    {
-        digitalWrite(PWML1, LOW);    // İleri (ters monte edilmiş)
+    // Sol motor (ters monte edildiği için pin'ler ters)
+    if (pwmL > 0) {
+        digitalWrite(PWML1, LOW);
         digitalWrite(PWML2, HIGH);
-        softPwmWrite(PWML, pwm_l);
-    }
-    else if (pwm_l < 0)
-    {
-        digitalWrite(PWML1, HIGH);   // Geri (ters monte edilmiş)
+        softPwmWrite(PWML, pwmL);
+    } else if (pwmL < 0) {
+        digitalWrite(PWML1, HIGH);
         digitalWrite(PWML2, LOW);
-        softPwmWrite(PWML, -pwm_l);
-    }
-    else
-    {
-        digitalWrite(PWML1, LOW);    // Dur
+        softPwmWrite(PWML, -pwmL);
+    } else {
+        digitalWrite(PWML1, LOW);
         digitalWrite(PWML2, LOW);
         softPwmWrite(PWML, 0);
     }
 }
 
-void RobotControl::calculateGyro()
+// ---------------- Telemetri ----------------
+
+RobotControl::Telemetry RobotControl::getTelemetry()
 {
-    timeDiff = (double)(micros() - timer)/1000000;
-    timer = micros();
-
-    gyroMPU->getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-
-    accX = static_cast<float>(ax);
-    accY = static_cast<float>(ay);
-    accZ = static_cast<float>(az);
-    gyroX = static_cast<float>(gx);
-    gyroY = static_cast<float>(gy);
-    gyroZ = static_cast<float>(gz);
-
-    gyroXrate = gyroX / 131.0;
-
-    DataAvg[2] = DataAvg[1];
-    DataAvg[1] = DataAvg[0];
-    DataAvg[0] = currentAngle;
-
-    currentAngle = (DataAvg[0] + DataAvg[1] + DataAvg[2])/3;
-    currentGyro = gyroXrate;
+    std::lock_guard<std::mutex> lk(telMutex_);
+    return latestTelemetry_;
 }
 
-void RobotControl::ResetValues()
-{
-    Input = 0.0;
-    timeDiff = 0.0;
-    targetAngle = -2.5f;
-    currentAngle = 0.0;
-    currentGyro = 0.0;
-    pwmLimit = 255;
-    needSpeed = 0;
-    needTurnL = 0;
-    needTurnR = 0;
-    diffSpeed = 0;
-    diffAllSpeed = 0;
-    avgPosition = 0;
-    addPosition = 0;
-    lastSpeedError = 0;
-    speedAdjust = 0;
-    errorSpeed = 0;
-
-    DataAvg[0]=0; DataAvg[1]=0; DataAvg[2]=0;
-    mpu_test = false;
-
-    pwm = 0;
-    pwm_l = 0;
-    pwm_r = 0;
-
-    aggAC = 3.0;
-
-    SKp = 2.5;
-    SKi = 0.03;
-    SKd = 0.3;
-
-    // Ana PID değerleri
-    aggKp = 40.0;
-    aggKi = 5.0;
-    aggKd = 0.8;
-    aggSD = 5.0;
-
-    gyroXrate = 0;
-
-    qDebug() << "Values Reset - PID Values Kp:" << aggKp
-             << "Ki:" << aggKi
-             << "Kd:" << aggKd;
-}
+// ---------------- Thread ----------------
 
 void RobotControl::run()
 {
     stopMotors();
 
-    timer = micros();
+    QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
+
+    auto getMicros = []() -> uint64_t {
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+    };
+
+    uint64_t prev = getMicros();
+    uint64_t telemetryLastUs = prev;
+    uint64_t saveLastUs = prev;
 
     while (!m_stop)
     {
-        const std::lock_guard<std::mutex> lock(mutex_loop);
-        calculateGyro();
-        calculatePwm();
-        QThread::msleep(5);
+        uint64_t now = getMicros();
+        float dt = (float)(now - prev) * 1.0e-6f;
+        if (dt < 0.0005f) dt = LOOP_DT_TARGET;
+        if (dt > 0.05f)   dt = LOOP_DT_TARGET;
+        prev = now;
+
+        readImu();
+        updateEstimates(dt);
+        controlLoop(dt);
+
+        // Telemetri snapshot ~20 Hz
+        if (now - telemetryLastUs > 50000) {
+            Telemetry t;
+            t.angle        = currentAngle_;
+            t.gyroRate     = gyroRateX_;
+            t.yawRate      = gyroRateZ_;
+            t.targetAngle  = targetAngle_;
+            t.trim         = aggAC + trimFine + autoZeroIntegral;
+            t.pwmL         = pwmL_;
+            t.pwmR         = pwmR_;
+            t.armed        = isArmed.load();
+            t.fallen       = fallen_;
+            t.autoMode     = autoMode.load();
+            t.positionHold = yawLock.load();
+            {
+                std::lock_guard<std::mutex> lk(telMutex_);
+                latestTelemetry_ = t;
+            }
+            telemetryLastUs = now;
+        }
+
+        if (saveDirty && (now - saveLastUs) > 5000000) {
+            saveSettings();
+            saveLastUs = now;
+        }
+
+        // Sabit oran sleep
+        int64_t elapsedUs = (int64_t)(getMicros() - now);
+        int64_t sleepUs = (int64_t)LOOP_DT_US - elapsedUs;
+        if (sleepUs > 0) {
+            usleep((useconds_t)sleepUs);
+        }
     }
-}
 
-bool RobotControl::getIsArmed() const
-{
-    return isArmed;
-}
-
-void RobotControl::setIsArmed(bool newIsArmed)
-{
-    isArmed = newIsArmed;
+    stopMotors();
 }

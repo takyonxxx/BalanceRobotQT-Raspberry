@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QThread>
 #include <QSettings>
+#include <QString>
 #include "pid.h"
 #include "constants.h"
 #include "i2cdev.h"
@@ -13,10 +14,20 @@
 #include <softPwm.h>
 #include <wiringPi.h>
 #include <mutex>
+#include <atomic>
 
-// Static variables for interrupt handlers
-static volatile int32_t Speed_L = 0;
-static volatile int32_t Speed_R = 0;
+// -----------------------------------------------------------------------------
+// RobotControl — encoder'sız, sadece IMU tabanlı denge robotu kontrolcüsü.
+//
+// İki kontrol döngüsü:
+//   1) Pitch PID  : gyro X + accel kombinasyonu (Kalman) ile açı kestirimi,
+//                   açı hatası → ortak motor PWM çıkışı.
+//   2) Yaw  PID   : gyro Z ham hızı, hedef = 0 °/s,
+//                   çıkış → sol/sağ motor diferansiyeli.
+//                   Mekanik dengesizliği telafi eder, robot doğru yönü tutar.
+//
+// Encoder donanımı ve velocity/position-hold mantığı kasıtlı olarak yok.
+// -----------------------------------------------------------------------------
 
 class RobotControl : public QThread {
     Q_OBJECT
@@ -26,124 +37,188 @@ public:
     ~RobotControl();
     static RobotControl* getInstance();
 
-    // Initialization methods
     bool initGyroMeter();
     bool initwiringPi();
 
-    // Control methods
     void stop();
-    static void encodeL();
-    static void encodeR();
 
-    // Settings management
     void loadSettings();
     void saveSettings();
 
-    // Getters and setters
+    // Pitch PID kazançları (iç halka - denge)
     float getAggKp() const { return aggKp; }
-    void setAggKp(float newAggKp) { aggKp = newAggKp; }
+    void  setAggKp(float v) { aggKp = v; saveDirty = true; }
     float getAggKi() const { return aggKi; }
-    void setAggKi(float newAggKi) { aggKi = newAggKi; }
+    void  setAggKi(float v) { aggKi = v; saveDirty = true; }
     float getAggKd() const { return aggKd; }
-    void setAggKd(float newAggKd) { aggKd = newAggKd; }
+    void  setAggKd(float v) { aggKd = v; saveDirty = true; }
+
+    // AC = "angle correction" = ana trim (UI slider 0..25.5°)
     float getAggAC() const { return aggAC; }
-    void setAggAC(float newAggAC) { aggAC = newAggAC; }
+    void  setAggAC(float v) { aggAC = v; saveDirty = true; }
+
+    // SD slider artık yaw PID Kp olarak yeniden tanımlandı.
+    // UI uyumluluğu için aynı slot kullanılıyor.
     float getAggSD() const { return aggSD; }
-    void setAggSD(float newAggSD) { aggSD = newAggSD; }
-    int getNeedSpeed() const { return needSpeed; }
-    void setNeedSpeed(int newNeedSpeed) { needSpeed = newNeedSpeed; }
-    int getNeedTurnL() const { return needTurnL; }
-    void setNeedTurnL(int newNeedTurnL) { needTurnL = newNeedTurnL; }
-    int getNeedTurnR() const { return needTurnR; }
-    void setNeedTurnR(int newNeedTurnR) { needTurnR = newNeedTurnR; }
+    void  setAggSD(float v) { aggSD = v; saveDirty = true; }
 
-    void setIsArmed(bool newIsArmed);
+    // Komutlu hareket (BLE'den)
+    std::atomic<int> needSpeed{0};
+    std::atomic<int> needTurnL{0};
+    std::atomic<int> needTurnR{0};
+    int  getNeedSpeed() const { return needSpeed.load(); }
+    void setNeedSpeed(int v) { needSpeed.store(v); }
+    int  getNeedTurnL() const { return needTurnL.load(); }
+    void setNeedTurnL(int v) { needTurnL.store(v); }
+    int  getNeedTurnR() const { return needTurnR.load(); }
+    void setNeedTurnR(int v) { needTurnR.store(v); }
 
-    bool getIsArmed() const;
+    // Arm/disarm
+    bool getIsArmed() const { return isArmed.load(); }
+    void setIsArmed(bool armed);
+
+    // Auto mode (oto-arm + oto-recovery)
+    bool getAutoMode() const { return autoMode.load(); }
+    void setAutoMode(bool on) { autoMode.store(on); }
+
+    // Yaw kilidi (otomatik doğrultu tutma) — varsayılan açık.
+    // UI'da position-hold yerine yaw-hold olarak işlev görür.
+    bool getPositionHold() const { return yawLock.load(); }
+    void setPositionHold(bool on) { yawLock.store(on); }
+
+    // Hassas trim (signed, °)
+    float getTrimFine() const { return trimFine; }
+    void  setTrimFine(float v) { trimFine = v; saveDirty = true; }
+
+    void resetTrim();
+
+    // Telemetri (BLE üzerinden)
+    struct Telemetry {
+        float angle;        // °  - pitch
+        float gyroRate;     // °/s - pitch rate
+        float yawRate;      // °/s - yaw rate (sapma)
+        float targetAngle;  // °
+        float trim;         // °
+        int   pwmL;
+        int   pwmR;
+        bool  armed;
+        bool  fallen;
+        bool  autoMode;
+        bool  positionHold;  // -> yaw lock state
+    };
+    Telemetry getTelemetry();
 
 private:
-    // Control algorithms
-    void calculateGyro();
-    void calculatePwm();
-    void controlRobot();
-    void correctSpeedDiff();
-    void ResetValues();
-    void resetControlVariables();
+    // Adımlar
+    void readImu();
+    void updateEstimates(float dt);
+    void controlLoop(float dt);
+    void applyMotors(int pwmL, int pwmR);
     void stopMotors();
+    void calibrateGyroBias();
 
-    int totalSpeedL = 0;
-    int totalSpeedR = 0;
+    bool isUpright() const;
+    bool isFallen() const;
+    void resetControlState();
 
-    // Thread implementation
     void run() override;
 
-    // Constants
-    const double RAD_TO_DEG = 57.2958;
-    int pwmLimit{0};  // Changed from const to regular member variable
-
-    // Components
-    PID anglePID;
+    // -------- Bileşenler --------
+    PID    anglePid;
+    PID    yawPid;
     MPU6050* gyroMPU{nullptr};
-    Kalman kalmanX;
-    Kalman kalmanY;
+    Kalman   kalman;
 
-    // File handling
+    // -------- Sabitler --------
+    static constexpr float RAD_TO_DEG = 57.29577951f;
+    static constexpr int   PWM_LIMIT  = 255;
+    static constexpr float ARM_TILT_THRESHOLD  = 8.0f;
+    static constexpr float FALL_TILT_THRESHOLD = 40.0f;
+    static constexpr int   ARM_STABLE_SAMPLES  = 60;
+    static constexpr float LOOP_DT_TARGET      = 0.005f;
+    static constexpr int   LOOP_DT_US          = 5000;
+
+    // -------- IMU --------
+    int16_t ax_{0}, ay_{0}, az_{0};
+    int16_t gx_{0}, gy_{0}, gz_{0};
+    float   gyroBiasX_{0.0f};
+    float   gyroBiasY_{0.0f};
+    float   gyroBiasZ_{0.0f};
+    bool    gyroCalibrated_{false};
+
+    float   accelAngle_{0.0f};
+    float   gyroRateX_{0.0f};   // pitch
+    float   gyroRateZ_{0.0f};   // yaw ham
+    float   gyroRateZFilt_{0.0f}; // yaw LPF
+    float   currentAngle_{0.0f};
+    float   yawCorrection_{0.0f};
+
+    // -------- Pitch PID kazançları --------
+    // ÖNEMLİ ÖLÇEKLEME:
+    //   PID v2 türevi gyro°/s ile çarpıyor. Bu yüzden Kd birim ölçeği eski
+    //   koddan farklıdır. Eski Kd=1.2 ≈ yeni Kd=0.1 sönüme denk gelir.
+    //   Ki ise UI değerinin /100'üyle uygulanır (slider 0..255, gerçek 0..2.55).
+    float aggKp{18.0f};
+    float aggKi{80.0f};
+    float aggKd{0.1f};
+    float aggAC{0.0f};
+
+    // SD slider artık yaw PID kazancı. Slider 0..100 → gerçek Kp 0..10.0
+    // Başlangıç DÜŞÜK olmalı; çok agresif yaw, denge bozar.
+    float aggSD{2.0f};   // slider 20 → gerçek yawKp=0.2
+
+    float trimFine{0.0f};
+    float autoZeroIntegral{0.0f};
+
+    float targetAngle_{0.0f};
+
+    int   pwmL_{0};
+    int   pwmR_{0};
+
+    // Anti-overshoot / braking after speed command release:
+    // - Open-loop part: short opposing tilt pulse to bleed momentum.
+    // - Closed-loop part: while braking, also feed back gyroX (pitch rate)
+    //   into the target angle. If the robot is still pitching forward
+    //   (gyroX in the same direction as the prior command) we lean it
+    //   slightly opposite. As the motion dies down gyroX → 0 and the
+    //   closed-loop term automatically fades.
+    int   prevNeedSpeed_{0};
+    int   brakeCounter_{0};
+    float brakeBiasAngle_{0.0f};
+    int   brakeDirection_{0};        // sign of previous command (+1 / -1)
+    static constexpr int   BRAKE_TICKS_AT_5MS = 120;     // ~0.6 s of brake window
+    static constexpr float BRAKE_PER_PWM      = 0.010f;  // ° per PWM (open-loop kick)
+    // Closed-loop gyro feedback gain. SIGN depends on IMU orientation —
+    // if braking pushes the robot the WRONG way (accelerates instead of
+    // slowing), flip the sign of this constant.
+    static constexpr float BRAKE_GYRO_GAIN    = 0.03f;
+    static constexpr float BRAKE_GYRO_MAX     = 2.0f;    // hard cap on closed-loop tilt
+    static constexpr float BRAKE_BIAS_LIMIT   = 3.5f;    // hard cap on total brake tilt
+
+    // İşaret bayrakları
+    bool pidInvert_{true};
+    bool motorInvertL_{false};
+    bool motorInvertR_{false};
+    bool yawInvert_{true};   // yaw düzeltmesi işareti — yanlış yönde olursa false yap
+
+    // Arm state
+    std::atomic<bool> isArmed{false};
+    std::atomic<bool> autoMode{true};
+    std::atomic<bool> yawLock{true};      // Yaw kilidi (eski positionHold yerine)
+    bool  fallen_{false};
+    int   uprightSampleCount_{0};
+    int   armRampCount_{0};
+
+    // Telemetri snapshot
+    mutable std::mutex telMutex_;
+    Telemetry latestTelemetry_{};
+
+    // Loop / dosyalar
+    bool  m_stop{false};
+    bool  saveDirty{false};
     QString m_sSettingsFile;
+    QString m_sBiasFile;
 
-    // Threading
-    std::mutex mutex_loop;
-    bool m_stop{false};
-    bool mpu_test{false};
-
-    // Control parameters
-    float aggKp{9.0f};
-    float aggKi{0.3f};
-    float aggKd{0.6f};
-    float aggAC{5.0f};
-    float aggSD{1.0f};
-    float SKp{4.5f};
-    float SKi{0.15f};
-    float SKd{0.3f};
-
-    // Motion control
-    int needSpeed{0};
-    int needTurnL{0};
-    int needTurnR{0};
-    int pwm{0};
-    int pwm_l{0};
-    int pwm_r{0};
-
-    // Sensor data and calculations
-    float Input{0};
-    float Output{0};
-    int16_t ax{0}, ay{0}, az{0};  // Raw accelerometer data
-    int16_t gx{0}, gy{0}, gz{0};  // Raw gyroscope data
-    float accX{0}, accY{0}, accZ{0};  // Processed accelerometer data
-    float gyroX{0}, gyroY{0}, gyroZ{0};  // Processed gyroscope data
-    double gyroXrate{0};
-    float currentAngle{0};
-    float currentGyro{0};
-    float targetAngle{0};
-    double timeDiff{0};
-
-    // Speed control
-    float speedAdjust{0};
-    float lastSpeedError{0};
-    float errorSpeed{0};
-    int32_t diffSpeed{0};
-    int32_t diffAllSpeed{0};
-    int avgPosition{0};
-    int addPosition{0};
-
-    // Moving average filter
-    float DataAvg[3]{0};
-
-    // Timing
-    uint32_t timer{0};
-
-    bool isArmed = false;
-
-    // Singleton instance
     static RobotControl* theInstance_;
 };
 

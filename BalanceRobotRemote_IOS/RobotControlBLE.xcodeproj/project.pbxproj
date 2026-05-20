@@ -22,6 +22,12 @@
 		9C5F6099225243B700BCC1DD /* Images in Resources */ = {isa = PBXBuildFile; fileRef = 9C5F6098225243B700BCC1DD /* Images */; };
 		9C5F609C22525A3500BCC1DD /* Modal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5F609A22525A3400BCC1DD /* Modal.swift */; };
 		9C5F60DB2253AD5100BCC1DD /* MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5F60DA2253AD5100BCC1DD /* MessageService.swift */; };
+		9C93F55F2FBE08DB007F2717 /* JoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F55D2FBE08DA007F2717 /* JoystickView.swift */; };
+		9C93F5602FBE08DB007F2717 /* TelemetryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F55E2FBE08DA007F2717 /* TelemetryView.swift */; };
+		9C93F5622FBE0A8B007F2717 /* UIColor+Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5612FBE0A8B007F2717 /* UIColor+Compat.swift */; };
+		9C93F5662FBE0FDB007F2717 /* ControlViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5642FBE0FDB007F2717 /* ControlViewController.swift */; };
+		9C93F5672FBE0FDB007F2717 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5652FBE0FDB007F2717 /* SettingsViewController.swift */; };
+		9C93F5692FBE18CA007F2717 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5682FBE18CA007F2717 /* AppSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +48,12 @@
 		9C5F6098225243B700BCC1DD /* Images */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Images; sourceTree = "<group>"; };
 		9C5F609A22525A3400BCC1DD /* Modal.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Modal.swift; sourceTree = "<group>"; };
 		9C5F60DA2253AD5100BCC1DD /* MessageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageService.swift; sourceTree = "<group>"; };
+		9C93F55D2FBE08DA007F2717 /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
+		9C93F55E2FBE08DA007F2717 /* TelemetryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryView.swift; sourceTree = "<group>"; };
+		9C93F5612FBE0A8B007F2717 /* UIColor+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIColor+Compat.swift"; sourceTree = "<group>"; };
+		9C93F5642FBE0FDB007F2717 /* ControlViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlViewController.swift; sourceTree = "<group>"; };
+		9C93F5652FBE0FDB007F2717 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		9C93F5682FBE18CA007F2717 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +86,12 @@
 		2D8448CF224D76AA006BF86F /* RobotControlBLE */ = {
 			isa = PBXGroup;
 			children = (
+				9C93F5682FBE18CA007F2717 /* AppSettings.swift */,
+				9C93F5642FBE0FDB007F2717 /* ControlViewController.swift */,
+				9C93F5652FBE0FDB007F2717 /* SettingsViewController.swift */,
+				9C93F5612FBE0A8B007F2717 /* UIColor+Compat.swift */,
+				9C93F55D2FBE08DA007F2717 /* JoystickView.swift */,
+				9C93F55E2FBE08DA007F2717 /* TelemetryView.swift */,
 				9C5F609E2253297900BCC1DD /* CustomAlert */,
 				9C5F6098225243B700BCC1DD /* Images */,
 				9C5F60912251EE8E00BCC1DD /* Ble */,
@@ -187,12 +205,18 @@
 				9C5F60882251E8ED00BCC1DD /* BluetoothEventsHandler.swift in Sources */,
 				2D8448D3224D76AA006BF86F /* ViewController.swift in Sources */,
 				9C5F60892251E8ED00BCC1DD /* BluetoothConnectionHandler.swift in Sources */,
+				9C93F5622FBE0A8B007F2717 /* UIColor+Compat.swift in Sources */,
 				2D8448D1224D76AA006BF86F /* AppDelegate.swift in Sources */,
 				9C5F608B2251E8ED00BCC1DD /* BluetoothCommands.swift in Sources */,
 				9C5F60DB2253AD5100BCC1DD /* MessageService.swift in Sources */,
+				9C93F55F2FBE08DB007F2717 /* JoystickView.swift in Sources */,
+				9C93F5602FBE08DB007F2717 /* TelemetryView.swift in Sources */,
 				9C5F608F2251E8FD00BCC1DD /* PairingFlow.swift in Sources */,
 				9C5F609C22525A3500BCC1DD /* Modal.swift in Sources */,
 				9C5F608A2251E8ED00BCC1DD /* BluetoothService.swift in Sources */,
+				9C93F5662FBE0FDB007F2717 /* ControlViewController.swift in Sources */,
+				9C93F5672FBE0FDB007F2717 /* SettingsViewController.swift in Sources */,
+				9C93F5692FBE18CA007F2717 /* AppSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
