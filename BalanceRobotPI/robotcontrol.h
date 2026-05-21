@@ -155,18 +155,19 @@ private:
     float   yawCorrection_{0.0f};
 
     // -------- Pitch PID kazançları --------
-    // ÖNEMLİ ÖLÇEKLEME:
-    //   PID v2 türevi gyro°/s ile çarpıyor. Bu yüzden Kd birim ölçeği eski
-    //   koddan farklıdır. Eski Kd=1.2 ≈ yeni Kd=0.1 sönüme denk gelir.
-    //   Ki ise UI değerinin /100'üyle uygulanır (slider 0..255, gerçek 0..2.55).
-    float aggKp{20.0f};
-    float aggKi{50.0f};
-    float aggKd{0.15f};
+    // Default PID gains — keep these in sync with loadSettings() defaults
+    // in robotcontrol.cpp. These values are used when no settings.ini
+    // exists yet (constructor writes them out via saveSettings()).
+    //   Kp=25, Ki=40 (UI scale → real Ki=0.4), Kd=0.10
+    float aggKp{25.0f};
+    float aggKi{40.0f};
+    float aggKd{0.10f};
     float aggAC{0.0f};
 
-    // SD slider artık yaw PID kazancı. Slider 0..100 → gerçek Kp 0..10.0
-    // Başlangıç DÜŞÜK olmalı; çok agresif yaw, denge bozar.
-    float aggSD{2.0f};   // slider 20 → gerçek yawKp=0.2
+    // Legacy: SD slider field kept for iOS-side compatibility but not
+    // applied by the encoder yaw loop. Default left at 2.0 just so the
+    // BLE getter returns something sensible.
+    float aggSD{2.0f};
 
     float trimFine{0.0f};
     float autoZeroIntegral{0.0f};
@@ -224,6 +225,7 @@ private:
     long  lastChassisPos_{0};
     float chassisVelFilt_{0.0f};
     float spdPidIntegral_{0.0f};   // integral term for the speed PID
+    float targetVelFilt_{0.0f};    // slew-limited target velocity
     static constexpr float POS_GAIN_DEG_PER_TICK              = 0.0015f;
     static constexpr float POS_VEL_GAIN_DEG_PER_TICK_PER_LOOP = 0.09f;
     static constexpr float POS_VEL_ALPHA                      = 0.5f;

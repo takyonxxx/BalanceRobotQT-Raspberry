@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <chrono>
 #include <unistd.h>
 #include <sys/time.h>
 
@@ -64,11 +65,8 @@ RobotControl::RobotControl(QObject *parent) : QThread(parent)
     yawPid.setDeadband(5.0f);         // küçük gürültü dikkate alınmasın (°/s)
     yawPid.setDerivativeFilter(0.20f);
     yawPid.setSetpoint(0.0f);
-    // Kazançlar setIsArmed/controlLoop'ta aggSD'den ölçeklenerek atanır
-
     qDebug() << "RobotControl ready. Kp=" << aggKp << "Ki=" << aggKi
              << "Kd=" << aggKd << " trim=" << aggAC
-             << " yawKp(SD)=" << aggSD
              << " bias=" << gyroBiasX_ << gyroBiasZ_;
 }
 
@@ -94,17 +92,20 @@ void RobotControl::loadSettings()
     aggKp     = settings.value("aggKp",     25.0f).toFloat();
     aggKi     = settings.value("aggKi",     40.0f).toFloat();
     aggKd     = settings.value("aggKd",      0.10f).toFloat();
-    aggSD     = settings.value("aggSD",      2.0f).toFloat();   // yaw Kp
     aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
     trimFine  = settings.value("trimFine",   0.0f).toFloat();
     autoZeroIntegral = settings.value("autoZero", 0.0f).toFloat();
 
-    pidInvert_    = settings.value("pidInvert",    true ).toBool();
-    motorInvertL_ = settings.value("motorInvertL", false).toBool();
-    motorInvertR_ = settings.value("motorInvertR", false).toBool();
-    yawInvert_    = settings.value("yawInvert",    true ).toBool();
+    pidInvert_      = settings.value("pidInvert",      true).toBool();
+    motorInvertL_   = settings.value("motorInvertL",   false).toBool();
+    motorInvertR_   = settings.value("motorInvertR",   false).toBool();
     encoderInvertL_ = settings.value("encoderInvertL", true).toBool();
     encoderInvertR_ = settings.value("encoderInvertR", true).toBool();
+
+    // Legacy fields no longer read or written:
+    //   aggSD       (was yaw PID gain for gyro-Z control; now encoder-based
+    //               with hardcoded gains)
+    //   yawInvert   (was sign for gyro-Z yaw; encoder yaw uses its own sign)
 
     QSettings bias(m_sBiasFile, QSettings::IniFormat);
     gyroBiasX_ = bias.value("gx", 0.0f).toFloat();
@@ -115,17 +116,20 @@ void RobotControl::loadSettings()
 void RobotControl::saveSettings()
 {
     QSettings settings(m_sSettingsFile, QSettings::IniFormat);
-    settings.setValue("aggKp",     aggKp);
-    settings.setValue("aggKi",     aggKi);
-    settings.setValue("aggKd",     aggKd);
-    settings.setValue("aggSD",     aggSD);
+    settings.setValue("aggKp",           aggKp);
+    settings.setValue("aggKi",           aggKi);
+    settings.setValue("aggKd",           aggKd);
     settings.setValue("angleCorrection", aggAC);
-    settings.setValue("trimFine",  trimFine);
-    settings.setValue("autoZero",  autoZeroIntegral);
-    settings.setValue("pidInvert",    pidInvert_);
-    settings.setValue("motorInvertL", motorInvertL_);
-    settings.setValue("motorInvertR", motorInvertR_);
-    settings.setValue("yawInvert",    yawInvert_);
+    settings.setValue("trimFine",        trimFine);
+    settings.setValue("autoZero",        autoZeroIntegral);
+    settings.setValue("pidInvert",       pidInvert_);
+    settings.setValue("motorInvertL",    motorInvertL_);
+    settings.setValue("motorInvertR",    motorInvertR_);
+    settings.setValue("encoderInvertL",  encoderInvertL_);
+    settings.setValue("encoderInvertR",  encoderInvertR_);
+    // Migrate old key names: if present from older builds, drop them.
+    if (settings.contains("aggSD"))     settings.remove("aggSD");
+    if (settings.contains("yawInvert")) settings.remove("yawInvert");
     settings.sync();
     saveDirty = false;
 }
@@ -379,6 +383,7 @@ void RobotControl::resetControlState()
     brakePulseFrames_ = 0;
     brakePulseValue_ = 0.0f;
     spdPidIntegral_ = 0.0f;
+    targetVelFilt_ = 0.0f;
     // Position hold — re-lock at whatever the current chassis position is.
     long encL_eff = encoderInvertL_ ? -encLeftTicks_  : encLeftTicks_;
     long encR_eff = encoderInvertR_ ? -encRightTicks_ : encRightTicks_;
@@ -418,16 +423,13 @@ void RobotControl::setIsArmed(bool armed)
         resetControlState();
         armRampCount_ = 0;
         anglePid.setTunings(aggKp, aggKi * 0.01f, aggKd);
-        yawPid.setTunings(aggSD * 0.1f, aggSD * 0.001f, 0.0f);
         qDebug().noquote() << QString::asprintf(
-            "ARMED — Kp=%.2f Ki=%.4f Kd=%.2f  yawKp=%.3f yawKi=%.4f  trim=%.2f  inv=%c%c%c%c",
+            "ARMED — Kp=%.2f Ki=%.4f Kd=%.2f  trim=%.2f  inv=%c%c%c",
             aggKp, aggKi*0.01f, aggKd,
-            aggSD*0.1f, aggSD*0.001f,
             aggAC + trimFine + autoZeroIntegral,
             pidInvert_    ? 'P' : '-',
             motorInvertL_ ? 'L' : '-',
-            motorInvertR_ ? 'R' : '-',
-            yawInvert_    ? 'Y' : '-');
+            motorInvertR_ ? 'R' : '-');
     } else if (!armed && wasArmed) {
         stopMotors();
         armRampCount_ = 0;
@@ -545,38 +547,52 @@ void RobotControl::controlLoop(float /*dt*/)
     // Velocity-PID parameters tuned conservatively. The output is a
     // tilt angle (not PWM), so it adds to the targetAngle the pitch
     // PID is chasing.
-    constexpr float MAX_SPEED_TILT_DEG  = 2.0f;
-    constexpr float MAX_TARGET_VEL      = 6.0f;   // ticks/loop @ full stick → ~30 cm/s
-    constexpr float SPD_PID_KP          = 0.30f;
-    constexpr float SPD_PID_KI          = 0.005f;
-    constexpr float SPD_PID_I_LIMIT     = 1.0f;   // ±1° from integrator
+    // ---- Speed PID (B-Robot inspired cascade) ----
+    //
+    // Reference: jjrobots B-Robot. The outer (speed) PID's job is to find
+    // the *correct* tilt angle that makes actual velocity equal to target.
+    // The inner pitch PID then makes the body chase that tilt.
+    //
+    // Why this works where naive tilt-from-stick doesn't:
+    //  - User wants speed=0 → speed PID finds whatever small tilt cancels
+    //    any drift (compensates for CG offset, surface bias, asymmetry).
+    //  - User wants speed=X → speed PID finds tilt that holds X, also
+    //    automatically tilts BACK to brake when stick is released.
+    //
+    // Key insight from B-Robot constants:
+    //   KP_THROTTLE = 0.075   (small proportional gain)
+    //   KI_THROTTLE = 0.1     (LARGER integral — does the heavy lifting)
+    //   MAX_TARGET_ANGLE = 14° (lots of tilt headroom for braking)
+    //
+    // The integral is the workhorse: when actual vel doesn't match target,
+    // the integrator slowly accumulates corrective tilt. This gives smooth
+    // acceleration AND smooth braking on release.
+    constexpr float MAX_SPEED_TILT_DEG  = 10.0f;     // 14° in B-Robot
+    constexpr float MAX_TARGET_VEL      = 4.0f;      // ticks/loop @ full stick
+    constexpr float SPD_PID_KP          = 0.08f;     // B-Robot 0.075
+    constexpr float SPD_PID_KI          = 0.10f;     // B-Robot 0.1  (the workhorse)
+    constexpr float SPD_PID_I_LIMIT     = 10.0f;     // generous integral room
 
     // Map joystick (-180..+180) → target velocity (-MAX..+MAX).
-    // Sign: forward command (negative curSpeed) → positive target vel
-    // (forward chassis motion matches positive encoder ticks).
     float targetVel = -(float)curSpeed / 180.0f * MAX_TARGET_VEL;
     targetVel = std::clamp(targetVel, -MAX_TARGET_VEL, MAX_TARGET_VEL);
+    targetVelFilt_ = targetVel;   // no extra slew — Ki acts as natural slew
 
-    float velErr = targetVel - chassisVelFilt_;
-    spdPidIntegral_ += SPD_PID_KI * velErr;
+    // Speed PID — error sign chosen so output brakes the chassis when
+    // target=0. Logs showed (target - vel) integrated in the SAME direction
+    // as the existing motion → kept pushing robot forward. Using
+    // (vel - target) instead: integral grows in the OPPOSITE direction
+    // → counter-tilt → brake.
+    float velErr = chassisVelFilt_ - targetVel;
+    spdPidIntegral_ += SPD_PID_KI * velErr * LOOP_DT_TARGET;
     spdPidIntegral_ = std::clamp(spdPidIntegral_, -SPD_PID_I_LIMIT, SPD_PID_I_LIMIT);
-    // Reset integral if no command — let position hold do its job.
-    if (curSpeed == 0) {
-        spdPidIntegral_ *= 0.95f;   // gentle decay rather than snap-to-zero
-    }
     float speedTiltTarget = velErr * SPD_PID_KP + spdPidIntegral_;
     speedTiltTarget = std::clamp(speedTiltTarget,
                                  -MAX_SPEED_TILT_DEG, MAX_SPEED_TILT_DEG);
 
-    // SLEW-RATE LIMIT — hard cap on how fast speedOffsetFilt_ can change
-    // per loop. Previously used a low-pass alpha (0.04 ≈ 125 ms time const),
-    // but a filter never enforces a *limit* — it just smooths. A direct
-    // tilt step would still produce noticeable ramp. Hard slew gives more
-    // predictable handling and prevents speed-tilt spikes from kicking
-    // the chassis.
-    //   MAX_TILT_DELTA_PER_LOOP = 0.015°/loop  →  ~3°/sec ramp rate
-    //   So 0 → 2° takes about 670 ms (smooth perceptual response).
-    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.015f;
+    // Light slew rate limit — Ki already smooths input, this just prevents
+    // single-cycle PWM spikes from a noisy velocity sample.
+    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.10f;   // ~20°/sec — fast but bounded
     float tiltDelta = speedTiltTarget - speedOffsetFilt_;
     if (tiltDelta >  MAX_TILT_DELTA_PER_LOOP) tiltDelta =  MAX_TILT_DELTA_PER_LOOP;
     if (tiltDelta < -MAX_TILT_DELTA_PER_LOOP) tiltDelta = -MAX_TILT_DELTA_PER_LOOP;
@@ -601,70 +617,16 @@ void RobotControl::controlLoop(float /*dt*/)
     // (encL/R_eff, chassisPos, chassisVelFilt_ already computed above for
     // speed tilt; we just use them here.)
 
+    // ---- Position hold DISABLED ----
+    //
+    // In the new B-Robot-style cascade, the Speed PID's integrator
+    // handles "stay still" behavior automatically: if the robot drifts,
+    // chassisVelFilt_ becomes non-zero with target=0, the integrator
+    // accumulates corrective tilt. Position hold layered on top fought
+    // with this and was the main source of post-release drift.
     float posTilt = 0.0f;
-    if (curSpeed == 0 && zeroSpeedFrames_ > 20) {
-        // Truly stationary command. Two-phase engagement:
-        //   1) "Coast" phase — chassis is still moving fast from prior
-        //      acceleration. Don't engage HOLD; let pitch loop do its
-        //      job and let motion bleed off naturally. Track lockedPos_
-        //      so we'll engage at the *current* point once it slows.
-        //   2) "Hold" phase — chassis slow enough that the position
-        //      controller can pull it back without provoking pitch
-        //      saturation. Engage HOLD normally.
-        //
-        // The 5 tick/loop threshold (~25 cm/s at 19 t/cm calibration)
-        // is well below the safe range where pos PID can act without
-        // upsetting pitch.
-        float velAbs = std::fabs(chassisVelFilt_);
-        if (!posHoldActive_ && velAbs > 5.0f) {
-            // Still coasting — keep lockedPos_ chasing current position
-            // so HOLD engages right where the robot eventually stops.
-            lockedPos_ = chassisPos;
-        } else {
-            // Either already in HOLD (committed) or chassis is slow
-            // enough to engage now.
-            if (!posHoldActive_) {
-                lockedPos_ = chassisPos;
-                posHoldActive_ = true;
-            }
-            long posErr = chassisPos - lockedPos_;
-            
-            // SAFETY: if the error is huge (> ~75 cm), the robot is way off.
-            // Chasing it back hard risks losing pitch balance. Re-lock at
-            // current position and start over — accept the drift, stay upright.
-            if (std::abs(posErr) > 1500) {
-                lockedPos_ = chassisPos;
-                posErr = 0;
-            }
-            
-            // P term: corrects position offset
-            float pTerm = (float)posErr * POS_GAIN_DEG_PER_TICK;
-            // D term: damps velocity. Velocity here is ticks per ~5 ms loop.
-            // SAFEGUARD: when the chassis is already moving very fast (high
-            // |vel|), the robot is in a recovery swing — adding more counter-
-            // tilt via D only fights the pitch loop and risks saturation.
-            // Fade D out as |vel| grows past 4 ticks/loop.
-            float dGain  = POS_VEL_GAIN_DEG_PER_TICK_PER_LOOP;
-            if (velAbs > 4.0f) {
-                // Linear fade: 4 → full gain, 8+ → zero
-                float fade = std::max(0.0f, 1.0f - (velAbs - 4.0f) / 4.0f);
-                dGain *= fade;
-            }
-            float dTerm = chassisVelFilt_ * dGain;
-            posTilt = pTerm + dTerm;
-            posTilt = std::clamp(posTilt, -POS_MAX_TILT_DEG, POS_MAX_TILT_DEG);
-        }
-    } else {
-        // Motion command active — release the lock and let lockedPos_
-        // chase the current position so the next release "starts here".
-        if (posHoldActive_) {
-            posHoldActive_ = false;
-        }
-        lockedPos_ = chassisPos;
-    }
-    // Apply position tilt with same sign convention as speed tilt.
-    if (pidInvert_) posTilt = -posTilt;
-    targetAngle_ += posTilt;
+    lockedPos_ = chassisPos;
+    posHoldActive_ = false;
 
     targetAngle_ = std::clamp(targetAngle_, -12.0f, 12.0f);
 
@@ -754,7 +716,10 @@ void RobotControl::controlLoop(float /*dt*/)
         float pTerm = (float)yawErr           * YAW_GAIN_PWM_PER_TICK;
         float dTerm = yawDiffVelFilt_         * YAW_VEL_GAIN_PWM_PER_TICK_LOOP;
         yawCorrection = pTerm + dTerm;
-        if (yawInvert_) yawCorrection = -yawCorrection;
+        // Note: yawInvert_ from settings.ini was for the OLD gyro-Z control
+        // loop. The encoder-based loop's sign is established by how
+        // yawCorrection is added to / subtracted from rawL/rawR below;
+        // do NOT apply yawInvert here.
         yawCorrection = std::clamp(yawCorrection,
                                    (float)-YAW_MAX_PWM, (float)YAW_MAX_PWM);
 
@@ -774,10 +739,28 @@ void RobotControl::controlLoop(float /*dt*/)
     }
     yawCorrection_ = yawCorrection;   // also stored as member for telemetry
 
+    // Diagnostic: log control state every 100 ms while armed.
+    // Shows everything needed to understand release-from-motion behavior.
+    {
+        static auto lastDiag = std::chrono::steady_clock::now();
+        auto nowTime = std::chrono::steady_clock::now();
+        if (isArmed.load() &&
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                nowTime - lastDiag).count() > 100) {
+            qDebug("ang=%+.2f tgt=%+.2f vel=%+.1f cmd=%+d spdTilt=%+.2f posTilt=%+.2f pidOut=%+.1f pos=%+ld lockP=%+ld",
+                   currentAngle_, targetAngle_,
+                   chassisVelFilt_, curSpeed,
+                   speedOffsetFilt_, posTilt, pidOut,
+                   chassisPos, lockedPos_);
+            lastDiag = nowTime;
+        }
+    }
+
     // -------- Motor çıkışları --------
-    // Note: speed command no longer added here — it's baked into targetAngle_
-    // above, so pidOut already contains the motion-driving component via the
-    // tilt error term.
+    // Yaw correction sign — VERIFIED CORRECT by bench testing on
+    // 2026-05-21 with hand-held robot:
+    //   rawL -= yawPwm, rawR += yawPwm  →  robot stays straight
+    //   (opposite sign would turn robot to the right).
     int yawPwm = (int)std::round(yawCorrection_);
     int rawL = (int)std::round(pidOut) - turnBias - yawPwm;
     int rawR = (int)std::round(pidOut) + turnBias + yawPwm;
@@ -817,12 +800,14 @@ void RobotControl::controlLoop(float /*dt*/)
     // max counter-effort to break the divergence before pitch becomes
     // unrecoverable.
     //
-    // Threshold: |angle * gyroX| > 600 = 6° × 100°/s, or 3° × 200°/s.
-    // At these values the robot has 0.1-0.3 seconds before tipping past
-    // the 40° fall-out angle.
+    // Threshold: |angle * gyroX| > 1500 = 8° × 188°/s, or 5° × 300°/s.
+    // Previously 600 — that turned out to trigger during normal balance
+    // motion (small angle + moderate gyro rate is COMMON, not a fall),
+    // producing false max-PWM jolts that drove the chassis into
+    // sustained oscillation. 1500 reserves this for genuine tip-overs.
     float angErr = currentAngle_ - targetAngle_;
     float divergence = angErr * gyroRateX_;
-    if (divergence > 600.0f) {
+    if (divergence > 1500.0f) {
         int sign = (angErr > 0) ? +1 : -1;
         if (pidInvert_) sign = -sign;
         rawL = sign * PWM_LIMIT;
