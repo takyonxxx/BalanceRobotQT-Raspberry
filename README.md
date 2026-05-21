@@ -2,6 +2,13 @@
 
 A two-wheeled self-balancing robot. Qt/C++ control application on Raspberry Pi 5, with an iOS BLE remote control.
 
+<p align="center">
+    <a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
+        <img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg"
+             alt="iOS Remote" width="360" border="1">
+    </a>
+</p>
+
 ## Architecture
 
 ```
