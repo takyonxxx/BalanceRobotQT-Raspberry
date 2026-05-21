@@ -81,6 +81,9 @@ class JoystickView: UIView {
         
         let nx = Float(dx / r)         // -1..1
         let ny = Float(-dy / r)        // ekran y aşağıya doğru artar → ters çevir
+                                       // yukarı çek → ny > 0
+        // DEBUG: iOS'tan gerçekte hangi y değerinin gittiğini doğrulamak için
+        NSLog("[JS] dy=\(dy) ny=\(ny) (yukarı=pozitif olmalı)")
         delegate?.joystick(self, didMoveTo: nx, y: ny)
     }
     

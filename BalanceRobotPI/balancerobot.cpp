@@ -175,7 +175,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
                       parsedCommand == mSD || parsedCommand == mForward ||
                       parsedCommand == mBackward || parsedCommand == mLeft ||
                       parsedCommand == mRight || parsedCommand == mAutoMode ||
-                      parsedCommand == mPositionHold);
+                      parsedCommand == mPositionHold ||
+                      parsedCommand == mSpdKp || parsedCommand == mSpdKi ||
+                      parsedCommand == mSpdMaxTilt || parsedCommand == mSpdMaxVel);
 
     int value = 0;
     if (needsByte && !parsedValue.isEmpty()) {
@@ -196,6 +198,10 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mPD:    sendData(mPD, (uint8_t)std::clamp<int>((int)(100*robotControl->getAggKd()), 0, 255)); break;
         case mAC:    sendData(mAC, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggAC()), 0, 255)); break;
         case mSD:    sendData(mSD, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggSD()), 0, 255)); break;
+        case mSpdKp:      sendData(mSpdKp,      (uint8_t)std::clamp<int>((int)(100*robotControl->getSpdKp()), 0, 255)); break;
+        case mSpdKi:      sendData(mSpdKi,      (uint8_t)std::clamp<int>((int)(100*robotControl->getSpdKi()), 0, 255)); break;
+        case mSpdMaxTilt: sendData(mSpdMaxTilt, (uint8_t)std::clamp<int>((int)robotControl->getSpdMaxTilt(), 0, 255)); break;
+        case mSpdMaxVel:  sendData(mSpdMaxVel,  (uint8_t)std::clamp<int>((int)(10*robotControl->getSpdMaxVel()), 0, 255)); break;
         case mArmed: sendData(mArmed, robotControl->getIsArmed() ? 1 : 0); break;
         case mAutoMode: sendData(mAutoMode, robotControl->getAutoMode() ? 1 : 0); break;
         case mPositionHold: sendData(mPositionHold, robotControl->getPositionHold() ? 1 : 0); break;
@@ -206,13 +212,17 @@ void BalanceRobot::onDataReceived(QByteArray data)
 
     if (rw == mWrite) {
         switch (parsedCommand) {
-        case mPP: robotControl->setAggKp((float)value); break;
-        case mPI: robotControl->setAggKi((float)value); break;          // gerçek Ki PID içinde *0.01 ölçeklenir
-        case mPD: robotControl->setAggKd(value / 100.0f); break;
-        case mAC: robotControl->setAggAC(value / 10.0f); break;
-        case mSD: robotControl->setAggSD(value / 10.0f); break;
-        case mForward:  robotControl->setNeedSpeed(-1 * value); break;
-        case mBackward: robotControl->setNeedSpeed(value); break;
+        case mPP: robotControl->setAggKp((float)value); qDebug() << "Kp =" << robotControl->getAggKp(); break;
+        case mPI: robotControl->setAggKi((float)value); qDebug() << "Ki =" << robotControl->getAggKi(); break;
+        case mPD: robotControl->setAggKd(value / 100.0f); qDebug() << "Kd =" << robotControl->getAggKd(); break;
+        case mAC: robotControl->setAggAC(value / 10.0f); qDebug() << "AC =" << robotControl->getAggAC(); break;
+        case mSD: robotControl->setAggSD(value / 10.0f); qDebug() << "SD =" << robotControl->getAggSD(); break;
+        case mSpdKp:      robotControl->setSpdKp(value / 100.0f); qDebug() << "Speed Kp =" << robotControl->getSpdKp(); break;
+        case mSpdKi:      robotControl->setSpdKi(value / 100.0f); qDebug() << "Speed Ki =" << robotControl->getSpdKi(); break;
+        case mSpdMaxTilt: robotControl->setSpdMaxTilt((float)value); qDebug() << "Speed Max Tilt =" << robotControl->getSpdMaxTilt(); break;
+        case mSpdMaxVel:  robotControl->setSpdMaxVel(value / 10.0f); qDebug() << "Speed Max Vel =" << robotControl->getSpdMaxVel(); break;
+        case mForward:  robotControl->setNeedSpeed(value); break;
+        case mBackward: robotControl->setNeedSpeed(-1 * value); break;
         case mLeft:     robotControl->setNeedTurnL(value); robotControl->setNeedTurnR(0); break;
         case mRight:    robotControl->setNeedTurnR(value); robotControl->setNeedTurnL(0); break;
         case mArmed:    robotControl->setIsArmed(true);  break;

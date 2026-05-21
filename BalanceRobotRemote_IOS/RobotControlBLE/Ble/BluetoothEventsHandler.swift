@@ -163,7 +163,7 @@ extension BluetoothService: CBPeripheralDelegate {
             let value = parsedPack.data[0]
             
             switch parsedPack.command {
-                case mPP, mPI, mPD, mSD, mAC, mAutoMode, mPositionHold:
+                case mPP, mPI, mPD, mSD, mAC, mSpdKp, mSpdKi, mSpdMaxTilt, mSpdMaxVel, mAutoMode, mPositionHold:
                     // Eski PIDSettings modal'ı (görünmez) güncel kalsın
                     switch parsedPack.command {
                         case mPP: PIDSettings.shared.setPValue(value: Float(value))

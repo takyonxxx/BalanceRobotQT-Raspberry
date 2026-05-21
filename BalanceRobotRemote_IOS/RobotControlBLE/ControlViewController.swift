@@ -38,7 +38,7 @@ class ControlViewController: UIViewController {
     
     // Direction-invert flags. Depending on motor wiring, "forward" on the
     // stick can map to backwards on the robot. Flip these if needed.
-    private let invertY: Bool = true
+    private let invertY: Bool = false
     private let invertX: Bool = false
     
     // Deadzone — ignore joystick wobble around the center.

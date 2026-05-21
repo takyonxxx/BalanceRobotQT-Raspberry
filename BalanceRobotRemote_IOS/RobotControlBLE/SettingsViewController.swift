@@ -20,6 +20,12 @@ class SettingsViewController: UIViewController {
     private let acSlider = LabeledSlider(title: "Angle trim (AC)", min: 0, max: 50,  format: "%.1f°", scaleDivider: 10)
     private let sdSlider = LabeledSlider(title: "Yaw gain (SD)",   min: 0, max: 100, format: "%.2f", scaleDivider: 10)
     
+    // Speed PID sliders (B-Robot style cascade — outer loop for velocity tracking)
+    private let spdKpSlider      = LabeledSlider(title: "Speed Kp",    min: 0, max: 50,  format: "%.2f", scaleDivider: 100)
+    private let spdKiSlider      = LabeledSlider(title: "Speed Ki",    min: 0, max: 100, format: "%.2f", scaleDivider: 100)
+    private let spdMaxTiltSlider = LabeledSlider(title: "Speed Max Tilt", min: 1, max: 15, format: "%.0f°")
+    private let spdMaxVelSlider  = LabeledSlider(title: "Speed Max Vel",  min: 10, max: 80, format: "%.1f", scaleDivider: 10)
+    
     // Joystick speeds (iOS-only, stored in UserDefaults via AppSettings)
     private let forwardSpeedSlider = LabeledSlider(
         title: "Forward speed",
@@ -78,6 +84,10 @@ class SettingsViewController: UIViewController {
             bluetoothService.requestData(msgId: mPD, data: payload)
             bluetoothService.requestData(msgId: mAC, data: payload)
             bluetoothService.requestData(msgId: mSD, data: payload)
+            bluetoothService.requestData(msgId: mSpdKp, data: payload)
+            bluetoothService.requestData(msgId: mSpdKi, data: payload)
+            bluetoothService.requestData(msgId: mSpdMaxTilt, data: payload)
+            bluetoothService.requestData(msgId: mSpdMaxVel, data: payload)
             bluetoothService.requestData(msgId: mAutoMode, data: payload)
             bluetoothService.requestData(msgId: mPositionHold, data: payload)
         }
@@ -109,7 +119,11 @@ class SettingsViewController: UIViewController {
         ])
         
         // Section: PID
-        contentStack.addArrangedSubview(makeCard(title: "PID TUNING", subviews: [pSlider, iSlider, dSlider]))
+        contentStack.addArrangedSubview(makeCard(title: "PITCH PID", subviews: [pSlider, iSlider, dSlider]))
+        
+        // Section: Speed PID (outer loop — controls velocity by adjusting target tilt)
+        contentStack.addArrangedSubview(makeCard(title: "SPEED PID",
+                                                 subviews: [spdKpSlider, spdKiSlider, spdMaxTiltSlider, spdMaxVelSlider]))
         
         // Section: Stabilization
         contentStack.addArrangedSubview(makeCard(title: "STABILIZATION", subviews: [acSlider, sdSlider]))
@@ -293,6 +307,16 @@ class SettingsViewController: UIViewController {
         acSlider.onValueChanged = { [weak self] v in self?.sendByte(mAC, byte: UInt8(min(255, max(0, Int(v))))) }
         sdSlider.onValueChanged = { [weak self] v in self?.sendByte(mSD, byte: UInt8(min(255, max(0, Int(v))))) }
         
+        // Speed PID — sliders show real units, send raw int (scaled by Pi):
+        //   spdKp:      slider 0..50  → byte 0..50  → Pi /100  → 0.00..0.50
+        //   spdKi:      slider 0..100 → byte 0..100 → Pi /100  → 0.00..1.00
+        //   spdMaxTilt: slider 1..15  → byte 1..15  → Pi raw   → 1..15°
+        //   spdMaxVel:  slider 10..80 → byte 10..80 → Pi /10   → 1.0..8.0
+        spdKpSlider.onValueChanged      = { [weak self] v in self?.sendByte(mSpdKp,      byte: UInt8(min(255, max(0, Int(v))))) }
+        spdKiSlider.onValueChanged      = { [weak self] v in self?.sendByte(mSpdKi,      byte: UInt8(min(255, max(0, Int(v))))) }
+        spdMaxTiltSlider.onValueChanged = { [weak self] v in self?.sendByte(mSpdMaxTilt, byte: UInt8(min(255, max(0, Int(v))))) }
+        spdMaxVelSlider.onValueChanged  = { [weak self] v in self?.sendByte(mSpdMaxVel,  byte: UInt8(min(255, max(0, Int(v))))) }
+        
         autoModeSwitch.onChanged = { [weak self] on in self?.sendByte(mAutoMode,     byte: on ? 1 : 0) }
         yawLockSwitch.onChanged  = { [weak self] on in self?.sendByte(mPositionHold, byte: on ? 1 : 0) }
         
@@ -339,9 +363,13 @@ class SettingsViewController: UIViewController {
     // MARK: - Reset to defaults
     //
     // Robot-side defaults are taken from robotcontrol.h:
-    //   Kp = 18, Ki = 80, Kd = 0.1  → sliders: 18, 80, 1   (Kd is ×10 in BLE)
+    //   Kp = 25, Ki = 40 (UI scale → 0.4 real), Kd = 0.10
     //   AC = 0.0  → slider 0   (×10)
     //   SD = 2.0  → slider 20  (×10)
+    //   spdKp = 0.12 → slider 12 (×100)
+    //   spdKi = 0.20 → slider 20 (×100)
+    //   spdMaxTilt = 5°  → slider 5
+    //   spdMaxVel  = 3.0 → slider 30 (×10)
     // iOS-side defaults from AppSettings:
     //   forwardSpeed = 180, turnSpeed = 60
     
@@ -378,6 +406,10 @@ class SettingsViewController: UIViewController {
             (mPD, 10,  10),    // Kd = 0.10
             (mAC, 0,   0),     // AC = 0
             (mSD, 20,  20),    // SD = 2.0
+            (mSpdKp,      12, 12), // Speed Kp = 0.12   (slider raw 12 → /100)
+            (mSpdKi,      20, 20), // Speed Ki = 0.20   (slider raw 20 → /100)
+            (mSpdMaxTilt, 5,  5),  // Speed Max Tilt = 5°
+            (mSpdMaxVel,  30, 30), // Speed Max Vel = 3.0 (slider raw 30 → /10)
         ]
         for (cmd, byte, sliderValue) in robotDefaults {
             sendByte(cmd, byte: byte)
@@ -387,6 +419,10 @@ class SettingsViewController: UIViewController {
                 case mPD: dSlider.setValue(sliderValue)
                 case mAC: acSlider.setValue(sliderValue)
                 case mSD: sdSlider.setValue(sliderValue)
+                case mSpdKp:      spdKpSlider.setValue(sliderValue)
+                case mSpdKi:      spdKiSlider.setValue(sliderValue)
+                case mSpdMaxTilt: spdMaxTiltSlider.setValue(sliderValue)
+                case mSpdMaxVel:  spdMaxVelSlider.setValue(sliderValue)
                 default: break
             }
         }
@@ -447,6 +483,10 @@ extension SettingsViewController: BluetoothServiceDelegate {
                 case mPD: self.dSlider.setValue(v)
                 case mAC: self.acSlider.setValue(v)
                 case mSD: self.sdSlider.setValue(v)
+                case mSpdKp:      self.spdKpSlider.setValue(v)
+                case mSpdKi:      self.spdKiSlider.setValue(v)
+                case mSpdMaxTilt: self.spdMaxTiltSlider.setValue(v)
+                case mSpdMaxVel:  self.spdMaxVelSlider.setValue(v)
                 case mAutoMode:     self.autoModeSwitch.isOn = (rawValue != 0)
                 case mPositionHold: self.yawLockSwitch.isOn  = (rawValue != 0)
                 default: break

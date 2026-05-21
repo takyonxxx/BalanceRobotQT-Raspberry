@@ -62,6 +62,16 @@ public:
     float getAggSD() const { return aggSD; }
     void  setAggSD(float v) { aggSD = v; saveDirty = true; }
 
+    // Speed PID parametreleri (B-Robot benzeri cascade için)
+    float getSpdKp() const { return spdKp; }
+    void  setSpdKp(float v) { spdKp = v; saveDirty = true; }
+    float getSpdKi() const { return spdKi; }
+    void  setSpdKi(float v) { spdKi = v; saveDirty = true; }
+    float getSpdMaxTilt() const { return spdMaxTilt; }
+    void  setSpdMaxTilt(float v) { spdMaxTilt = v; saveDirty = true; }
+    float getSpdMaxVel() const { return spdMaxVel; }
+    void  setSpdMaxVel(float v) { spdMaxVel = v; saveDirty = true; }
+
     // Komutlu hareket (BLE'den)
     std::atomic<int> needSpeed{0};
     std::atomic<int> needTurnL{0};
@@ -168,6 +178,14 @@ private:
     // applied by the encoder yaw loop. Default left at 2.0 just so the
     // BLE getter returns something sensible.
     float aggSD{2.0f};
+
+    // Speed PID defaults — settings.ini'den yüklenir, iOS Settings'ten ayarlanabilir.
+    // Bu defaults önceki bench testte stabil çalışan değerler.
+    //   spdKp=0.12, spdKi=0.20, spdMaxTilt=5°, spdMaxVel=3.0
+    float spdKp{0.12f};
+    float spdKi{0.20f};
+    float spdMaxTilt{5.0f};
+    float spdMaxVel{3.0f};
 
     float trimFine{0.0f};
     float autoZeroIntegral{0.0f};

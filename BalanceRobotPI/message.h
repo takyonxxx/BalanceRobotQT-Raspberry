@@ -23,11 +23,17 @@
 #define mRight      0xb1
 
 // PID ve ayar parametreleri
-#define mPP         0xc0 // Proportional
-#define mPI         0xc1 // Integral
-#define mPD         0xc2 // Derivative
+#define mPP         0xc0 // Pitch Proportional
+#define mPI         0xc1 // Pitch Integral
+#define mPD         0xc2 // Pitch Derivative
 #define mAC         0xd0 // Angle correction (trim)
 #define mSD         0xd1 // Speed diff / wheel sync
+
+// Speed PID parametreleri (yeni 2026-05-21)
+#define mSpdKp      0xc3 // Speed PID Kp (value/100, e.g. 12 → 0.12)
+#define mSpdKi      0xc4 // Speed PID Ki (value/100, e.g. 20 → 0.20)
+#define mSpdMaxTilt 0xc5 // Max speed tilt in degrees (direct, 0-15)
+#define mSpdMaxVel  0xc6 // Max target velocity (value/10, e.g. 30 → 3.0)
 
 // Ses
 #define mSpeak      0xe0

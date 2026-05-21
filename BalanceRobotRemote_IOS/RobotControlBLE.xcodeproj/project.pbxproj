@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		2D8448D1224D76AA006BF86F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D8448D0224D76AA006BF86F /* AppDelegate.swift */; };
-		2D8448D3224D76AA006BF86F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D8448D2224D76AA006BF86F /* ViewController.swift */; };
 		2D8448D6224D76AA006BF86F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2D8448D4224D76AA006BF86F /* Main.storyboard */; };
 		2D8448D8224D76AB006BF86F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D8448D7224D76AB006BF86F /* Assets.xcassets */; };
 		2D8448DB224D76AB006BF86F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2D8448D9224D76AB006BF86F /* LaunchScreen.storyboard */; };
@@ -33,7 +32,6 @@
 /* Begin PBXFileReference section */
 		2D8448CD224D76AA006BF86F /* RobotControlBLE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RobotControlBLE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D8448D0224D76AA006BF86F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		2D8448D2224D76AA006BF86F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		2D8448D5224D76AA006BF86F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		2D8448D7224D76AB006BF86F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D8448DA224D76AB006BF86F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -96,7 +94,6 @@
 				9C5F6098225243B700BCC1DD /* Images */,
 				9C5F60912251EE8E00BCC1DD /* Ble */,
 				2D8448D0224D76AA006BF86F /* AppDelegate.swift */,
-				2D8448D2224D76AA006BF86F /* ViewController.swift */,
 				2D8448D4224D76AA006BF86F /* Main.storyboard */,
 				2D8448D7224D76AB006BF86F /* Assets.xcassets */,
 				2D8448D9224D76AB006BF86F /* LaunchScreen.storyboard */,
@@ -203,7 +200,6 @@
 				9C1ED41B2255F8D200209E2F /* PIDSettings.swift in Sources */,
 				9C5F608E2251E8FD00BCC1DD /* FlowController.swift in Sources */,
 				9C5F60882251E8ED00BCC1DD /* BluetoothEventsHandler.swift in Sources */,
-				2D8448D3224D76AA006BF86F /* ViewController.swift in Sources */,
 				9C5F60892251E8ED00BCC1DD /* BluetoothConnectionHandler.swift in Sources */,
 				9C93F5622FBE0A8B007F2717 /* UIColor+Compat.swift in Sources */,
 				2D8448D1224D76AA006BF86F /* AppDelegate.swift in Sources */,

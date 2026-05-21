@@ -102,6 +102,12 @@ void RobotControl::loadSettings()
     encoderInvertL_ = settings.value("encoderInvertL", true).toBool();
     encoderInvertR_ = settings.value("encoderInvertR", true).toBool();
 
+    // Speed PID — B-Robot tarzı cascade. Defaults bench testing'den.
+    spdKp      = settings.value("spdKp",      0.12f).toFloat();
+    spdKi      = settings.value("spdKi",      0.20f).toFloat();
+    spdMaxTilt = settings.value("spdMaxTilt", 5.0f).toFloat();
+    spdMaxVel  = settings.value("spdMaxVel",  3.0f).toFloat();
+
     // Legacy fields no longer read or written:
     //   aggSD       (was yaw PID gain for gyro-Z control; now encoder-based
     //               with hardcoded gains)
@@ -127,6 +133,10 @@ void RobotControl::saveSettings()
     settings.setValue("motorInvertR",    motorInvertR_);
     settings.setValue("encoderInvertL",  encoderInvertL_);
     settings.setValue("encoderInvertR",  encoderInvertR_);
+    settings.setValue("spdKp",           spdKp);
+    settings.setValue("spdKi",           spdKi);
+    settings.setValue("spdMaxTilt",      spdMaxTilt);
+    settings.setValue("spdMaxVel",       spdMaxVel);
     // Migrate old key names: if present from older builds, drop them.
     if (settings.contains("aggSD"))     settings.remove("aggSD");
     if (settings.contains("yawInvert")) settings.remove("yawInvert");
@@ -567,32 +577,54 @@ void RobotControl::controlLoop(float /*dt*/)
     // The integral is the workhorse: when actual vel doesn't match target,
     // the integrator slowly accumulates corrective tilt. This gives smooth
     // acceleration AND smooth braking on release.
-    constexpr float MAX_SPEED_TILT_DEG  = 10.0f;     // 14° in B-Robot
-    constexpr float MAX_TARGET_VEL      = 4.0f;      // ticks/loop @ full stick
-    constexpr float SPD_PID_KP          = 0.08f;     // B-Robot 0.075
-    constexpr float SPD_PID_KI          = 0.10f;     // B-Robot 0.1  (the workhorse)
-    constexpr float SPD_PID_I_LIMIT     = 10.0f;     // generous integral room
+    // Speed PID parametreleri — settings.ini'den yüklenir, iOS Settings'ten ayarlanabilir.
+    // Defaults: spdKp=0.15, spdKi=0.30, spdMaxTilt=6.0°, spdMaxVel=4.0
+    const float MAX_SPEED_TILT_DEG  = spdMaxTilt;
+    const float MAX_TARGET_VEL      = spdMaxVel;
+    const float SPD_PID_KP          = spdKp;
+    const float SPD_PID_KI          = spdKi;
+    constexpr float SPD_PID_I_LIMIT = 3.0f;
 
     // Map joystick (-180..+180) → target velocity (-MAX..+MAX).
-    float targetVel = -(float)curSpeed / 180.0f * MAX_TARGET_VEL;
+    // Sign convention finalized 2026-05-21:
+    //   iOS joystick up = user's "forward" intent
+    //   balancerobot.cpp maps mBackward (which iOS sends for "up") → cmd>0
+    //   here: cmd>0 should drive encoder vel>0 (user's "forward" direction)
+    //   so targetVel has SAME sign as cmd (no negate).
+    //   velErr = vel - target gives correct brake-on-release behavior.
+    float targetVel = (float)curSpeed / 180.0f * MAX_TARGET_VEL;
     targetVel = std::clamp(targetVel, -MAX_TARGET_VEL, MAX_TARGET_VEL);
     targetVelFilt_ = targetVel;   // no extra slew — Ki acts as natural slew
 
-    // Speed PID — error sign chosen so output brakes the chassis when
-    // target=0. Logs showed (target - vel) integrated in the SAME direction
-    // as the existing motion → kept pushing robot forward. Using
-    // (vel - target) instead: integral grows in the OPPOSITE direction
-    // → counter-tilt → brake.
+    // Speed PID — error = (actual - target). With pidInvert in the tilt
+    // application stage, this sign gives:
+    //   target=0, vel<0 → velErr<0 → integral<0 → speedTilt<0
+    //                  → pidInvert: +speedTilt → targetAngle POSITIVE
+    //                  → pitch loop drives robot in +vel direction (brake) ✓
+    //   target>0, vel=0 → velErr<0 → speedTilt<0 → targetAngle>0
+    //                  → robot accelerates in +vel direction (drive) ✓
     float velErr = chassisVelFilt_ - targetVel;
     spdPidIntegral_ += SPD_PID_KI * velErr * LOOP_DT_TARGET;
     spdPidIntegral_ = std::clamp(spdPidIntegral_, -SPD_PID_I_LIMIT, SPD_PID_I_LIMIT);
+
+    // ANTI-WINDUP / BRAKE RELEASE: when user releases stick AND chassis
+    // is nearly stopped, decay the integrator quickly. Otherwise leftover
+    // integral from extended motion holds a tilt offset that causes drift
+    // (saw in logs: spdTilt held +0.80 for seconds after stop, robot
+    // crept forward). Decay only when both target=0 AND |vel| small —
+    // during active braking we WANT the integral to stay big.
+    if (curSpeed == 0 && std::fabs(chassisVelFilt_) < 0.5f) {
+        spdPidIntegral_ *= 0.90f;   // ~22 loops (110 ms) to halve
+    }
+
     float speedTiltTarget = velErr * SPD_PID_KP + spdPidIntegral_;
     speedTiltTarget = std::clamp(speedTiltTarget,
                                  -MAX_SPEED_TILT_DEG, MAX_SPEED_TILT_DEG);
 
-    // Light slew rate limit — Ki already smooths input, this just prevents
-    // single-cycle PWM spikes from a noisy velocity sample.
-    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.10f;   // ~20°/sec — fast but bounded
+    // Tight slew rate — log showed spdTilt jumping from 0 to -0.94° in
+    // a single cycle when stick was pushed (cmd 0 → +95), too fast for
+    // the pitch loop to track. Limit to 0.02°/loop = 4°/sec ramp.
+    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.02f;
     float tiltDelta = speedTiltTarget - speedOffsetFilt_;
     if (tiltDelta >  MAX_TILT_DELTA_PER_LOOP) tiltDelta =  MAX_TILT_DELTA_PER_LOOP;
     if (tiltDelta < -MAX_TILT_DELTA_PER_LOOP) tiltDelta = -MAX_TILT_DELTA_PER_LOOP;
@@ -738,23 +770,6 @@ void RobotControl::controlLoop(float /*dt*/)
         lockedYawDiff_ = yawDiff;
     }
     yawCorrection_ = yawCorrection;   // also stored as member for telemetry
-
-    // Diagnostic: log control state every 100 ms while armed.
-    // Shows everything needed to understand release-from-motion behavior.
-    {
-        static auto lastDiag = std::chrono::steady_clock::now();
-        auto nowTime = std::chrono::steady_clock::now();
-        if (isArmed.load() &&
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                nowTime - lastDiag).count() > 100) {
-            qDebug("ang=%+.2f tgt=%+.2f vel=%+.1f cmd=%+d spdTilt=%+.2f posTilt=%+.2f pidOut=%+.1f pos=%+ld lockP=%+ld",
-                   currentAngle_, targetAngle_,
-                   chassisVelFilt_, curSpeed,
-                   speedOffsetFilt_, posTilt, pidOut,
-                   chassisPos, lockedPos_);
-            lastDiag = nowTime;
-        }
-    }
 
     // -------- Motor çıkışları --------
     // Yaw correction sign — VERIFIED CORRECT by bench testing on
