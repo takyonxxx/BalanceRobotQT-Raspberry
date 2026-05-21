@@ -1,8 +1,8 @@
 # Balance Robot — Pi 5 + iOS Remote (BLE)
 
-İki tekerlekli kendini dengeleyen robot. Raspberry Pi 5 üzerinde Qt/C++ kontrol uygulaması ve iOS BLE uzaktan kumanda.
+A two-wheeled self-balancing robot. Qt/C++ control application on Raspberry Pi 5, with an iOS BLE remote control.
 
-## Mimari
+## Architecture
 
 ```
 iOS Joystick ──BLE GATT──> Pi 5 (Qt/C++) ──> Motor Driver
@@ -11,90 +11,90 @@ iOS Joystick ──BLE GATT──> Pi 5 (Qt/C++) ──> Motor Driver
                           (IMU @ I2C)          (Quadrature)
 ```
 
-**Kontrol mimarisi — B-Robot tarzı kademeli (cascade) PID:**
+**Control architecture — B-Robot style cascaded PID:**
 
 ```
-joystick ──> Speed PID ──> hedef tilt ──> Pitch PID ──> motor PWM
+joystick ──> Speed PID ──> target tilt ──> Pitch PID ──> motor PWM
               (outer)                       (inner)
                 ↑                              ↑
-            encoder vel                  IMU açısı + gyro
+            encoder vel                  IMU angle + gyro
 ```
 
-- **Speed PID (dış halka):** Hedef hızı tutturmak için robot için doğru eğim açısını hesaplar. Komut bırakıldığında karşı yöne eğilerek **otomatik fren** yapar.
-- **Pitch PID (iç halka):** Hedef açıya yetişmek için motor PWM üretir, robotu dengede tutar.
+- **Speed PID (outer loop):** Computes the correct body tilt to track the target velocity. When the stick is released, it leans the opposite way to **brake automatically**.
+- **Pitch PID (inner loop):** Generates motor PWM to chase the target angle and keep the robot upright.
 
-## Parametreler
+## Parameters
 
-Tüm parametreler iOS Settings sekmesinden canlı ayarlanır ve Pi'da `settings.ini`'ye kaydedilir.
+All parameters can be tuned live from the iOS Settings tab and are persisted to `settings.ini` on the Pi.
 
-### Pitch PID — Denge (iç halka)
+### Pitch PID — Balance (inner loop)
 
-| Parametre | Default | Açıklama |
-|-----------|---------|----------|
-| P (Proportional) | 25 | Açı hatasına anlık tepki. Yüksek = sert düzeltme, salınım riski. |
-| I (Integral) | 40 (0.40 real) | Sürekli açı hatasını düzeltir, gravite bias'ı için. |
-| D (Derivative) | 0.10 | Açı değişim hızı — sönümleme. Yüksek = sallanmayı azaltır. |
-| Angle trim (AC) | 0.0° | Manuel açı ofseti. |
-| Yaw gain (SD) | 2.0 | Encoder farkından yön düzeltme. |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| P (Proportional) | 25 | Instant response to angle error. High = stiff correction, oscillation risk. |
+| I (Integral) | 40 (0.40 real) | Corrects persistent angle error (gravity bias). |
+| D (Derivative) | 0.10 | Angle rate of change — damping. High = reduces swinging. |
+| Angle trim (AC) | 0.0° | Manual angle offset. |
+| Yaw gain (SD) | 2.0 | Heading correction from encoder difference. |
 
-### Speed PID — Hız kontrolü (dış halka)
+### Speed PID — Velocity control (outer loop)
 
-| Parametre | Default | Açıklama |
-|-----------|---------|----------|
-| Speed Kp | 0.12 | Hız hatasına anlık tepki. Yüksek = çevik ama salınım. |
-| Speed Ki | 0.20 | Hız hatasının integraliyle sürekli düzeltme. Asıl iş bunda. |
-| Speed Max Tilt | 5° | Speed PID'in talep edebileceği maksimum eğim. |
-| Speed Max Vel | 3.0 | Joystick tam ittiğindeki hedef hız (encoder tick/loop). |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Speed Kp | 0.12 | Instant response to velocity error. High = agile but oscillates. |
+| Speed Ki | 0.20 | Integrates velocity error — the workhorse of the Speed PID. |
+| Speed Max Tilt | 5° | Maximum tilt angle the Speed PID can request. |
+| Speed Max Vel | 3.0 | Target velocity at full stick deflection (encoder ticks/loop). |
 
 ### iOS-only
 
-| Parametre | Default | Açıklama |
-|-----------|---------|----------|
-| Forward speed | 180 | Joystick ileri/geri maksimum byte değeri (0-255). |
-| Turn speed | 60 | Joystick sol/sağ maksimum byte değeri. |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Forward speed | 180 | Max byte value (0-255) sent for forward/back joystick. |
+| Turn speed | 60 | Max byte value sent for left/right joystick. |
 
-## Tuning rehberi
+## Tuning guide
 
-### Hızlı tepki istiyorsan
-1. Önce **Speed Max Vel** artır (3.0 → 4.0 → 5.0) — hedef hız sınırı yükselir
-2. Sonra **Speed Kp** artır (0.12 → 0.15 → 0.18) — daha çevik tepki
-3. Yetmezse **Speed Max Tilt** artır (5° → 6° → 7°) — daha güçlü ivme
+### For snappier response
+1. First raise **Speed Max Vel** (3.0 → 4.0 → 5.0) — increases target velocity ceiling
+2. Then raise **Speed Kp** (0.12 → 0.15 → 0.18) — more agile response
+3. If still not enough, raise **Speed Max Tilt** (5° → 6° → 7°) — more aggressive acceleration
 
-### Sorun işaretleri ve çözümleri
-- **Komut bırakınca uzun süre kayıyor** → Speed Ki artır (0.20 → 0.30)
-- **Salınımlı / titrek** → Speed Kp düşür
-- **Bırakınca geri sallanıp düşüyor** → Speed Ki düşür
-- **Yerinde durmuyor, sürekli kayıyor** → Pitch Ki artır
-- **Yüksek frekanslı titreme** → Pitch Kd artır
-- **Kalkış sırasında ileri-geri sallanma** → Pitch Kp düşür
+### Symptoms and fixes
+- **Long coast after stick release** → raise Speed Ki (0.20 → 0.30)
+- **Oscillating / jittery** → lower Speed Kp
+- **Swings back and falls after release** → lower Speed Ki
+- **Drifts in place, won't sit still** → raise Pitch Ki
+- **High-frequency vibration** → raise Pitch Kd
+- **Front-to-back wobble during startup** → lower Pitch Kp
 
 ### Reset to Defaults
-iOS Settings sekmesinin alt kısmında **kırmızı "Reset all settings to defaults"** butonu. Tüm PID parametrelerini Pi default değerlerine geri çevirir.
+At the bottom of the iOS Settings tab, the red **"Reset all settings to defaults"** button restores every PID parameter to the Pi-side defaults.
 
-## Yön konvansiyonu
+## Direction convention
 
-- **Joystick yukarı** = ileri komut
-- **Joystick aşağı** = geri komut
-- **Joystick sağ/sol** = yön dönüşü
-- Pi tarafında: `cmd > 0` ileri, `cmd < 0` geri
-- Encoder pozitif yön = robotun ileri yönü
+- **Joystick up** = forward
+- **Joystick down** = backward
+- **Joystick left/right** = turn
+- On the Pi: `cmd > 0` means forward, `cmd < 0` means backward
+- Encoder positive direction = robot's forward direction
 
-`ControlViewController.swift:41` içindeki `invertY = false` bunu sağlıyor. Eğer motorlarını ters bağladıysan `invertY = true` yap.
+`ControlViewController.swift:41` has `invertY = false` to enforce this. If your motors are wired in reverse, flip it to `true`.
 
-## BLE protokol — Mesaj ID'leri
+## BLE protocol — Message IDs
 
-`message.h` (Pi) ve `MessageService.swift` (iOS) eşleşmeli.
+`message.h` (Pi) and `MessageService.swift` (iOS) must match.
 
 ```
-mHeader        = 0xb0  // Paket başlığı
-mWrite         = 0x01  // Yazma isteği
-mRead          = 0x02  // Okuma isteği
-mArmed         = 0x03  // Robot ARM
-mDisArmed      = 0x04  // Robot DISARM
-mForward       = 0xa0  // İleri komut
-mBackward      = 0xa1  // Geri komut
-mLeft          = 0xb0  // Sol dönüş
-mRight         = 0xb1  // Sağ dönüş
+mHeader        = 0xb0  // Packet header
+mWrite         = 0x01  // Write request
+mRead          = 0x02  // Read request
+mArmed         = 0x03  // ARM robot
+mDisArmed      = 0x04  // DISARM robot
+mForward       = 0xa0  // Forward command
+mBackward      = 0xa1  // Backward command
+mLeft          = 0xb0  // Turn left
+mRight         = 0xb1  // Turn right
 mPP            = 0xc0  // Pitch Kp
 mPI            = 0xc1  // Pitch Ki
 mPD            = 0xc2  // Pitch Kd
@@ -102,55 +102,55 @@ mSpdKp         = 0xc3  // Speed Kp (value/100)
 mSpdKi         = 0xc4  // Speed Ki (value/100)
 mSpdMaxTilt    = 0xc5  // Speed Max Tilt (raw degrees)
 mSpdMaxVel     = 0xc6  // Speed Max Vel (value/10)
-mAC            = 0xd0  // Açı trim (value/10)
+mAC            = 0xd0  // Angle trim (value/10)
 mSD            = 0xd1  // Yaw gain (value/10)
-mTelemetry     = 0xf0  // Canlı telemetri
-mAutoMode      = 0xf1  // Otomatik kalkış
-mTrimFine      = 0xf2  // Hassas trim
-mPositionHold  = 0xf3  // Pozisyon kilidi
-mResetTrim     = 0xf4  // Trim sıfırla
+mTelemetry     = 0xf0  // Live telemetry stream
+mAutoMode      = 0xf1  // Auto-arm on/off
+mTrimFine      = 0xf2  // Fine trim
+mPositionHold  = 0xf3  // Position hold
+mResetTrim     = 0xf4  // Reset trim
 ```
 
-## Donanım
+## Hardware
 
-- **Raspberry Pi 5** — ana kontrolcü
+- **Raspberry Pi 5** — main controller
 - **MPU6050** — IMU (I2C, address 0x68)
-- **L298N / RPi Motor Driver** — motor sürücü
-- **2× DC motor + quadrature encoder** — tahrik
+- **L298N / RPi Motor Driver** — motor driver
+- **2× DC motor + quadrature encoder** — drive train
 
-### GPIO pinleri (wiringPi numerasyonu)
+### GPIO pins (wiringPi numbering)
 
 ```
-SPD_INT_L = 16   // Sol encoder INT
-SPD_PUL_L = 12   // Sol encoder PUL
-SPD_INT_R = 18   // Sağ encoder INT
-SPD_PUL_R = 22   // Sağ encoder PUL
+SPD_INT_L = 16   // Left encoder INT
+SPD_PUL_L = 12   // Left encoder PUL
+SPD_INT_R = 18   // Right encoder INT
+SPD_PUL_R = 22   // Right encoder PUL
 ```
 
-## Kurulum
+## Installation
 
 ### Pi 5
 
 ```bash
-# Bağımlılıklar
+# Dependencies
 sudo apt install qt5-default libqt5bluetooth5 libi2c-dev wiringpi
 
-# Derle
+# Build
 cd ~/BalanceRobotPI
 make clean && make
 
-# Çalıştır
+# Run
 sudo ./BalanceRobotPI
 ```
 
 ### iOS
 
-1. `BalanceRobotRemote_IOS.zip` indir, çıkar
-2. `RobotControlBLE.xcodeproj` Xcode'da aç
-3. Bundle identifier kendi geliştirici hesabınla güncelle
-4. Build & Run telefona yükle
+1. Extract `BalanceRobotRemote_IOS.zip`
+2. Open `RobotControlBLE.xcodeproj` in Xcode
+3. Update the bundle identifier with your developer account
+4. Build & Run to the device
 
-### Otomatik başlatma (Pi systemd)
+### Auto-start on boot (Pi systemd)
 
 `/lib/systemd/system/balancerobot.service`:
 
@@ -173,47 +173,47 @@ sudo systemctl enable balancerobot.service
 sudo systemctl start balancerobot.service
 ```
 
-## Dosya yapısı
+## File layout
 
 ```
-BalanceRobotPI/                 # Pi tarafı (Qt/C++)
+BalanceRobotPI/                 # Pi side (Qt/C++)
 ├── main.cpp
-├── balancerobot.cpp/.h         # BLE komut handler
-├── robotcontrol.cpp/.h         # Ana kontrol döngüsü (PID, ISR)
+├── balancerobot.cpp/.h         # BLE command handler
+├── robotcontrol.cpp/.h         # Main control loop (PID, ISRs)
 ├── pid.cpp/.h                  # Pitch PID
-├── mpu6050.cpp/.h              # IMU
-├── message.h                   # BLE protokol mesaj ID'leri
-├── kalmanfilter.cpp/.h         # Açı füzyonu
-├── gattserver.cpp/.h           # BLE GATT sunucu
-└── settings.ini                # Çalışma zamanında kalıcı parametreler
+├── mpu6050.cpp/.h              # IMU driver
+├── message.h                   # BLE protocol message IDs
+├── kalmanfilter.cpp/.h         # Angle fusion
+├── gattserver.cpp/.h           # BLE GATT server
+└── settings.ini                # Runtime-persisted parameters
 
-BalanceRobotRemote_IOS/         # iOS tarafı (Swift)
+BalanceRobotRemote_IOS/         # iOS side (Swift)
 └── RobotControlBLE/
     ├── AppDelegate.swift
-    ├── ControlViewController.swift   # Ana ekran (joystick + telemetri)
-    ├── SettingsViewController.swift  # Settings sekmesi (PID slider'ları)
+    ├── ControlViewController.swift   # Main screen (joystick + telemetry)
+    ├── SettingsViewController.swift  # Settings tab (PID sliders)
     ├── JoystickView.swift            # Joystick widget
-    ├── MessageService.swift          # BLE mesaj ID'leri
+    ├── MessageService.swift          # BLE message IDs
     ├── AppSettings.swift             # UserDefaults wrapper
     └── Ble/
         └── BluetoothService.swift    # CoreBluetooth wrapper
 ```
 
-## Çalışma akışı
+## Runtime flow
 
-1. Pi açılır → `settings.ini` yüklenir → BLE advertise eder
-2. iOS bağlanır → Settings sekmesi açıldığında Pi'dan tüm parametreleri ister
-3. Robot dik tutulur → IMU upright algılar → `Auto-arm` aktifse otomatik ARM olur
-4. Pitch PID dengelemeyi başlatır, Speed PID joystick komutlarına göre tilt önerir
-5. Düşme tespit edilirse (>40°) → DISARM, motorlar durur
-6. Tekrar dik tutulduğunda otomatik yeniden başlar
+1. Pi boots → `settings.ini` is loaded → BLE starts advertising
+2. iOS connects → Settings tab requests current parameters from Pi
+3. Robot held upright → IMU detects upright pose → if `Auto-arm` is enabled, it automatically ARMs
+4. Pitch PID begins balancing; Speed PID requests a tilt based on joystick input
+5. If fall is detected (>40°) → DISARM, motors stop
+6. When held upright again, it auto-restarts
 
-## Bilinen sınırlar
+## Known limits
 
-- Düşük gerilimde (pil zayıfsa) PWM yetersiz kalır, dengeleme bozulur
-- Pürüzsüz zeminlerde tekerlek kayması olursa encoder okuma yanılır
-- Çok hızlı manevra sırasında IMU saturation olabilir
+- At low battery voltage, PWM saturates and balancing degrades
+- On slippery floors, wheel slip causes encoder velocity to lie
+- Very fast maneuvers can saturate the IMU rate gyro
 
-## Lisans
+## License
 
 MIT.
