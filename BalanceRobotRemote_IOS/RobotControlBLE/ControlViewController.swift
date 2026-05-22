@@ -50,6 +50,12 @@ class ControlViewController: UIViewController {
     // axis dominates, suppress the other when it's smaller than this
     // fraction of the dominant one.
     private let dominantAxisRatio: Float = 0.5
+
+    // Orientation-aware layout
+    private var portraitConstraints:  [NSLayoutConstraint] = []
+    private var landscapeConstraints: [NSLayoutConstraint] = []
+    private var joyAreaPortrait:  UILayoutGuide!
+    private var joyAreaLandscape: UILayoutGuide!
     
     // MARK: - Lifecycle
     
@@ -172,26 +178,46 @@ class ControlViewController: UIViewController {
         view.addSubview(fwdValueView)
         view.addSubview(turnValueView)
         
-        // Joystick'i dikey ortalamak için bir spacer layout guide kullan:
-        // joyArea = armButton.bottom + 20 .. safeArea.bottom - 20
-        // joystick.centerY = joyArea.centerY
-        let joyArea = UILayoutGuide()
-        view.addLayoutGuide(joyArea)
-        
+        // Joystick'i ortalamak için iki ayrı layout guide — portrait ve landscape
+        // farklı bölgeleri "joystick alanı" sayar.
+        joyAreaPortrait  = UILayoutGuide()
+        joyAreaLandscape = UILayoutGuide()
+        view.addLayoutGuide(joyAreaPortrait)
+        view.addLayoutGuide(joyAreaLandscape)
+
         let g = view.safeAreaLayoutGuide
+
+        // ─────────────────────────────────────────────────────────────
+        // ORTAK constraint'ler (orientation'dan bağımsız)
+        // ─────────────────────────────────────────────────────────────
         NSLayoutConstraint.activate([
-            joyArea.topAnchor.constraint(equalTo: armButton.bottomAnchor, constant: 12),
-            joyArea.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: -12),
-            joyArea.leadingAnchor.constraint(equalTo: g.leadingAnchor),
-            joyArea.trailingAnchor.constraint(equalTo: g.trailingAnchor),
+            // Joystick — kare ve boyut sınırları (her iki yönelimde de geçerli)
+            joystick.widthAnchor.constraint(equalTo: joystick.heightAnchor),
+            joystick.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
+            joystick.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
+
+            // ARM/STOP buton yükseklikleri her zaman 50
+            armButton.heightAnchor.constraint(equalToConstant: 50),
+            stopButton.heightAnchor.constraint(equalToConstant: 50),
+            connectButton.heightAnchor.constraint(equalToConstant: 44),
+
+            // FWD/TRN chip genişlikleri
+            fwdValueView.widthAnchor.constraint(equalToConstant: 80),
+            turnValueView.widthAnchor.constraint(equalToConstant: 80),
+        ])
+
+        // ─────────────────────────────────────────────────────────────
+        // PORTRAIT constraint'leri — dikey akış (önceki tasarım)
+        // ─────────────────────────────────────────────────────────────
+        portraitConstraints = [
+            // Üst bilgi bloğu
             statusLabel.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
             statusLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
-            
+
             connectButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
             connectButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             connectButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
-            connectButton.heightAnchor.constraint(equalToConstant: 44),
 
             ipLabel.topAnchor.constraint(equalTo: connectButton.bottomAnchor, constant: 6),
             ipLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
@@ -200,60 +226,180 @@ class ControlViewController: UIViewController {
             telemetryView.topAnchor.constraint(equalTo: ipLabel.bottomAnchor, constant: 8),
             telemetryView.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             telemetryView.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
-            telemetryView.heightAnchor.constraint(equalToConstant: 140),
-            
+            telemetryView.heightAnchor.constraint(equalToConstant: 230),
+
+            // ARM / STOP yan yana, ekran genişliğinin yarısı (-20 = orta boşluk)
             armButton.topAnchor.constraint(equalTo: telemetryView.bottomAnchor, constant: 14),
             armButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             armButton.widthAnchor.constraint(equalTo: g.widthAnchor, multiplier: 0.45, constant: -20),
-            armButton.heightAnchor.constraint(equalToConstant: 50),
-            
+
             stopButton.topAnchor.constraint(equalTo: telemetryView.bottomAnchor, constant: 14),
             stopButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
             stopButton.widthAnchor.constraint(equalTo: g.widthAnchor, multiplier: 0.45, constant: -20),
-            stopButton.heightAnchor.constraint(equalToConstant: 50),
-            
-            // Joystick — joyArea içinde dikey ortalı, ekran genişliğinin %58'i,
-            // 180..260px arasında.
+
+            // Joystick alanı: butonların altı .. safeArea alt
+            joyAreaPortrait.topAnchor.constraint(equalTo: armButton.bottomAnchor, constant: 12),
+            joyAreaPortrait.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: -12),
+            joyAreaPortrait.leadingAnchor.constraint(equalTo: g.leadingAnchor),
+            joyAreaPortrait.trailingAnchor.constraint(equalTo: g.trailingAnchor),
+
             joystick.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            joystick.centerYAnchor.constraint(equalTo: joyArea.centerYAnchor),
-            joystick.topAnchor.constraint(greaterThanOrEqualTo: joyArea.topAnchor),
-            joystick.bottomAnchor.constraint(lessThanOrEqualTo: joyArea.bottomAnchor),
-            joystick.widthAnchor.constraint(equalTo: joystick.heightAnchor),
+            joystick.centerYAnchor.constraint(equalTo: joyAreaPortrait.centerYAnchor),
+            joystick.topAnchor.constraint(greaterThanOrEqualTo: joyAreaPortrait.topAnchor),
+            joystick.bottomAnchor.constraint(lessThanOrEqualTo: joyAreaPortrait.bottomAnchor),
             joystick.widthAnchor.constraint(equalTo: g.widthAnchor,
                                             multiplier: 0.58).withPriority(.defaultHigh),
-            joystick.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
-            joystick.widthAnchor.constraint(greaterThanOrEqualToConstant: 180),
-            
-            // FWD chip — joystick'in solunda, dikey olarak joystick ile aynı
+
+            // FWD chip — joystick'in solunda
             fwdValueView.centerYAnchor.constraint(equalTo: joystick.centerYAnchor),
             fwdValueView.trailingAnchor.constraint(lessThanOrEqualTo: joystick.leadingAnchor,
                                                    constant: -12),
             fwdValueView.leadingAnchor.constraint(greaterThanOrEqualTo: g.leadingAnchor,
                                                   constant: 12),
-            fwdValueView.widthAnchor.constraint(equalToConstant: 80),
-            
+
             // TRN chip — joystick'in sağında
             turnValueView.centerYAnchor.constraint(equalTo: joystick.centerYAnchor),
             turnValueView.leadingAnchor.constraint(greaterThanOrEqualTo: joystick.trailingAnchor,
                                                    constant: 12),
             turnValueView.trailingAnchor.constraint(lessThanOrEqualTo: g.trailingAnchor,
                                                     constant: -12),
-            turnValueView.widthAnchor.constraint(equalToConstant: 80),
-        ])
-        
-        // Yan etiketleri ekran kenarlarına yakın yapıştır (joystick'in
-        // tam yanına gelmesin diye preferred trailing/leading koy):
-        let fwdTrail = fwdValueView.trailingAnchor.constraint(
+        ]
+
+        // Portrait için chip "tercih edilen" pozisyon — joystick'e yapışsın
+        let fwdTrailP = fwdValueView.trailingAnchor.constraint(
             equalTo: joystick.leadingAnchor, constant: -12)
-        fwdTrail.priority = .defaultHigh
-        fwdTrail.isActive = true
-        
-        let turnLead = turnValueView.leadingAnchor.constraint(
+        fwdTrailP.priority = .defaultHigh
+        let turnLeadP = turnValueView.leadingAnchor.constraint(
             equalTo: joystick.trailingAnchor, constant: 12)
-        turnLead.priority = .defaultHigh
-        turnLead.isActive = true
+        turnLeadP.priority = .defaultHigh
+        portraitConstraints.append(contentsOf: [fwdTrailP, turnLeadP])
+
+        // ─────────────────────────────────────────────────────────────
+        // LANDSCAPE constraint'leri — sol bilgi paneli / sağ kontrol paneli
+        // ─────────────────────────────────────────────────────────────
+        // Ekranı ikiye bölen orta çizgi referansı
+        let midX = view.centerXAnchor
+
+        landscapeConstraints = [
+            // ── SOL SÜTUN: status, connect, ipLabel, telemetri ──
+            statusLabel.topAnchor.constraint(equalTo: g.topAnchor, constant: 4),
+            statusLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            statusLabel.trailingAnchor.constraint(equalTo: midX, constant: -8),
+
+            connectButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 4),
+            connectButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            connectButton.trailingAnchor.constraint(equalTo: midX, constant: -8),
+
+            ipLabel.topAnchor.constraint(equalTo: connectButton.bottomAnchor, constant: 4),
+            ipLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            ipLabel.trailingAnchor.constraint(equalTo: midX, constant: -8),
+
+            telemetryView.topAnchor.constraint(equalTo: ipLabel.bottomAnchor, constant: 6),
+            telemetryView.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            telemetryView.trailingAnchor.constraint(equalTo: midX, constant: -8),
+            // Landscape: kalan tüm dikey alanı doldur ama maksimumu sınırla
+            telemetryView.bottomAnchor.constraint(lessThanOrEqualTo: g.bottomAnchor, constant: -8),
+            telemetryView.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
+            telemetryView.heightAnchor.constraint(lessThanOrEqualToConstant: 260),
+
+            // ── SAĞ SÜTUN: ARM/STOP üstte yan yana, altında joystick ──
+            armButton.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            armButton.leadingAnchor.constraint(equalTo: midX, constant: 8),
+            armButton.widthAnchor.constraint(equalTo: g.widthAnchor,
+                                             multiplier: 0.22, constant: -10),
+
+            stopButton.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            stopButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            stopButton.widthAnchor.constraint(equalTo: g.widthAnchor,
+                                              multiplier: 0.22, constant: -10),
+
+            // Sağ taraftaki joystick alanı: ARM/STOP'un altı, safeArea alt
+            joyAreaLandscape.topAnchor.constraint(equalTo: armButton.bottomAnchor, constant: 8),
+            joyAreaLandscape.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: -8),
+            joyAreaLandscape.leadingAnchor.constraint(equalTo: midX, constant: 8),
+            joyAreaLandscape.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+
+            // Joystick alanı içinde ortalı
+            joystick.centerXAnchor.constraint(equalTo: joyAreaLandscape.centerXAnchor),
+            joystick.centerYAnchor.constraint(equalTo: joyAreaLandscape.centerYAnchor),
+            joystick.topAnchor.constraint(greaterThanOrEqualTo: joyAreaLandscape.topAnchor),
+            joystick.bottomAnchor.constraint(lessThanOrEqualTo: joyAreaLandscape.bottomAnchor),
+            // Landscape: yatay yer az, joystick yüksekliğin %85'ine kadar kullanabilir
+            joystick.heightAnchor.constraint(lessThanOrEqualTo: joyAreaLandscape.heightAnchor,
+                                             multiplier: 0.95),
+            joystick.widthAnchor.constraint(lessThanOrEqualTo: joyAreaLandscape.widthAnchor,
+                                            multiplier: 0.85),
+
+            // FWD chip — joystick'in solunda (sağ panel içinde)
+            fwdValueView.centerYAnchor.constraint(equalTo: joystick.centerYAnchor),
+            fwdValueView.leadingAnchor.constraint(greaterThanOrEqualTo: joyAreaLandscape.leadingAnchor,
+                                                  constant: 4),
+            fwdValueView.trailingAnchor.constraint(lessThanOrEqualTo: joystick.leadingAnchor,
+                                                   constant: -8),
+
+            // TRN chip — joystick'in sağında (sağ panel içinde)
+            turnValueView.centerYAnchor.constraint(equalTo: joystick.centerYAnchor),
+            turnValueView.leadingAnchor.constraint(greaterThanOrEqualTo: joystick.trailingAnchor,
+                                                   constant: 8),
+            turnValueView.trailingAnchor.constraint(lessThanOrEqualTo: joyAreaLandscape.trailingAnchor,
+                                                    constant: -4),
+        ]
+
+        // Landscape için chip "tercih edilen" pozisyon
+        let fwdTrailL = fwdValueView.trailingAnchor.constraint(
+            equalTo: joystick.leadingAnchor, constant: -8)
+        fwdTrailL.priority = .defaultHigh
+        let turnLeadL = turnValueView.leadingAnchor.constraint(
+            equalTo: joystick.trailingAnchor, constant: 8)
+        turnLeadL.priority = .defaultHigh
+        landscapeConstraints.append(contentsOf: [fwdTrailL, turnLeadL])
+
+        // İlk yönelime göre aktif et
+        applyOrientationConstraints()
     }
     
+    // MARK: - Orientation
+
+    /// Aktif trait collection'a göre portrait ya da landscape constraint
+    /// dizisini uygular. Hem iPhone hem iPad'de doğru çalışır:
+    /// verticalSizeClass == .compact → landscape iPhone.
+    private func applyOrientationConstraints() {
+        let isLandscape: Bool
+        if traitCollection.verticalSizeClass == .compact {
+            // iPhone landscape (ve iPad bazı split modları)
+            isLandscape = true
+        } else {
+            // Bounds bazlı fallback (iPad'de hem dikey hem yatay .regular)
+            isLandscape = view.bounds.width > view.bounds.height
+        }
+
+        if isLandscape {
+            NSLayoutConstraint.deactivate(portraitConstraints)
+            NSLayoutConstraint.activate(landscapeConstraints)
+        } else {
+            NSLayoutConstraint.deactivate(landscapeConstraints)
+            NSLayoutConstraint.activate(portraitConstraints)
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        // Vertical size class değişimi = portrait↔landscape geçişi
+        if traitCollection.verticalSizeClass != previousTraitCollection?.verticalSizeClass {
+            applyOrientationConstraints()
+        }
+    }
+
+    override func viewWillTransition(to size: CGSize,
+                                     with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        // iPad'de size class değişmediği halde rotation olur — bounds bazlı yenile
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.applyOrientationConstraints()
+            self?.view.layoutIfNeeded()
+        }, completion: nil)
+    }
+
     private func configureBigButton(_ b: UIButton, title: String, bgColor: UIColor, action: Selector) {
         b.setTitle(title, for: .normal)
         b.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
