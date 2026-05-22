@@ -211,6 +211,65 @@ SPD_PUL_R = pin 22   // Right encoder channel B (direction)   ← motor C2
 
 I²C (MPU6050): SDA on header pin 3, SCL on header pin 5 (`/dev/i2c-1`, addr `0x68`).
 
+### How the 6 motor-drive pins control the H-bridges
+
+Each MC33886 H-bridge needs **3 wires** from the Pi: two direction bits (`IN1` / `IN2`) and one PWM enable (`ENA`). The direction bits pick *which way* the motor spins, and the PWM duty cycle on the enable pin picks *how fast*. With two motors, the Pi spends 6 GPIOs total on motor control — exactly the 6 listed in the `MOTOR DRIVE OUTPUTS` section above.
+
+H-bridge truth table per motor:
+
+| IN1 | IN2 | ENA (PWM) | Result |
+|-----|-----|-----------|--------|
+| LOW | LOW | x | Coast (motor free-wheels) |
+| HIGH | LOW | 0–255 | Forward, speed ∝ duty cycle |
+| LOW | HIGH | 0–255 | Reverse, speed ∝ duty cycle |
+| HIGH | HIGH | x | Brake (both motor terminals shorted) |
+
+Pin-to-function mapping:
+
+| Side | Pi pin | Name | Role on the H-bridge | Wire color in diagram |
+|------|--------|------|----------------------|-----------------------|
+| Right motor | Pin 31 | `PWMR1` | IN1 — direction bit 1 | 🔵 blue (direction) |
+| Right motor | Pin 32 | `PWMR`  | ENA — PWM enable (speed) | 🟠 orange (PWM) |
+| Right motor | Pin 33 | `PWMR2` | IN2 — direction bit 2 | 🔵 blue (direction) |
+| Left motor  | Pin 37 | `PWML`  | ENA — PWM enable (speed) | 🟠 orange (PWM) |
+| Left motor  | Pin 38 | `PWML1` | IN1 — direction bit 1 | 🔵 blue (direction) |
+| Left motor  | Pin 40 | `PWML2` | IN2 — direction bit 2 | 🔵 blue (direction) |
+
+The Pitch PID produces a signed 16-bit PWM command in the range `−255 … +255` for each wheel. `applyMotors(int pwmL, int pwmR)` in `robotcontrol.cpp` converts that signed value into the right combination of direction bits + PWM duty cycle:
+
+```cpp
+// Right motor — positive pwmR means forward
+if (pwmR > 0) {
+    digitalWrite(PWMR1, HIGH);   // pin 31
+    digitalWrite(PWMR2, LOW);    // pin 33
+    softPwmWrite (PWMR, pwmR);   // pin 32 — duty 0..255
+}
+else if (pwmR < 0) {             // negative → reverse
+    digitalWrite(PWMR1, LOW);
+    digitalWrite(PWMR2, HIGH);
+    softPwmWrite (PWMR, -pwmR);
+}
+else {                           // zero → coast
+    digitalWrite(PWMR1, LOW);
+    digitalWrite(PWMR2, LOW);
+    softPwmWrite (PWMR, 0);
+}
+
+// Left motor — IN1/IN2 are SWAPPED (motor is mirror-mounted)
+if (pwmL > 0) {
+    digitalWrite(PWML1, LOW);    // pin 38  ← note swap
+    digitalWrite(PWML2, HIGH);   // pin 40  ← note swap
+    softPwmWrite (PWML, pwmL);   // pin 37
+}
+// ...same pattern for pwmL < 0 and pwmL == 0
+```
+
+**Why the left motor's IN1/IN2 are swapped:** the two motors are bolted into the chassis facing each other (mirror-mounted), so "wheel rotates forward" corresponds to *opposite* shaft directions on the two motors. Instead of rewiring the M1/M2 power leads, the code flips the polarity in software (`// Sol motor ters monte edildiği için pin'ler ters`) so that a positive PWM on either side means "robot moves forward" at the algorithm level. The Speed PID never has to know that the motors are mirror-mounted.
+
+**Why these specific pin numbers (31, 32, 33, 37, 38, 40 — with gaps):** the gaps (34, 35, 36, 39) are header pins reserved for GND or for GPIOs used elsewhere in the project, so the firmware picks the closest run of physical pins that are all free for general output. Because `wiringPiSetupPhys()` is used, the numbers in `constants.h` are exactly what's printed on a Pi pinout diagram — no BCM ↔ wiringPi translation needed.
+
+The whole 6-pin block is rewritten once per Pitch PID tick (~1 kHz), and **this is where the inner balance loop physically closes** — every other layer (Speed PID, joystick, BLE) ultimately just changes the `pwmL` / `pwmR` numbers that land here.
+
 ### Wiring diagram
 
 End-to-end map of every connection that `constants.h` and `robotcontrol.cpp` actually drive. Wire colors: **red** +5 V, **black** GND, **purple** I²C, **blue** H-bridge direction, **orange** PWM enable, **green** encoder A/B.
@@ -229,17 +288,47 @@ A few code-side details worth knowing when wiring:
 
 ### Pi 5
 
+The Pi-side app links against Qt5 (Core / Bluetooth / Network / Multimedia), libi2c, ALSA + FLAC for audio capture, and WiringPi for GPIO + software PWM. WiringPi is no longer in the Debian / Raspberry Pi OS repositories, so it must be built from the maintained fork.
+
 ```bash
-# Dependencies
-sudo apt install qt5-default libqt5bluetooth5 libi2c-dev wiringpi
+# --- 1. System update ---
+sudo apt-get update
 
-# Build
+# --- 2. Qt5 ---
+sudo apt-get install qtmultimedia5-dev \
+                     libqt5multimedia5-plugins \
+                     libqt5bluetooth5 libqt5bluetooth5-bin \
+                     qtconnectivity5-dev
+
+# --- 3. I²C (MPU6050) ---
+sudo apt-get install libi2c-dev
+
+# --- 4. Audio (ALSA / PulseAudio / FLAC, used by the on-board speech features) ---
+sudo apt-get install libasound2-dev \
+                     sox libsox-fmt-all \
+                     pulseaudio alsa-tools \
+                     libflac-dev
+
+# --- 5. WiringPi — must be built from source (no longer in apt) ---
+git clone https://github.com/WiringPi/WiringPi.git
+cd WiringPi
+sudo ./build
+cd ..
+
+# --- 6. Enable I²C on the Pi ---
+sudo raspi-config       # Interface Options → I2C → Enable, then reboot
+
+# --- 7. Build the application ---
 cd ~/BalanceRobotPI
-make clean && make
+qmake BalanceRobotPI.pro
+make -j4
 
-# Run
+# --- 8. Run (sudo is required: WiringPi needs /dev/mem and the BLE GATT
+#         server needs to register on the system Bluetooth bus) ---
 sudo ./BalanceRobotPI
 ```
+
+After the first run, parameters tuned from the iOS app are persisted to `settings.ini` next to the binary — keep an eye on it the first time you tune the PIDs.
 
 ### iOS
 
