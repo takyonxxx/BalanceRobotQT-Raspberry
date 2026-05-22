@@ -239,8 +239,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
             break;
         }
         case mSpeak: {
-            QString s = QString::fromUtf8(parsedValue.data(), parsedValue.size());
-            if (speaker) speaker->speak(s);
+            QString s = QString::fromUtf8(parsedValue.data(), parsedValue.size());           
             break;
         }
         default: qDebug() << "Unknown write cmd:" << parsedCommand; break;
@@ -270,9 +269,6 @@ void BalanceRobot::init()
     }
     qDebug() << "Local IP:" << ip << "MAC:" << mac;
 
-    speaker = Speaker::getInstance();
-    if (speaker) speaker->setLanguageCode(SType::TR);
-
     gattServer = GattServer::getInstance();
     if (gattServer) {
         QObject::connect(gattServer, &GattServer::connectionState,
@@ -294,6 +290,5 @@ void BalanceRobot::init()
 
     QObject::connect(&telemetryTimer, &QTimer::timeout,
                      this, &BalanceRobot::onTelemetryTick);
-    // İstemci bağlanmadığı için timer henüz başlatılmıyor;
-    // connection state değiştiğinde başlatılır.
+
 }

@@ -1,65 +1,54 @@
 TEMPLATE = app
 QT -= gui
-QT += bluetooth network multimedia
+QT += bluetooth network
 
 CONFIG += c++17 console
 CONFIG -= app_bundle
 TARGET = BalanceRobotPI
 
 SOURCES += main.cpp \
-    alsarecorder.cpp \
-    alsatranslator.cpp \
     balancerobot.cpp \
     gattserver.cpp \
     i2cdev.cpp \
-    kalmanfilter.cpp \
     message.cpp \
     mpu6050.cpp \
-    networkrequest.cpp \
     pid.cpp \
-    robotcontrol.cpp \
-    speaker.cpp
+    robotcontrol.cpp
 
 HEADERS += \
-    alsarecorder.h \
-    alsatranslator.h \
     balancerobot.h \
     constants.h \
     gattserver.h \
     i2cdev.h \
     kalman.h \
-    kalmanfilter.h \
     message.h \
     mpu6050.h \
-    networkrequest.h \
     pid.h \
-    robotcontrol.h \
-    speaker.h
+    robotcontrol.h
 
 QMAKE_INCDIR += /usr/local/include
-QMAKE_LIBDIR += /usr/lib
-QMAKE_LIBDIR += /usr/local/lib
-QMAKE_LIBDIR += /usr/lib/x86_64-linux-gnu
-INCLUDEPATH += /usr/local/include
+QMAKE_LIBDIR += /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu
+INCLUDEPATH  += /usr/local/include
 
-LIBS +=  -lm -lcrypt -lasound -lwiringPi -li2c -lFLAC
+# Link order matters: WiringPi (GPIO + soft PWM) + libi2c (MPU6050 bus access).
+LIBS += -lm -lcrypt -lwiringPi -li2c
 
-
-RESOURCES +=
-
-DISTFILES +=
-
-#sudo apt-get install libasound2-dev
-#sudo apt-get install sox libsox-fmt-all
-#sudo apt-get install pulseaudio alsa-tools
-#sudo apt-get install qtmultimedia5-dev
-#sudo apt-get install libqt5bluetooth5 libqt5bluetooth5-bin
-#sudo apt-get install qtconnectivity5-dev
-#sudo apt install libqt5multimedia5-plugins
-#sudo apt-get install libflac-dev
-#sudo apt-get update
-#sudo apt-get install libi2c-dev
-#git clone https://github.com/WiringPi/WiringPi.git
-#cd WiringPi
-#sudo ./build
-#rtsp://192.168.1.8:8554/webcam
+# -------- Build environment notes --------
+#
+# Tested on Raspberry Pi OS Bookworm (64-bit) with Qt6. Build with qmake6:
+#     qmake6 BalanceRobotPI.pro && make -j4
+#
+# Required apt packages (see README "Installation > Pi 5" for the full block):
+#     sudo apt-get install qmake6 qt6-base-dev qt6-connectivity-dev
+#     sudo apt-get install libqt6bluetooth6 libqt6network6
+#     sudo apt-get install libi2c-dev
+#
+# Qt5 fallback (older Raspberry Pi OS only) — use qmake instead of qmake6:
+#     sudo apt-get install qtconnectivity5-dev libqt5bluetooth5 libqt5bluetooth5-bin
+#
+# WiringPi is not in apt anymore - build it from the maintained fork:
+#     git clone https://github.com/WiringPi/WiringPi.git
+#     cd WiringPi && sudo ./build
+#
+# Enable I2C on the Pi:
+#     sudo raspi-config       # Interface Options > I2C > Enable, then reboot

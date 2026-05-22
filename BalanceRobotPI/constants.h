@@ -1,5 +1,6 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
+
 #include <QString>
 #include <QDebug>
 #include <QObject>
@@ -12,110 +13,72 @@
 #include <message.h>
 #include <sys/time.h>
 
-#define SLEEP_PERIOD 1000 //us;s
-#define SERIAL_TIME  100 //ms
-#define SAMPLE_TIME  1//ms
+// -----------------------------------------------------------------------------
+// Loop timing
+// -----------------------------------------------------------------------------
+#define SLEEP_PERIOD 1000   // microseconds — main loop pacing
+#define SERIAL_TIME  100    // milliseconds — telemetry / BLE rate
+#define SAMPLE_TIME  1      // milliseconds — IMU sample interval
 
+// -----------------------------------------------------------------------------
+// I²C
+// -----------------------------------------------------------------------------
 #define MPU6050_I2C_ADDRESS 0x68
-#define RESTRICT_PITCH
+#define RESTRICT_PITCH                // MPU6050 fusion mode flag
 
-//physcal pins
-#define PWMR1  31
-#define PWMR2  33
-#define PWML1  38
-#define PWML2  40
-#define PWMR   32
-#define PWML   37
+// -----------------------------------------------------------------------------
+// Motor driver pins — Waveshare RPi Motor Driver Board (MC33886 × 2)
+//
+// Pin numbers are PHYSICAL header positions (the code calls
+// wiringPiSetupPhys()). The driver mounts as a HAT, so these pins mate
+// through the 40-pin header, not as loose wires.
+//
+// Each motor needs 3 lines: IN1 + IN2 (direction) + ENA (PWM enable).
+// -----------------------------------------------------------------------------
+#define PWMR1  31    // Right motor — IN1 (direction bit 1)
+#define PWMR2  33    // Right motor — IN2 (direction bit 2)
+#define PWMR   32    // Right motor — ENA (PWM speed,  softPwm 0..255)
+#define PWML1  38    // Left  motor — IN1 (direction bit 1)
+#define PWML2  40    // Left  motor — IN2 (direction bit 2)
+#define PWML   37    // Left  motor — ENA (PWM speed,  softPwm 0..255)
 
-//encoder define
-#define SPD_INT_L 16   //interrupt R Phys:16
-#define SPD_PUL_L 12   //Phys:12
-#define SPD_INT_R 18   //interrupt L Phys:22
-#define SPD_PUL_R 22   //Phys:18
-
-#define Ref_Meters		180.0		// Reference for meters in adaptive predictive control
-#define NL				0.005		// Noise Level for Adaptive Mechanism.
-#define GainA 			0.6			// Gain for Adaptive Mechanism A
-#define GainB 			0.6			// Gain for Adaptive Mechanism B
-#define PmA				2			// Delay Parameters a
-#define PmB				2			// Delay Parameters b
-#define nCP				9.0			// Conductor block periods control for rise to set point ts = n * CP
-#define hz				5			// Prediction Horizon (Horizon max = n + 2)
-#define UP_Roll			800.0		// Upper limit out
-#define UP_Yaw			150.0		// Upper limit out
-#define GainT_Roll		12.0		// Total Gain Roll Out Controller
-#define GainT_Yaw		5.0			// Total Gain Yaw Out Controller
-#define MaxOut_Roll		UP_Roll/GainT_Roll
-#define MaxOut_Yaw		UP_Yaw/GainT_Yaw
-
-#define Kp_ROLLPITCH 0.2		// Pitch&Roll Proportional Gain
-#define Ki_ROLLPITCH 0.000001	// Pitch&Roll Integrator Gain
+// -----------------------------------------------------------------------------
+// Quadrature encoder pins — Hall encoder on each 37 mm DC motor
+//
+// Channel A (SPD_INT_*) triggers an ISR on rising edge; the ISR then reads
+// channel B (SPD_PUL_*) to recover direction. All four inputs use internal
+// pull-ups (PUD_UP).
+// -----------------------------------------------------------------------------
+#define SPD_INT_L 16    // Left  motor encoder — channel A (interrupt)
+#define SPD_PUL_L 12    // Left  motor encoder — channel B (direction sample)
+#define SPD_INT_R 18    // Right motor encoder — channel A (interrupt)
+#define SPD_PUL_R 22    // Right motor encoder — channel B (direction sample)
 
 using namespace std;
 
-static QString baseSpeechApi = "https://speech.googleapis.com/v1/speech:recognize";
-static QString apiSpeechKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
-static QString baseDuckduckgo = "http://api.duckduckgo.com";
-static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
-
-
+// -----------------------------------------------------------------------------
+// Language flag for the on-board TTS (Speaker class wraps espeak)
+// -----------------------------------------------------------------------------
 enum SType
 {
     TR,
     EN
 };
 
-
-template <typename T>
-double mov_avg(vector<T> vec, int len){
-  deque<T> dq = {};
-  for(auto i = 0;i < vec.size();i++){
-    if(i < len){
-      dq.push_back(vec[i]);
-    }
-    else {
-      dq.pop_front();
-      dq.push_back(vec[i]);
-    }
-  }
-  double cs = 0;
-  for(auto i : dq){
-    cs += i;
-  }
-  return cs / len;
-}
-
-template<class T>
-const T& constrain(const T& x, const T& a, const T& b) {
-    if(x < a) {
-        return a;
-    }
-    else if(b < x) {
-        return b;
-    }
-    else
-        return x;
-}
-
-static char * appendChar(char * string1, char * string2)
-{
-    char * result = NULL;
-    asprintf(&result, "%s%s", string1, string2);
-    return result;
-}
-
-
+// -----------------------------------------------------------------------------
+// Run a shell command and discard its output. Used by a few helpers that
+// need to invoke aplay / amixer / espeak.
+// -----------------------------------------------------------------------------
 static void execCommand(char* cmd)
 {
-    auto command = appendChar(cmd, (char*)">>/dev/null 2>>/dev/null");
+    char appended[512];
+    snprintf(appended, sizeof(appended), "%s >>/dev/null 2>>/dev/null", cmd);
     char buffer[128];
-    std::string result = "";
-    FILE* pipe = popen(command, "r");
+    FILE* pipe = popen(appended, "r");
     if (!pipe) throw std::runtime_error("popen() failed!");
     try {
         while (!feof(pipe)) {
-            if (fgets(buffer, 128, pipe) != nullptr)
-                result += buffer;
+            if (fgets(buffer, 128, pipe) == nullptr) break;
         }
     } catch (...) {
         pclose(pipe);
@@ -124,35 +87,38 @@ static void execCommand(char* cmd)
     pclose(pipe);
 }
 
-static void getDeviceInfo (QString &device, QString &ip, QString &mac, QString &mask)
+// -----------------------------------------------------------------------------
+// Discover the Pi's primary IPv4 address + MAC + netmask, skipping loopback,
+// point-to-point and VM interfaces. Used at startup so we can broadcast
+// the robot's IP to the iOS app.
+// -----------------------------------------------------------------------------
+static void getDeviceInfo(QString &device, QString &ip, QString &mac, QString &mask)
 {
-
     bool found = false;
-    foreach(QNetworkInterface interface, QNetworkInterface::allInterfaces())
+    foreach (QNetworkInterface interface, QNetworkInterface::allInterfaces())
     {
         unsigned int flags = interface.flags();
         bool isLoopback = (bool)(flags & QNetworkInterface::IsLoopBack);
-        bool isP2P = (bool)(flags & QNetworkInterface::IsPointToPoint);
-        bool isRunning = (bool)(flags & QNetworkInterface::IsRunning);
-        if ( !isRunning ) continue;
-        if ( !interface.isValid() || isLoopback || isP2P ) continue;
+        bool isP2P      = (bool)(flags & QNetworkInterface::IsPointToPoint);
+        bool isRunning  = (bool)(flags & QNetworkInterface::IsRunning);
+        if (!isRunning) continue;
+        if (!interface.isValid() || isLoopback || isP2P) continue;
 
         foreach (QNetworkAddressEntry entry, interface.addressEntries())
         {
-            // Ignore local host
-            if ( entry.ip() == QHostAddress::LocalHost ) continue;
+            if (entry.ip() == QHostAddress::LocalHost) continue;
+            if (!entry.ip().toIPv4Address()) continue;
 
-            // Ignore non-ipv4 addresses
-            if ( !entry.ip().toIPv4Address() ) continue;
-
-            if ( !found && interface.hardwareAddress() != "00:00:00:00:00:00" && entry.ip().toString().contains(".")
-                 && !interface.humanReadableName().contains("VM"))
+            if (!found
+                && interface.hardwareAddress() != "00:00:00:00:00:00"
+                && entry.ip().toString().contains(".")
+                && !interface.humanReadableName().contains("VM"))
             {
                 device = interface.humanReadableName();
-                ip = entry.ip().toString();
-                mac = interface.hardwareAddress();
-                mask =  entry.netmask().toString();
-                found = true;
+                ip     = entry.ip().toString();
+                mac    = interface.hardwareAddress();
+                mask   = entry.netmask().toString();
+                found  = true;
             }
         }
     }

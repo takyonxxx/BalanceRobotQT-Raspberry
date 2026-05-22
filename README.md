@@ -115,12 +115,15 @@ mSpdMaxTilt    = 0xc5  // Speed Max Tilt (raw degrees)
 mSpdMaxVel     = 0xc6  // Speed Max Vel (value/10)
 mAC            = 0xd0  // Angle trim (value/10)
 mSD            = 0xd1  // Yaw gain (value/10)
+mData          = 0xe1  // Pi → Phone IP / diagnostics text
 mTelemetry     = 0xf0  // Live telemetry stream
 mAutoMode      = 0xf1  // Auto-arm on/off
 mTrimFine      = 0xf2  // Fine trim
 mPositionHold  = 0xf3  // Position hold
 mResetTrim     = 0xf4  // Reset trim
 ```
+
+> `0xe0` is reserved (formerly `mSpeak` / on-board TTS, removed in the cleanup pass).
 
 ## Hardware
 
@@ -230,7 +233,7 @@ SPD_INT_R = pin 18   // Right encoder channel A (interrupt)   ← motor C1
 SPD_PUL_R = pin 22   // Right encoder channel B (direction)   ← motor C2
 ```
 
-> **Note on `constants.h` comments.** The inline comments next to these `#define`s in `constants.h` (e.g. `//interrupt R Phys:16`, `//Phys:22`) are stale copy-paste artefacts and contradict the symbolic names. The pin numbers themselves are correct and consistent end-to-end: `SPD_INT_L = 16` → triggers `encLeftISR` → increments `encLeftTicks_` → drives `encL_eff` → feeds the left-wheel PID. Trust the symbolic names, ignore the comments.
+> **Note.** In older versions of `constants.h`, the inline comments next to the encoder `#define`s (e.g. `//interrupt R Phys:16`, `//Phys:22`) contradicted the symbolic names and were leftover copy-paste artefacts. The cleaned-up `constants.h` shipped with this project no longer has them — the pin numbers themselves were always correct and consistent end-to-end (`SPD_INT_L = 16` → triggers `encLeftISR` → increments `encLeftTicks_` → drives `encL_eff` → feeds the left-wheel PID).
 
 I²C (MPU6050): SDA on header pin 3, SCL on header pin 5 (`/dev/i2c-1`, addr `0x68`).
 
@@ -311,39 +314,40 @@ A few code-side details worth knowing when wiring:
 
 ### Pi 5
 
-The Pi-side app links against Qt5 (Core / Bluetooth / Network / Multimedia), libi2c, ALSA + FLAC for audio capture, and WiringPi for GPIO + software PWM. WiringPi is no longer in the Debian / Raspberry Pi OS repositories, so it must be built from the maintained fork.
+The Pi-side app links against Qt6 (Core / Bluetooth / Network), libi2c, and WiringPi for GPIO + software PWM. Raspberry Pi OS Bookworm (the current Pi 5 default) ships Qt6 in apt — use `qmake6` to build. WiringPi is no longer in the Debian / Raspberry Pi OS repositories, so it must be built from the maintained fork.
 
 ```bash
 # --- 1. System update ---
 sudo apt-get update
 
-# --- 2. Qt5 ---
-sudo apt-get install qtmultimedia5-dev \
-                     libqt5multimedia5-plugins \
-                     libqt5bluetooth5 libqt5bluetooth5-bin \
-                     qtconnectivity5-dev
+# --- 2. Qt6 (Bluetooth + Network are the only required modules) ---
+sudo apt-get install qmake6 \
+                     qt6-base-dev \
+                     qt6-connectivity-dev \
+                     libqt6bluetooth6 \
+                     libqt6network6
 
 # --- 3. I²C (MPU6050) ---
 sudo apt-get install libi2c-dev
 
-# --- 4. Audio (ALSA / PulseAudio / FLAC, used by the on-board speech features) ---
-sudo apt-get install libasound2-dev \
-                     sox libsox-fmt-all \
-                     pulseaudio alsa-tools \
-                     libflac-dev
-
-# --- 5. WiringPi — must be built from source (no longer in apt) ---
+# --- 4. WiringPi — must be built from source (no longer in apt) ---
 git clone https://github.com/WiringPi/WiringPi.git
 cd WiringPi
 sudo ./build
 cd ..
 
-# --- 6. Enable I²C on the Pi ---
+# --- 5. Enable I²C on the Pi ---
 sudo raspi-config       # Interface Options → I2C → Enable, then reboot
 
-# --- 7. Build the application ---
+# --- 6. Copy the project to the Pi (from your dev machine) ---
+# On Windows: note the colon ":" — without it scp copies to a local folder!
+#   scp -r BalanceRobotPI pi@<pi-ip>:/home/pi/
+# On macOS / Linux: same syntax
+#   scp -r BalanceRobotPI pi@<pi-ip>:~/
+
+# --- 7. Build the application (on the Pi) ---
 cd ~/BalanceRobotPI
-qmake BalanceRobotPI.pro
+qmake6 BalanceRobotPI.pro
 make -j4
 
 # --- 8. Run (sudo is required: WiringPi needs /dev/mem and the BLE GATT
@@ -352,6 +356,10 @@ sudo ./BalanceRobotPI
 ```
 
 After the first run, parameters tuned from the iOS app are persisted to `settings.ini` next to the binary — keep an eye on it the first time you tune the PIDs.
+
+> **If you're on an older Pi OS with only Qt5**, replace step 2 with
+> `sudo apt-get install qtconnectivity5-dev libqt5bluetooth5 libqt5bluetooth5-bin`,
+> use `qmake` (not `qmake6`) in step 7, and Qt's classes will resolve to Qt5 headers automatically.
 
 ### iOS
 
@@ -387,15 +395,18 @@ sudo systemctl start balancerobot.service
 
 ```
 BalanceRobotPI/                 # Pi side (Qt/C++)
-├── main.cpp
-├── balancerobot.cpp/.h         # BLE command handler
-├── robotcontrol.cpp/.h         # Main control loop (PID, ISRs)
+├── main.cpp                    # Entry point, signal handling
+├── balancerobot.cpp/.h         # BLE command handler, top-level orchestration
+├── robotcontrol.cpp/.h         # Main control loop (PID, ISRs, motor I/O)
 ├── pid.cpp/.h                  # Pitch PID
+├── kalman.h                    # Header-only Kalman fusion (TKJ Electronics)
 ├── mpu6050.cpp/.h              # IMU driver
-├── message.h                   # BLE protocol message IDs
-├── kalmanfilter.cpp/.h         # Angle fusion
+├── i2cdev.cpp/.h               # I²C transport for the MPU6050
 ├── gattserver.cpp/.h           # BLE GATT server
-└── settings.ini                # Runtime-persisted parameters
+├── message.cpp/.h              # BLE wire-format pack / parse
+├── constants.h                 # Pin definitions + small helpers
+├── BalanceRobotPI.pro          # qmake project
+└── settings.ini                # Runtime-persisted parameters (created on first run)
 
 BalanceRobotRemote_IOS/         # iOS side (Swift)
 └── RobotControlBLE/
