@@ -135,6 +135,7 @@ mResetTrim     = 0xf4  // Reset trim
 | **IMU** | MPU6050 — 6-axis (3-axis accel + 3-axis gyro), I²C bus 1, address `0x68`. Fused through a Kalman filter to recover pitch angle. |
 | **Motor driver** | Waveshare RPi Motor Driver Board — dual H-bridge HAT, **2× NXP MC33886** (one chip per motor) |
 | **Drive motors** | 2× 37 mm geared DC motor with Hall quadrature encoder, ~100 RPM @ 4.5 V / ~200 RPM @ 9 V |
+| **Battery** | 3S LiPo — 11.1 V nominal (12.6 V full, 9.9 V suggested cut-off), 2000–3000 mAh, 20C+ discharge |
 | **Chassis** | 190 mm aluminium balance-bot plate, 3 mm acrylic top, 65 mm × 26 mm rubber tires on electroplated plastic hubs, ~520 g bare |
 
 ### Motor driver — Waveshare RPi Motor Driver Board
@@ -204,6 +205,35 @@ The `ProjectFiles/` folder ships with STL meshes for the printable upper structu
 | [`Robot_mask.stl`](ProjectFiles/Robot_mask.stl) | Decorative front mask / face plate. Large mesh (~27 MB), purely aesthetic. |
 
 Also previously in `ProjectFiles/`: `Raspberry_Pi_Model_B.STL`, `Robot_chasis_bottom_with_mpu6050.stl`, `Robot_chasis_top_for_raspberry.stl`, `Robot_chasis_top_single_for_raspberry.stl`, `Robot_chasis_top_with_raspberry.stl`, `Robot_safe_top_for_raspberry.stl`, plus the FreeCAD source files `robot_safe.FCStd` and `robot_top.FCStd` if you want to modify them.
+
+### Power system
+
+The robot runs on a single **3S LiPo battery — 11.1 V nominal**. The Waveshare driver's `VIN` input accepts 7–40 V, so 3S is comfortably within range. A single pack powers everything:
+
+```
+3S LiPo (11.1 V) ──> Driver VIN ──> MC33886 H-bridges ──> motors (full 11.1 V)
+                          │
+                          └──> Onboard 5 V regulator ──> Raspberry Pi 5 (via the HAT)
+                                                          │
+                                                          └──> +5 V rail ──> MPU6050 + encoder PCBs
+```
+
+| Spec | Value |
+|---|---|
+| Battery | 3S LiPo — 3 cells in series |
+| Nominal voltage | 11.1 V (3 × 3.7 V) |
+| Fully charged | 12.6 V (3 × 4.20 V) |
+| Suggested cut-off | ~9.9 V (3 × 3.30 V) — below this, balancing degrades and cells age fast |
+| Capacity | 2000–3000 mAh is typical (≈30–60 min runtime depending on motor load) |
+| Discharge rating | 20C or higher recommended — peak current can hit 10 A momentarily during a hard correction |
+| Connector | XT60 or XT30 to the driver's VIN terminal block (XT60 preferred for >20 A continuous) |
+
+**Safety notes:**
+
+- **LiPo packs are fire hazards if mistreated.** Always charge in a LiPo-safe bag, never leave a charging pack unattended, and never discharge any cell below 3.0 V.
+- A small **inline voltage alarm** that buzzes below 3.3 V/cell is cheap insurance — the Pi has no battery monitoring on its own.
+- **Polarity matters.** The driver has reverse-voltage protection on the supply input, but the protection has its limits; double-check polarity before plugging in a freshly-charged pack.
+- When the pack voltage drops below ~9.5 V, you'll notice the robot can no longer balance under hard corrections (PWM saturates). That's your cue to land it and swap packs.
 
 ### Raspberry Pi pin reference
 
@@ -431,7 +461,7 @@ BalanceRobotRemote_IOS/         # iOS side (Swift)
 
 ## Known limits
 
-- At low battery voltage, PWM saturates and balancing degrades
+- Below ~9.5 V on the 3S pack (≈3.17 V/cell), PWM saturates during hard corrections and balancing degrades — land and swap packs
 - On slippery floors, wheel slip causes encoder velocity to lie
 - Very fast maneuvers can saturate the IMU rate gyro
 
