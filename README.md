@@ -142,20 +142,39 @@ mResetTrim     = 0xf4  // Reset trim
 ### Motor driver — Waveshare RPi Motor Driver Board
 
 <p align="center">
-  <img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/ProjectFiles/motor_driver_board.png" alt="Waveshare RPi Motor Driver Board labeled" width="520">
+  <img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/ProjectFiles/motor_driver_board.png" alt="Waveshare RPi Motor Driver Board — labeled callouts" width="520">
 </p>
 
-The driver is a HAT that sits on the Pi's 40-pin header. Each of the two **NXP MC33886** H-bridges drives one motor independently:
+**Callouts on the photo above:**
+
+| # | Part | Role |
+|---|---|---|
+| **1** | Raspberry Pi GPIO interface (40-pin header) | Mates with the Pi's header — this is how the six motor-control lines (`PWMR1/PWMR/PWMR2/PWML1/PWML/PWML2`) reach the driver. |
+| **2** | Motor screw terminals (M1 A/B, M2 A/B) | Where the two DC motors connect. M1 = right motor, M2 = left motor in this project. |
+| **3** | External power input (VIN, GND) | The 3S LiPo (11.1 V) wires land here. 7–40 V accepted. |
+| **4** | 74LVC4245AD level-shifter | Voltage translator between the Pi's 3.3 V GPIOs and the H-bridge logic. Acts as a buffer too — protects the Pi. |
+| **5** | MC33886 H-bridge × 2 | The actual motor drivers. One chip per motor, up to 5 A each. |
+| **6** | LM2596-5.0 5 V regulator | Steps the battery voltage down to 5 V for the Pi. Lets a single battery power the whole robot. |
+| **7** | Power indicator LED | Lights when VIN is present and the 5 V rail is healthy. |
+| **8** | **Pi power-source switch (OFF / ON)** | Selects who powers the Pi. **OFF** = Pi powered externally (USB-C, the driver is *not* feeding the Pi). **ON** = the driver's 5 V regulator feeds the Pi through the 40-pin header. **For this project, set it to ON** so a single LiPo pack runs both. |
+| **9** | 2 A self-recovery (polyfuse) | Resettable fuse on the Pi's 5 V rail. If something shorts, it opens; after it cools down it conducts again. |
+| **10** | IR receiver | Onboard infrared receiver. **Unused in this project** — the iOS app talks to the Pi over BLE instead. |
+| **11** | Schottky diodes | Protect each H-bridge output from reverse-voltage spikes when the motor's inductive load is switched off. |
+| **12** | Supply anti-reverse diode | Protects the whole board if you wire the battery backwards. Don't rely on it as a habit, but it has saved many builds. |
+
+The driver is a HAT that sits on the Pi's 40-pin header. Each of the two **NXP MC33886** H-bridges (#5) drives one motor independently:
 
 | Spec | Value |
 |---|---|
 | H-bridge IC | 2× NXP MC33886 (one per motor) |
 | Power input (VIN) | 7–40 V |
 | Output current (per motor) | up to 5 A |
-| Onboard 5 V regulator | yes — back-feeds the Pi from the same battery |
-| Onboard IR receiver | yes — **unused in this project** (BLE replaces IR) |
-| Protections | 2 A resettable fuse on the Pi rail, motor-output reverse-voltage protection, supply reverse-voltage protection, plus the MC33886's own short-circuit / over-current / over-voltage / over-temperature protection |
+| Onboard 5 V regulator | LM2596-5.0 (#6) — back-feeds the Pi from the same battery when switch #8 is ON |
+| Onboard IR receiver | yes (#10) — **unused in this project** (BLE replaces IR) |
+| Protections | 2 A resettable fuse on the Pi rail (#9), motor-output reverse-voltage protection (#11), supply reverse-voltage protection (#12), plus the MC33886's own short-circuit / over-current / over-voltage / over-temperature protection |
 | Logic interface (per motor) | classic *IN1 / IN2 + ENA PWM-enable* — two direction pins + one PWM enable pin |
+
+> **Before first power-up:** make sure switch **#8 is set to ON** so the driver feeds the Pi. If it's OFF and you've removed the USB-C cable, the Pi simply won't boot — a confusing first symptom when nothing else is wrong.
 
 The Pi drives the H-bridges with **8-bit software PWM** via WiringPi's `softPwm` (`PWM_LIMIT = 255`, `PWM_MIN = 8` deadband). Direction is selected by setting `IN1`/`IN2` to opposite levels; coast = both low; the PWM pin gates the output.
 
