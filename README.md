@@ -290,7 +290,7 @@ if (pwmL > 0) {
 // ...same pattern for pwmL < 0 and pwmL == 0
 ```
 
-**Why the left motor's IN1/IN2 are swapped:** the two motors are bolted into the chassis facing each other (mirror-mounted), so "wheel rotates forward" corresponds to *opposite* shaft directions on the two motors. Instead of rewiring the M1/M2 power leads, the code flips the polarity in software (`// Sol motor ters monte edildiği için pin'ler ters`) so that a positive PWM on either side means "robot moves forward" at the algorithm level. The Speed PID never has to know that the motors are mirror-mounted.
+**Why the left motor's IN1/IN2 are swapped:** the two motors are bolted into the chassis facing each other (mirror-mounted), so "wheel rotates forward" corresponds to *opposite* shaft directions on the two motors. Instead of rewiring the M1/M2 power leads, the code flips the polarity in software so that a positive PWM on either side means "robot moves forward" at the algorithm level. The Speed PID never has to know that the motors are mirror-mounted.
 
 **Why these specific pin numbers (31, 32, 33, 37, 38, 40 — with gaps):** the gaps (34, 35, 36, 39) are header pins reserved for GND or for GPIOs used elsewhere in the project, so the firmware picks the closest run of physical pins that are all free for general output. Because `wiringPiSetupPhys()` is used, the numbers in `constants.h` are exactly what's printed on a Pi pinout diagram — no BCM ↔ wiringPi translation needed.
 
@@ -306,7 +306,7 @@ End-to-end map of every connection that `constants.h` and `robotcontrol.cpp` act
 
 A few code-side details worth knowing when wiring:
 
-- `applyMotors()` in `robotcontrol.cpp` **deliberately swaps IN1/IN2 polarity for the left motor** (`// Sol motor ters monte edildiği için pin'ler ters`), because the left motor is bolted in mirrored. Positive `pwmR` drives `PWMR1` high; positive `pwmL` drives `PWML2` high.
+- `applyMotors()` in `robotcontrol.cpp` **deliberately swaps IN1/IN2 polarity for the left motor**, because the left motor is bolted in mirrored. Positive `pwmR` drives `PWMR1` high; positive `pwmL` drives `PWML2` high.
 - If a motor spins backwards, prefer flipping `encoderInvertL` / `encoderInvertR` in `settings.ini` over rewiring — the encoder direction must match the motor direction for the Speed PID to work.
 - The motor PCB's encoder rail is labelled `3.3V` but accepts 5 V (the Hall output pulls up to whatever you supply). Feeding it from the Pi's 5 V keeps the encoder signal strong, and the Pi's 3.3 V GPIOs still read it cleanly thanks to the internal pull-ups.
 
