@@ -181,6 +181,27 @@ The Pi decodes encoders in **single-edge mode**: rising edge on channel A trigge
 
 Standard self-balancing kit: 190 mm CNC'd aluminium baseplate, motor mounting brackets, two 65 mm wheels with rubber tread, M3 hardware bag, and the encoder/motor wiring harness shown on the right. The Waveshare driver and the Pi stack on top.
 
+#### Baseplate dimensions
+
+The dimensioned drawing below is provided so you can design a custom PCB or laser-cut a top deck that fits the standard hole pattern. All dimensions are in millimetres; the plate is **119 mm wide × 64 mm deep** with 22× Ø3.2 mm mounting holes and rounded corners (R5 / R1.6).
+
+<p align="center">
+  <img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/ProjectFiles/chassis_dimensions.png" alt="Balance robot baseplate — dimensioned drawing" width="640">
+</p>
+
+#### 3D-printable parts (STL)
+
+The `ProjectFiles/` folder ships with STL meshes for the printable upper structure of the robot. Slice them in your slicer of choice (Cura, PrusaSlicer, etc.). Recommended print settings: PLA, 0.2 mm layer height, 20% infill, supports off (the parts are designed to print flat without overhangs).
+
+| File | What it is |
+|---|---|
+| [`Robot_chasis_bottom.stl`](ProjectFiles/Robot_chasis_bottom.stl) | Printable lower chassis plate — alternative to the aluminium baseplate if you want a fully printed build. |
+| [`Robot_chasis_top.stl`](ProjectFiles/Robot_chasis_top.stl) | Upper deck that bolts onto the standoffs above the Pi + driver stack. |
+| [`Robot_safe_top.stl`](ProjectFiles/Robot_safe_top.stl) | Reinforced top cover variant with extra wall thickness — use it if you expect frequent falls during PID tuning. |
+| [`Robot_mask.stl`](ProjectFiles/Robot_mask.stl) | Decorative front mask / face plate. Large mesh (~27 MB), purely aesthetic. |
+
+Also previously in `ProjectFiles/`: `Raspberry_Pi_Model_B.STL`, `Robot_chasis_bottom_with_mpu6050.stl`, `Robot_chasis_top_for_raspberry.stl`, `Robot_chasis_top_single_for_raspberry.stl`, `Robot_chasis_top_with_raspberry.stl`, `Robot_safe_top_for_raspberry.stl`, plus the FreeCAD source files `robot_safe.FCStd` and `robot_top.FCStd` if you want to modify them.
+
 ### Raspberry Pi pin reference
 
 Pin numbering in `constants.h` follows the **40-pin physical header** (because `robotcontrol.cpp` calls `wiringPiSetupPhys()`) — *not* BCM or wiringPi-logical numbering. Use this header diagram when wiring:
