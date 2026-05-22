@@ -135,7 +135,7 @@ mResetTrim     = 0xf4  // Reset trim
 | **IMU** | MPU6050 — 6-axis (3-axis accel + 3-axis gyro), I²C bus 1, address `0x68`. Fused through a Kalman filter to recover pitch angle. |
 | **Motor driver** | Waveshare RPi Motor Driver Board — dual H-bridge HAT, **2× NXP MC33886** (one chip per motor) |
 | **Drive motors** | 2× 37 mm geared DC motor with Hall quadrature encoder, ~100 RPM @ 4.5 V / ~200 RPM @ 9 V |
-| **Battery** | 3S LiPo — 11.1 V nominal (12.6 V full, 9.9 V suggested cut-off), 2000–3000 mAh, 20C+ discharge |
+| **Battery** | 3S LiPo — 11.1 V nominal (12.6 V full, 9.9 V suggested cut-off), 4000 mAh, 20C+ discharge |
 | **Camera (optional)** | Generic UVC USB webcam — MJPEG 1280×720 @ 30 fps, streamed as RTSP H.264 via GStreamer + MediaMTX |
 | **Chassis** | 190 mm aluminium balance-bot plate, 3 mm acrylic top, 65 mm × 26 mm rubber tires on electroplated plastic hubs, ~520 g bare |
 
@@ -225,7 +225,7 @@ The robot runs on a single **3S LiPo battery — 11.1 V nominal**. The Waveshare
 | Nominal voltage | 11.1 V (3 × 3.7 V) |
 | Fully charged | 12.6 V (3 × 4.20 V) |
 | Suggested cut-off | ~9.9 V (3 × 3.30 V) — below this, balancing degrades and cells age fast |
-| Capacity | 2000–3000 mAh is typical (≈30–60 min runtime depending on motor load) |
+| Capacity | 4000 mAh (≈60–90 min runtime depending on motor load) |
 | Discharge rating | 20C or higher recommended — peak current can hit 10 A momentarily during a hard correction |
 | Connector | XT60 or XT30 to the driver's VIN terminal block (XT60 preferred for >20 A continuous) |
 
