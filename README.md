@@ -201,6 +201,10 @@ The Pi decodes encoders in **single-edge mode**: rising edge on channel A trigge
 
 The MPU6050 is the single most physically-sensitive component on the robot — where and how you mount it directly affects whether the balance loop can do its job.
 
+<p align="center">
+  <img src="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/ProjectFiles/imu_mounting.png" alt="MPU6050 mounting — top-down view of the lower chassis with axes labelled" width="780">
+</p>
+
 **Position:** the IMU sits on the **lower chassis plate, centred between the two motors** — i.e. right on the wheel axis line. This is the rotation axis of the robot, so the IMU sees pure pitch when the chassis tilts and isn't contaminated by extra rotational acceleration. Mounting it high up (e.g. next to the Pi on the top deck) makes the gyro pick up swing artefacts and the Kalman filter has to fight that.
 
 **Orientation:** the MPU6050 breakout is mounted **flat (horizontal)**, with the chip and components facing **upwards**. Looking at the robot from the front, the pin header (`VCC / GND / SCL / SDA / XDA / XCL / ADO / INT`) is on the **left edge** of the breakout. This orientation puts:
