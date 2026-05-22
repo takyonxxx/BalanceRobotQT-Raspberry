@@ -136,6 +136,7 @@ mResetTrim     = 0xf4  // Reset trim
 | **Motor driver** | Waveshare RPi Motor Driver Board — dual H-bridge HAT, **2× NXP MC33886** (one chip per motor) |
 | **Drive motors** | 2× 37 mm geared DC motor with Hall quadrature encoder, ~100 RPM @ 4.5 V / ~200 RPM @ 9 V |
 | **Battery** | 3S LiPo — 11.1 V nominal (12.6 V full, 9.9 V suggested cut-off), 2000–3000 mAh, 20C+ discharge |
+| **Camera (optional)** | Generic UVC USB webcam — MJPEG 1280×720 @ 30 fps, streamed as RTSP H.264 via GStreamer + MediaMTX |
 | **Chassis** | 190 mm aluminium balance-bot plate, 3 mm acrylic top, 65 mm × 26 mm rubber tires on electroplated plastic hubs, ~520 g bare |
 
 ### Motor driver — Waveshare RPi Motor Driver Board
@@ -234,6 +235,31 @@ The robot runs on a single **3S LiPo battery — 11.1 V nominal**. The Waveshare
 - A small **inline voltage alarm** that buzzes below 3.3 V/cell is cheap insurance — the Pi has no battery monitoring on its own.
 - **Polarity matters.** The driver has reverse-voltage protection on the supply input, but the protection has its limits; double-check polarity before plugging in a freshly-charged pack.
 - When the pack voltage drops below ~9.5 V, you'll notice the robot can no longer balance under hard corrections (PWM saturates). That's your cue to land it and swap packs.
+
+### Onboard camera (optional)
+
+The robot can carry a USB webcam that publishes a live RTSP stream — useful for FPV-style remote driving or for tuning the PIDs from a distance. The stream is **independent of the balance control loop** (it runs in its own systemd service) so you can disable it at any time without touching the balancing code.
+
+**Stack:**
+
+```
+USB UVC webcam ──> /dev/video0 ──> GStreamer (decode → H.264 encode) ──> MediaMTX ──> RTSP clients
+                                                                            (8554/tcp)
+```
+
+| Component | Role |
+|---|---|
+| Any generic UVC webcam | Source. Tested with a "GENERAL WEBCAM" branded MJPEG 1080p USB cam on `/dev/video0`. |
+| **GStreamer** (`gst-launch-1.0`) | Pulls MJPEG frames from the camera, decodes to raw, re-encodes to H.264 with `x264enc`, pushes to MediaMTX over `rtspclientsink`. Runs as `webcam-stream.service`. |
+| **MediaMTX** | Lightweight RTSP/RTMP/HLS server. Receives the push on `rtsp://localhost:8554/webcam` and re-serves it on the network. Runs as `mediamtx.service`. |
+
+**Stream URL once running:**
+
+```
+rtsp://<pi-ip>:8554/webcam
+```
+
+**Performance tuning — why 720p, not 1080p:** software H.264 encoding at 1080p30 uses 2–3 cores on the Pi 5 and competes with the Pitch PID loop, which can introduce balance jitter. The recommended pipeline uses `1280×720 @ 30 fps`, `bitrate=1000 kbps`, `speed-preset=ultrafast`, `threads=2` — this keeps two cores free for `BalanceRobotPI` and stays under ~120% total CPU for the camera service. If you don't need the camera, just `sudo systemctl disable --now webcam-stream mediamtx` and reclaim the CPU.
 
 ### Raspberry Pi pin reference
 
@@ -420,6 +446,139 @@ WantedBy=multi-user.target
 sudo systemctl enable balancerobot.service
 sudo systemctl start balancerobot.service
 ```
+
+### Camera streaming (optional)
+
+If your build has a USB webcam mounted on the chassis, set up two services on the Pi — **MediaMTX** (the RTSP server) and **webcam-stream** (the GStreamer pipeline that pushes camera frames into it).
+
+#### 1. Install GStreamer
+
+```bash
+sudo apt-get install gstreamer1.0-tools \
+                     gstreamer1.0-plugins-base \
+                     gstreamer1.0-plugins-good \
+                     gstreamer1.0-plugins-bad \
+                     gstreamer1.0-plugins-ugly \
+                     gstreamer1.0-libav \
+                     v4l-utils
+```
+
+#### 2. Install MediaMTX
+
+MediaMTX is a single static binary — download the latest aarch64 release for the Pi 5:
+
+```bash
+cd /tmp
+LATEST=$(curl -s https://api.github.com/repos/bluenviron/mediamtx/releases/latest | grep tag_name | cut -d '"' -f 4)
+wget "https://github.com/bluenviron/mediamtx/releases/download/${LATEST}/mediamtx_${LATEST}_linux_arm64.tar.gz"
+tar -xzf "mediamtx_${LATEST}_linux_arm64.tar.gz"
+sudo mv mediamtx /usr/local/bin/
+sudo mkdir -p /etc/mediamtx
+sudo mv mediamtx.yml /etc/mediamtx/mediamtx.yml
+```
+
+Create the systemd unit `/etc/systemd/system/mediamtx.service`:
+
+```bash
+sudo tee /etc/systemd/system/mediamtx.service > /dev/null << 'EOF'
+[Unit]
+Description=MediaMTX RTSP Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mediamtx /etc/mediamtx/mediamtx.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+#### 3. Verify the camera is detected
+
+Plug the USB webcam in, then:
+
+```bash
+v4l2-ctl --list-devices
+v4l2-ctl --device=/dev/video0 --list-formats-ext
+```
+
+You should see your webcam under a `/dev/video0` (and usually a sibling `/dev/video1`). Confirm it supports `MJPG @ 1280×720 @ 30fps` — if not, adjust the pipeline below to a resolution your camera advertises.
+
+#### 4. Install the GStreamer push service
+
+```bash
+sudo tee /etc/systemd/system/webcam-stream.service > /dev/null << 'EOF'
+[Unit]
+Description=Webcam RTSP Streaming Service
+After=network.target mediamtx.service
+Requires=mediamtx.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/gst-launch-1.0 -v \
+  v4l2src device=/dev/video0 ! \
+  image/jpeg,width=1280,height=720,framerate=30/1 ! \
+  jpegdec ! \
+  videoconvert ! \
+  x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast threads=2 key-int-max=30 ! \
+  h264parse ! \
+  rtspclientsink location=rtsp://localhost:8554/webcam
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+> If you prefer to edit either service later, use `sudo nano /etc/systemd/system/<name>.service` — do **not** use `systemctl edit --full`, which insists on saving to a `.save` file and confuses the unit.
+
+#### 5. Enable and start both services
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now mediamtx.service webcam-stream.service
+```
+
+#### 6. Verify
+
+```bash
+systemctl status mediamtx --no-pager       | head -10
+systemctl status webcam-stream --no-pager  | head -10
+```
+
+Both should show `active (running)`. If `webcam-stream` shows `activating (auto-restart)`, look at `journalctl -u webcam-stream -n 50 --no-pager` for the underlying error (camera unplugged, wrong resolution, GStreamer plugin missing, etc.).
+
+#### 7. View the stream
+
+From any device on the same network:
+
+| Client | How |
+|---|---|
+| **VLC** (macOS / Windows / Linux) | `File → Open Network → rtsp://<pi-ip>:8554/webcam` |
+| **VLC for Mobile** (iOS / Android) | `+ → Open Network Stream → rtsp://<pi-ip>:8554/webcam` |
+| **ffplay** (CLI) | `ffplay -fflags nobuffer rtsp://<pi-ip>:8554/webcam` |
+| **On the Pi itself** | `ffplay rtsp://localhost:8554/webcam` |
+
+Typical end-to-end latency over local Wi-Fi is 300–500 ms with this pipeline — acceptable for FPV driving and PID tuning.
+
+#### Quick on/off
+
+If you ever want to disable the camera (e.g. to free up CPU during aggressive PID tuning), without uninstalling anything:
+
+```bash
+sudo systemctl stop    webcam-stream mediamtx
+sudo systemctl disable webcam-stream mediamtx   # don't auto-start on boot
+```
+
+Re-enable later with `sudo systemctl enable --now webcam-stream mediamtx`.
 
 ## File layout
 
