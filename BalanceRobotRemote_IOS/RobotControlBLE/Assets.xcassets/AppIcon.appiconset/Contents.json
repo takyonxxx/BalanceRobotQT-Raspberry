@@ -1,100 +1,116 @@
 {
-  "images" : [
+  "images": [
     {
-      "idiom" : "iphone",
-      "size" : "20x20",
-      "scale" : "2x"
+      "idiom": "iphone",
+      "size": "20x20",
+      "scale": "2x",
+      "filename": "Balance-40.png"
     },
     {
-      "idiom" : "iphone",
-      "size" : "20x20",
-      "scale" : "3x"
+      "idiom": "iphone",
+      "size": "20x20",
+      "scale": "3x",
+      "filename": "Balance-60.png"
     },
     {
-      "idiom" : "iphone",
-      "size" : "29x29",
-      "scale" : "2x"
+      "idiom": "iphone",
+      "size": "29x29",
+      "scale": "2x",
+      "filename": "Balance-58.png"
     },
     {
-      "idiom" : "iphone",
-      "size" : "29x29",
-      "scale" : "3x"
+      "idiom": "iphone",
+      "size": "29x29",
+      "scale": "3x",
+      "filename": "Balance-87.png"
     },
     {
-      "idiom" : "iphone",
-      "size" : "40x40",
-      "scale" : "2x"
+      "idiom": "iphone",
+      "size": "40x40",
+      "scale": "2x",
+      "filename": "Balance-80.png"
     },
     {
-      "idiom" : "iphone",
-      "size" : "40x40",
-      "scale" : "3x"
+      "idiom": "iphone",
+      "size": "40x40",
+      "scale": "3x",
+      "filename": "Balance-120.png"
     },
     {
-      "size" : "60x60",
-      "idiom" : "iphone",
-      "filename" : "icons8-r2-d2-120.png",
-      "scale" : "2x"
+      "idiom": "iphone",
+      "size": "60x60",
+      "scale": "2x",
+      "filename": "Balance-120@2x.png"
     },
     {
-      "size" : "60x60",
-      "idiom" : "iphone",
-      "filename" : "icons8-r2-d2-180.png",
-      "scale" : "3x"
+      "idiom": "iphone",
+      "size": "60x60",
+      "scale": "3x",
+      "filename": "Balance-180.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "20x20",
-      "scale" : "1x"
+      "idiom": "ipad",
+      "size": "20x20",
+      "scale": "1x",
+      "filename": "Balance-20.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "20x20",
-      "scale" : "2x"
+      "idiom": "ipad",
+      "size": "20x20",
+      "scale": "2x",
+      "filename": "Balance-40@2x.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "29x29",
-      "scale" : "1x"
+      "idiom": "ipad",
+      "size": "29x29",
+      "scale": "1x",
+      "filename": "Balance-29.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "29x29",
-      "scale" : "2x"
+      "idiom": "ipad",
+      "size": "29x29",
+      "scale": "2x",
+      "filename": "Balance-58@2x.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "40x40",
-      "scale" : "1x"
+      "idiom": "ipad",
+      "size": "40x40",
+      "scale": "1x",
+      "filename": "Balance-40@1x.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "40x40",
-      "scale" : "2x"
+      "idiom": "ipad",
+      "size": "40x40",
+      "scale": "2x",
+      "filename": "Balance-80@2x.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "76x76",
-      "scale" : "1x"
+      "idiom": "ipad",
+      "size": "76x76",
+      "scale": "1x",
+      "filename": "Balance-76.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "76x76",
-      "scale" : "2x"
+      "idiom": "ipad",
+      "size": "76x76",
+      "scale": "2x",
+      "filename": "Balance-152.png"
     },
     {
-      "idiom" : "ipad",
-      "size" : "83.5x83.5",
-      "scale" : "2x"
+      "idiom": "ipad",
+      "size": "83.5x83.5",
+      "scale": "2x",
+      "filename": "Balance-167.png"
     },
     {
-      "idiom" : "ios-marketing",
-      "size" : "1024x1024",
-      "scale" : "1x"
+      "idiom": "ios-marketing",
+      "size": "1024x1024",
+      "scale": "1x",
+      "filename": "Balance-1024.png"
     }
   ],
-  "info" : {
-    "version" : 1,
-    "author" : "xcode"
+  "info": {
+    "version": 1,
+    "author": "xcode"
   }
 }
