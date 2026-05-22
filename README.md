@@ -667,6 +667,194 @@ BalanceRobotRemote_IOS/         # iOS side (Swift)
 5. If fall is detected (>40°) → DISARM, motors stop
 6. When held upright again, it auto-restarts
 
+## First boot checklist
+
+Before strapping the robot to a LiPo and watching it dance across the floor, run through this list with the chassis sitting on a table (motors free to spin but the robot itself supported so it can't fall).
+
+### 1. I²C and the IMU
+
+With the Pi powered (USB-C is fine for this — driver doesn't need to be on yet):
+
+```bash
+sudo apt-get install i2c-tools   # if not installed
+sudo i2cdetect -y 1
+```
+
+You should see a device at address `68`:
+
+```
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- --
+...
+60: -- -- -- -- -- -- -- -- 68 -- -- -- -- -- -- --
+70: -- -- -- -- -- -- -- --
+```
+
+**If `68` is missing:**
+- I²C is not enabled — run `sudo raspi-config` → Interface Options → I2C → Enable, then reboot
+- Wiring is wrong — check VCC/GND/SDA/SCL on header pins 2/6/3/5
+- The breakout is dead — try another MPU6050
+
+### 2. Bluetooth
+
+```bash
+systemctl status bluetooth        # should be "active (running)"
+bluetoothctl list                 # at least one controller, "powered: yes"
+hciconfig                         # hci0 should be "UP RUNNING"
+```
+
+**If the controller is `DOWN`:** `sudo hciconfig hci0 up` or `sudo systemctl restart bluetooth`.
+
+### 3. Driver power switch
+
+On the Waveshare driver, the **OFF/ON switch (callout #8)** decides who powers the Pi. For battery operation, set it to **ON** so the driver's 5 V regulator feeds the Pi from the LiPo. Forget this and the Pi will refuse to boot the moment you unplug USB-C.
+
+### 4. First app launch (with motors disconnected)
+
+Disconnect the motor wires from the driver's screw terminals for this test — we just want to see the app boot cleanly without anything moving.
+
+```bash
+cd ~/BalanceRobotPI
+sudo ./BalanceRobotPI
+```
+
+Look for these lines on stdout / journal:
+
+```
+WiringPi ready (encoder ISRs enabled)
+RobotControl ready. Kp= 25 Ki= 40 Kd= 0.1 trim= 0
+Local IP: 192.168.x.x MAC: xx:xx:xx:xx:xx:xx
+GattServer advertising as "BalanceRobot"
+```
+
+If you see *"wiringPiSetupPhys failed"* → you forgot `sudo` (WiringPi needs `/dev/mem`).
+
+If you see *"Failed to register left/right encoder ISR"* → another process is holding `/sys/class/gpio` — usually a leftover instance, kill it with `sudo pkill BalanceRobotPI`.
+
+### 5. iOS pairing
+
+On the iPhone, in the iOS app:
+
+1. Open the **Control** tab
+2. Tap **Connect**
+3. The scanner should pick up a device called **`BalanceRobot`**
+4. Tap it — within ~2 seconds you should see `Connected` and the robot's IP appear underneath
+
+If you don't see `BalanceRobot` in the list:
+- iOS Bluetooth is off — toggle it
+- The Pi isn't advertising — recheck step 2 above
+- The Pi was paired before and is now using a different MAC — open iOS Settings → Bluetooth, forget the old entry, retry
+
+Once connected, the iOS app pulls the current parameters from the Pi and populates the Settings tab. If the sliders all read `0`, the parameter read didn't complete — disconnect, reconnect.
+
+## First calibration
+
+Now reconnect the motors (driver screw terminals: M1 = right, M2 = left) and reattach the LiPo (switch #8 ON). The robot is still on a stand or held by hand — don't let it fall over yet.
+
+### A. Encoder direction sanity check
+
+The Speed PID needs encoders that *count up when the wheel rolls forward*. If either wheel's encoder counts the wrong way, the robot will accelerate uncontrollably instead of braking — easy to spot but dangerous to ignore.
+
+With `BalanceRobotPI` running, lift the robot off the stand and **manually roll the right wheel forward** (top of wheel moves toward the front of the robot). Watch the telemetry on the iOS app — the encoder count or velocity for that wheel should go *positive*.
+
+- Goes negative? → set `encoderInvertR=true` in `settings.ini` (or have the iOS app send the right BLE command — depends on the build)
+- Same test for the left wheel
+
+This is much safer to do *before* arming the robot.
+
+### B. Mechanical balance point (AC trim)
+
+Power up, then hold the robot perfectly upright by gripping the top deck. Read the **ANGLE** field on the iOS Control tab:
+
+- Reads `0.0° ± 0.5°` → great, your IMU is mounted level, leave `AC = 0`
+- Reads e.g. `+1.8°` when you feel the robot is upright → the IMU sits slightly tilted (or the chassis itself does); compensate by setting `AC = -1.8°` from the Settings tab
+- The trim is in degrees, signed; positive = front of robot is biased forward
+
+After tuning AC, the robot should feel "neutral" when held upright — releasing it should let it fall in any direction with equal probability, not consistently toward one side.
+
+### C. First armed run
+
+Now the moment of truth:
+
+1. Hold the robot upright, on the floor (carpet is more forgiving than tile)
+2. Make sure `Auto-arm` is **ON** in the iOS Settings tab
+3. The instant the IMU sees the upright pose, the motors should jump to life and try to hold the position
+4. **Slowly** release your grip — fingers ready to catch
+5. If it stays up for more than ~2 seconds, you've made it past the hardest part
+
+If it falls immediately:
+- Watch which way it falls. **Always the same direction** → AC trim is off, tweak it.
+- Both directions, ~50/50 → Kp is too low, raise from 25 to 30
+- High-frequency vibration before falling → Kp is too high, lower to 20
+
+If it stays up but drifts in one direction:
+- That's normal until Speed PID is tuned — see **Tuning guide** above
+- Or your floor isn't level — try a different room
+
+### D. Joystick test
+
+With the robot balancing (or held in your hand):
+- Push the joystick gently forward → the robot should *lean forward* and start rolling
+- Release → it should *lean back* to brake itself to a stop (this is the Speed PID doing its job)
+- If pushing forward makes it lean *backward* → joystick polarity is inverted, set `invertY = true` in `ControlViewController.swift:41`
+
+## Troubleshooting
+
+Common symptoms grouped by what's failing, with most likely cause first.
+
+### Build / install
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `qmake6: command not found` | Qt6 not installed | `sudo apt-get install qmake6 qt6-base-dev qt6-connectivity-dev` |
+| `wiringPi.h: No such file or directory` | WiringPi not built | Clone from `github.com/WiringPi/WiringPi`, `sudo ./build` |
+| `i2c/smbus.h: No such file or directory` | `libi2c-dev` missing | `sudo apt-get install libi2c-dev` |
+| `cannot find -lwiringPi` at link time | WiringPi built but `ldconfig` cache stale | `sudo ldconfig`, retry |
+| Build OK but `BalanceRobotPI` won't start: *"wiringPiSetupPhys failed"* | Ran without `sudo` | Use `sudo ./BalanceRobotPI` |
+
+### Hardware / first power-up
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Pi won't boot when LiPo is connected, USB-C unplugged | Driver power switch (#8) is OFF | Set it to ON |
+| No I²C devices in `i2cdetect` | I²C not enabled in raspi-config | Enable + reboot |
+| `0x68` shows but reads garbage | SDA/SCL swapped, or weak pull-ups | Check header pins 3/5; the MPU6050 breakout has its own pull-ups, but bad jumper wires defeat them |
+| Motors hum but don't move | Driver VIN voltage too low (LiPo flat) | Check VIN with multimeter, charge pack |
+| One motor spins, the other doesn't | Loose screw terminal, or motor M1/M2 swapped | Re-seat both pairs of motor leads in the driver |
+| Motor spins, but the wrong direction | Driver output A/B swapped, *or* encoder direction inverted | Easier fix in software: `encoderInvertL/R` |
+
+### BLE
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| iOS app doesn't see `BalanceRobot` in scanner | Pi BLE not advertising | `sudo systemctl restart bluetooth`, restart `BalanceRobotPI` |
+| Connects but sliders all read 0 | Parameter read raced the connection event | Disconnect, reconnect once |
+| Connects then drops within 1–2 seconds | Pi went to sleep or BlueZ crashed | Check `journalctl -u bluetooth -n 50`; disable Wi-Fi power save: `sudo iwconfig wlan0 power off` |
+| Telemetry frozen (always same values) | BalanceRobotPI process died but BLE stayed up | `ps aux \| grep Balance` — restart if it's gone |
+
+### Balance behaviour
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Always falls in the same direction the instant you let go | AC trim off, or IMU tilted | Adjust `AC` to compensate |
+| Both directions, falls in <1 second | Kp too low | Raise to 30–35 |
+| High-frequency vibration, then falls | Kp too high | Lower Kp; if still vibrating, raise Kd to 0.15 |
+| Balances but drifts steadily forward / backward | Speed PID integral not catching up | Raise Speed Ki (0.20 → 0.30) |
+| Balances but oscillates back and forth slowly | Speed Kp too high | Lower to 0.10 |
+| Long coast after stick release before braking | Speed Ki too low | Raise to 0.25–0.30 |
+| Twitches violently the moment Auto-arm fires | IMU still settling (calibration period missed) | Hold robot perfectly still for 3 seconds before raising upright |
+| Disarms randomly mid-run | Fall detector triggered by sharp transient | Check that IMU isn't loose; reduce `Kd` if vibration is the trigger |
+| Wheels slip and robot can't catch its balance back | Slippery floor / worn tyre rubber | Different surface, or fresh tyres |
+
+### Camera streaming
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `webcam-stream` shows `activating (auto-restart)` | GStreamer pipeline failed | `journalctl -u webcam-stream -n 50` — usually wrong resolution or camera unplugged |
+| Stream URL opens in VLC but no image | Camera initialised but pipeline negotiating | Wait 3–5 s; if still black, check `v4l2-ctl --list-formats-ext` matches the pipeline caps |
+| Stream works, but balance robot now jitters | Software H.264 encoder is starving the PID loop | Lower video to 640×480, or `sudo systemctl stop webcam-stream` during tuning |
+| `Connection refused` on port 8554 | MediaMTX not running | `sudo systemctl status mediamtx`; restart if dead |
+
 ## Known limits
 
 - Below ~9.5 V on the 3S pack (≈3.17 V/cell), PWM saturates during hard corrections and balancing degrades — land and swap packs
