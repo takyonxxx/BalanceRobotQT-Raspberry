@@ -230,6 +230,8 @@ SPD_INT_R = pin 18   // Right encoder channel A (interrupt)   ← motor C1
 SPD_PUL_R = pin 22   // Right encoder channel B (direction)   ← motor C2
 ```
 
+> **Note on `constants.h` comments.** The inline comments next to these `#define`s in `constants.h` (e.g. `//interrupt R Phys:16`, `//Phys:22`) are stale copy-paste artefacts and contradict the symbolic names. The pin numbers themselves are correct and consistent end-to-end: `SPD_INT_L = 16` → triggers `encLeftISR` → increments `encLeftTicks_` → drives `encL_eff` → feeds the left-wheel PID. Trust the symbolic names, ignore the comments.
+
 I²C (MPU6050): SDA on header pin 3, SCL on header pin 5 (`/dev/i2c-1`, addr `0x68`).
 
 ### How the 6 motor-drive pins control the H-bridges
