@@ -731,7 +731,51 @@ If you see *"wiringPiSetupPhys failed"* → you forgot `sudo` (WiringPi needs `/
 
 If you see *"Failed to register left/right encoder ISR"* → another process is holding `/sys/class/gpio` — usually a leftover instance, kill it with `sudo pkill BalanceRobotPI`.
 
-### 5. iOS pairing
+### 5. Gyro bias calibration
+
+In the first few seconds after `BalanceRobotPI` starts, **before** the BLE server begins advertising, the code runs an automatic gyro bias calibration. The IMU is sampled 400 times at 5 ms intervals (~2 s per attempt, up to 3 attempts with 1 s pause between) and the mean is stored as the bias to subtract from every subsequent reading. **If the robot moves at all during this window, calibration fails and balance accuracy suffers.**
+
+The acceptance thresholds in `robotcontrol.cpp`:
+
+| Metric | Limit |
+|---|---|
+| Mean gyro magnitude per axis | < **5 °/s** |
+| Sample standard deviation per axis | < **3 °/s** (this is the motion detector) |
+
+**How to hold the robot during calibration:**
+
+The shortest version — **lay the robot on its side on a hard, level surface and don't touch it.** That's it.
+
+Why on its side, not held in your hand?
+- Hand tremor easily produces > 3 °/s of jitter, even when you think you're holding still — and the code reads that as motion, then retries until it fails.
+- A hard surface (desk, tile, hardwood) couples the IMU to the room; the calibration window sees a true zero.
+- Carpet or foam pads partially work but aren't ideal — motor weight makes the chassis settle, and even small settling looks like motion to the gyro.
+
+What's happening on stdout:
+
+```
+Calibrating gyro bias (attempt 1/3) - keep the robot still...
+Gyro bias OK: X= 0.012  Y= -0.034  Z= 0.008 °/s
+```
+
+If you see `⚠ motion detected during calibration` instead, the code automatically retries. Two more failures and it gives up, keeps the previous bias (or zeros, on a fresh install), and logs:
+
+```
+✗ Calibration FAILED after 3 attempts. Robot may not balance properly.
+   Place the robot flat on a hard surface and restart.
+```
+
+**The good news — it's a one-time event per session.** Once calibration succeeds, the bias values are persisted to a separate `bias.ini` file next to `BalanceRobotPI`, so even if a subsequent start-up fails calibration (someone bumps the table) the loaded values are still usable.
+
+**When you should force a fresh calibration:**
+- You re-seated the MPU6050 breakout on the chassis
+- You swapped in a different MPU6050 board
+- The robot was stored in very different temperature than usual (gyro bias has a thermal drift coefficient)
+- The bias log lines look way off (e.g. `X= 4.2 °/s` instead of `X= 0.05 °/s`)
+
+To force a re-calibration: stop the app, `sudo rm bias.ini` from the `BalanceRobotPI` directory, restart.
+
+### 6. iOS pairing
 
 On the iPhone, in the iOS app:
 
@@ -843,6 +887,7 @@ Common symptoms grouped by what's failing, with most likely cause first.
 | Balances but oscillates back and forth slowly | Speed Kp too high | Lower to 0.10 |
 | Long coast after stick release before braking | Speed Ki too low | Raise to 0.25–0.30 |
 | Twitches violently the moment Auto-arm fires | IMU still settling (calibration period missed) | Hold robot perfectly still for 3 seconds before raising upright |
+| Balance steadily drifts in pitch even when sitting still | Gyro bias calibration was bad (e.g. robot moved during the 2 s window) | Stop the app, `sudo rm bias.ini`, lay the robot on its side on a hard surface, restart |
 | Disarms randomly mid-run | Fall detector triggered by sharp transient | Check that IMU isn't loose; reduce `Kd` if vibration is the trigger |
 | Wheels slip and robot can't catch its balance back | Slippery floor / worn tyre rubber | Different surface, or fresh tyres |
 
