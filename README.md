@@ -11,7 +11,7 @@ A two-wheeled self-balancing robot. Qt/C++ control application on Raspberry Pi 5
 
 ## Demo video
 
-Cihazın çalışırken çekilmiş videosu: [Balance Robot — YouTube](https://www.youtube.com/watch?v=qpsppoBpccU)
+See the robot in action: [Balance Robot — YouTube](https://www.youtube.com/watch?v=qpsppoBpccU)
 
 ## Architecture
 
