@@ -12,6 +12,7 @@ class ControlViewController: UIViewController {
     
     // MARK: - UI
     private let statusLabel    = UILabel()
+    private let ipLabel        = UILabel()
     private let connectButton  = UIButton(type: .system)
     private let telemetryView  = TelemetryView()
     private let joystick       = JoystickView()
@@ -117,6 +118,7 @@ class ControlViewController: UIViewController {
                 self.fwdValueView.update(0)
                 self.turnValueView.update(0)
                 self.statusLabel.text = "Robot disconnected"
+                self.ipLabel.text = "Robot IP: —"
             }
             self.updateConnectionUI()
         }
@@ -131,7 +133,18 @@ class ControlViewController: UIViewController {
         statusLabel.textAlignment = .center
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(statusLabel)
-        
+
+        ipLabel.font = UIFont(name: "Menlo", size: 12) ?? .systemFont(ofSize: 12)
+        ipLabel.textColor = .compatSecondaryText
+        ipLabel.text = "Robot IP: —"
+        ipLabel.textAlignment = .center
+        ipLabel.translatesAutoresizingMaskIntoConstraints = false
+        // Uzun basışla IP adresini panoya kopyala
+        ipLabel.isUserInteractionEnabled = true
+        let copyGesture = UILongPressGestureRecognizer(target: self, action: #selector(copyIPToClipboard))
+        ipLabel.addGestureRecognizer(copyGesture)
+        view.addSubview(ipLabel)
+
         configureBigButton(connectButton, title: "Connect",
                            bgColor: .compatSystemBlue,
                            action: #selector(connectTapped))
@@ -179,8 +192,12 @@ class ControlViewController: UIViewController {
             connectButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             connectButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
             connectButton.heightAnchor.constraint(equalToConstant: 44),
-            
-            telemetryView.topAnchor.constraint(equalTo: connectButton.bottomAnchor, constant: 12),
+
+            ipLabel.topAnchor.constraint(equalTo: connectButton.bottomAnchor, constant: 6),
+            ipLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            ipLabel.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+
+            telemetryView.topAnchor.constraint(equalTo: ipLabel.bottomAnchor, constant: 8),
             telemetryView.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
             telemetryView.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
             telemetryView.heightAnchor.constraint(equalToConstant: 140),
@@ -444,6 +461,23 @@ class ControlViewController: UIViewController {
         let scaled = (mag - deadzoneRadius) / (1.0 - deadzoneRadius)   // 0..1
         return sign * scaled * scaled
     }
+
+    // MARK: - IP copy
+    @objc private func copyIPToClipboard(_ sender: UILongPressGestureRecognizer) {
+        guard sender.state == .began else { return }
+        // Etiket formatı: "Robot IP: 192.168.x.y"  → sadece IP kısmını al
+        let text = ipLabel.text ?? ""
+        guard let range = text.range(of: ": ") else { return }
+        let ip = String(text[range.upperBound...])
+        guard !ip.isEmpty, ip != "—" else { return }
+        UIPasteboard.general.string = ip
+        // Kısa görsel geri bildirim
+        let original = ipLabel.text
+        ipLabel.text = "Copied: \(ip)"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.ipLabel.text = original
+        }
+    }
 }
 
 // MARK: - Joystick delegate
@@ -463,8 +497,16 @@ extension ControlViewController: JoystickViewDelegate {
 
 extension ControlViewController: BluetoothServiceDelegate {
     func didReceiveIPAddress(_ ipAddress: String) {
-        // Settings sekmesi gösterebilir; burada sadece log için.
-        print("Robot IP: \(ipAddress)")
+        // Pi'den gelen IP'yi ana ekrandaki etikete yaz.
+        let trimmed = ipAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async {
+            if trimmed.isEmpty {
+                self.ipLabel.text = "Robot IP: —"
+            } else {
+                self.ipLabel.text = "Robot IP: \(trimmed)"
+            }
+        }
+        print("Robot IP: \(trimmed)")
     }
     
     func didReceiveMessage(_ message: String) {
