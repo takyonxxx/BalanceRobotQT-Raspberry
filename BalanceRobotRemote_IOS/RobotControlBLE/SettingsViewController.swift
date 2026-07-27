@@ -541,9 +541,9 @@ class SettingsViewController: UIViewController {
         // fresh Pi (no settings.ini) and an iOS reset both end up at
         // the same point.
         let robotDefaults: [(Byte, UInt8, Float)] = [
-            (mPP, 25,  25),    // Kp = 25
-            (mPI, 40,  40),    // Ki = 0.4 (real); slider raw 40
-            (mPD, 10,  10),    // Kd = 0.10
+            (mPP, 33,  33),    // Kp = 33 (öğrenilen 32.7'nin bayt karşılığı)
+            (mPI, 83,  83),    // Ki = 0.83 (real); slider raw 83
+            (mPD, 14,  14),    // Kd = 0.14 (öğrenilen 0.138'in bayt karşılığı)
             (mAC, 100, 0),     // AC = 0° (işaretli kodlama: bayt 100 = orta)
             (mSD, 20,  20),    // SD = 2.0
             (mSpdKp,      25, 25), // Speed Kp = 0.25   (slider raw 25 → /100)

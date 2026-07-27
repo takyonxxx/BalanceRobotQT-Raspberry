@@ -91,9 +91,11 @@ void RobotControl::loadSettings()
     //   Kp=25, Ki=40 (UI scale → real Ki=0.4), Kd=0.10
     // Defaults: Twiddle auto-tune sonucu (gerçek donanımda, push-recovery
     // maliyeti 166 -> 44). aggKi UI ölçeğidir (gerçek Ki = aggKi*0.01).
-    aggKp     = settings.value("aggKp",     29.2f).toFloat();
-    aggKi     = settings.value("aggKi",     64.0f).toFloat();
-    aggKd     = settings.value("aggKd",      0.103f).toFloat();
+    // Defaults: manevralı PID öğrenmenin (drive/brake/turn) bulduğu set
+    // (cost 43.8 -> 30.7; canlı sürüş varsayılanları üzerinde eğitildi).
+    aggKp     = settings.value("aggKp",     32.7f).toFloat();
+    aggKi     = settings.value("aggKi",     83.0f).toFloat();   // UI ölçeği (gerçek 0.83)
+    aggKd     = settings.value("aggKd",      0.138f).toFloat();
     // Varsayılan 0°: trim şasiden şasiye değişir, nötr başlangıç doğrusu.
     // Kullanıcının slider'dan bulduğu değer settings.ini'ye kaydedilir ve
     // her zaman önceliklidir (bu robotta kayıtlı değer: -5).
