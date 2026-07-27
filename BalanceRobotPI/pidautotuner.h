@@ -47,6 +47,7 @@ public:
     // ---- control (any thread) ----
     void begin(const Gains &current);   // arm the tuner; takes effect next loop
     void requestStop();                 // graceful stop; best gains committed
+    void abortNow();                    // immediate stop (control loop not running, e.g. disarmed)
     void notifyFall();                  // robot fell — fail current candidate
     bool isActive() const { return active_.load(); }
 
@@ -55,6 +56,18 @@ public:
     Gains gains() const { return currentGains_; }
     /// Target-angle disturbance (deg) to add this cycle. 0 outside pulses.
     float disturbance() const { return disturbanceDeg_; }
+    /// Maneuver intensity (settings.ini: learnMoveCmd / learnTurnCmd).
+    /// Call before begin(); safe defaults are gentle.
+    void setManeuver(int moveCmd, int turnCmd) {
+        moveCmd_ = qBound(20, moveCmd, 160);
+        turnCmd_ = qBound(10, turnCmd, 50);
+    }
+    /// Scripted maneuver commands (needSpeed / turn scale). The control loop
+    /// applies these while learning so each candidate is tested against REAL
+    /// drive/brake and turn transients - the exact situations that were
+    /// tipping the robot over ("ileri git...dur" overshoot, turn wobble).
+    int motionSpeed() const { return motionSpeedCmd_; }
+    int motionTurn()  const { return motionTurnCmd_; }   // >0 = left, <0 = right
     /// Advance the state machine with this loop's measurements.
     /// Returns true when the tuner has just FINISHED (converged, stopped or
     /// aborted); the caller should then read bestGains() and commit them.
@@ -79,13 +92,24 @@ private:
 
     // ---- configuration (loops @ 200 Hz) ----
     static constexpr int   SETTLE_LOOPS       = 400;    // 2.0 s
-    static constexpr int   MEASURE_LOOPS      = 1400;   // 7.0 s
-    static constexpr int   PULSE1_START       = 300;    // fwd pulse
-    static constexpr int   PULSE2_START       = 800;    // back pulse
-    static constexpr int   PULSE_LEN          = 70;     // 0.35 s
-    static constexpr float PULSE_DEG          = 1.5f;   // virtual push size
-    static constexpr int   MAX_EVALS          = 40;     // hard cap (~6 min)
-    static constexpr int   MAX_FALLS          = 3;      // safety abort
+    // Olcum penceresi: her aday GERCEK manevra senaryosuyla sinanir.
+    // Zaman cizelgesi (200 Hz loop):
+    //   150-450   ileri sur (+MOVE_CMD)     450'de kes -> FREN gecisi
+    //   750-1050  geri sur  (-MOVE_CMD)    1050'de kes -> fren gecisi
+    //   1350-1500 sola don  (+TURN_CMD)
+    //   1650-1800 saga don  (-TURN_CMD)
+    //   kalan     bosta toparlanma olcumu
+    // Nazik manevralar: amac dusurmek degil, gecisleri OLCMEK. Kisa
+    // suruse (0.8 s) + dusuk komut + her kesimden sonra genis toparlanma
+    // araligi. Siddet settings.ini'den ayarlanabilir (learnMoveCmd /
+    // learnTurnCmd) - robot yine de dusuyorsa degerleri dusur.
+    static constexpr int   MEASURE_LOOPS      = 1600;   // 8.0 s
+    static constexpr int   FWD_START   = 150,  FWD_END   = 310;   // 0.8 s sur
+    static constexpr int   BACK_START  = 600,  BACK_END  = 760;   // 0.8 s sur
+    static constexpr int   LEFT_START  = 1050, LEFT_END  = 1150;  // 0.5 s don
+    static constexpr int   RIGHT_START = 1300, RIGHT_END = 1400;  // 0.5 s don
+    static constexpr int   MAX_EVALS          = 40;     // hard cap (~8 min)
+    static constexpr int   MAX_FALLS          = 5;      // manevrali testte pay genis
     static constexpr float CONVERGE_FRAC      = 0.05f;  // sum(dp)/sum(p)
 
     // Gain bounds: [kp, kd, ki] order (twiddle tunes kd before ki — damping
@@ -102,6 +126,11 @@ private:
     float  bestCost_{0.0f};
     int    evalCount_{0};
     int    fallCount_{0};
+
+    int    moveCmd_{60};    // nazik varsayilan (needSpeed 0-180 olcegi)
+    int    turnCmd_{20};    // nazik varsayilan (turn 0-60 olcegi)
+    int    motionSpeedCmd_{0};
+    int    motionTurnCmd_{0};
 
     Gains  currentGains_{25.0f, 0.40f, 0.10f};
     Gains  bestGains_{25.0f, 0.40f, 0.10f};

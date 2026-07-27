@@ -44,6 +44,9 @@ public:
     // BLE (mobil uygulama) bağlantı bildirimi - BalanceRobot thread'inden
     // queued invoke ile çağrılır, hoparlörden seslendirilir.
     Q_INVOKABLE void announceBleClient(bool connected, const QString &clientInfo);
+    // Mobilden PID/hız ayarı yazıldığında çağrılır; 1.5 sn sönümlenip
+    // (slider sürüklemesi spam yapmasın) güncel değerlerle seslendirilir.
+    Q_INVOKABLE void notifyGainChanged(const QString &kind);   // "pid" | "speed"
     Q_INVOKABLE void shutdown();
 
     bool isEnabled() const { return enabled_; }
@@ -53,6 +56,7 @@ signals:
     void statusLine(const QString &line);
 
 private slots:
+    void onStateWatch();      // arm/disarm ve PID öğrenme geçişlerini seslendir
     void onAudioData();
     void onRecorderFinished(int exitCode, QProcess::ExitStatus st);
     void onSpeakFinished(int exitCode, QProcess::ExitStatus st);
@@ -131,6 +135,17 @@ private:
     bool         lastWasFallback_ = false;  // varsayılan çıkışa geri düşme için
     QString      lastUsedDevice_;
     QTimer      *btReconnectTimer_ = nullptr;
+    // Durum gözcüsü: kaynağı ne olursa olsun (mobil, ses, otomatik arm,
+    // düşme) durum GEÇİŞLERİNİ tek yerden anons eder.
+    QTimer *stateWatchTimer_ = nullptr;
+    bool    stateWatchInit_  = false;
+    bool    lastArmed_       = false;
+    bool    lastLearning_    = false;
+    qint64  lastArmAnnounceMs_ = 0;   // hızlı düş-kalk döngüsünde konuşma seli önlenir
+    // PID ayar anonsu sönümleme
+    QTimer *gainAnnounceTimer_ = nullptr;
+    bool    gainPidChanged_    = false;
+    bool    gainSpeedChanged_  = false;
     bool         btConnected_ = false;   // geçiş algılama: yeniden bağlanınca IP söyle
 };
 

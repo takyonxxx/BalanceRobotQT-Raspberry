@@ -89,11 +89,11 @@ Instead of tuning the Pitch PID by hand, the robot can tune itself. The Pi runs 
 **How it works:**
 
 1. Each candidate is evaluated for ~9 s (2 s settle + 7 s measure).
-2. During measurement the tuner injects small **virtual push pulses (±1.5°)** into the target angle — the cost function scores exactly the failure mode that matters in practice: recovery from a forward/backward command step.
+2. During measurement each candidate is exercised with a **gentle real maneuver script** through the same command channels the joystick and voice use: 0.8 s forward at command 60/180 then CUT (brake transient measured), 0.8 s backward then cut, 0.5 s left turn at 20/60, 0.5 s right turn, then idle recovery. Long recovery gaps separate the maneuvers. Intensity is tunable in `settings.ini` root: `learnMoveCmd=60`, `learnTurnCmd=20` — lower them if the robot still falls during evals. The cost window includes the moments right after each cut, so the tuner directly rewards "come back to balance as fast as possible after *dur*".
 3. Cost = angle-error² + gyro-rate² + PWM² (weighted) → tracking accuracy, oscillation and motor chatter are all penalized together.
-4. Twiddle shrinks/grows the search deltas per gain; the run converges typically in 3–6 minutes (hard cap: 40 evaluations).
+4. Twiddle shrinks/grows the search deltas per gain; the run converges typically in 3–6 minutes (hard cap: 40 evaluations, ~7 min with maneuvers).
 
-**Safety:** a fall during an evaluation gives that candidate infinite cost and instantly reverts to the best known gains. Three falls abort the whole run (best-so-far is kept). Touching the joystick restarts the current candidate's measurement — learning is never corrupted, just extended.
+**Safety & fall recovery:** a fall during an evaluation is detected (maneuver commands are zeroed immediately), that candidate gets infinite cost and gains revert to the best known set. The run then **waits for you**: stand the robot upright, auto-arm kicks in, and learning resumes with a fresh candidate from where it left off — the robot even tells you so ("Beni dik konuma getirirsen öğrenmeye kaldığım yerden devam ederim"). Five falls abort the whole run (best-so-far kept). Touching the joystick restarts only the current candidate's measurement; the tuner's own scripted maneuvers do NOT count as user input.
 
 **How to start it:**
 

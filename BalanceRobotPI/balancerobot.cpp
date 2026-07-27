@@ -227,7 +227,9 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mPP:    sendData(mPP, (uint8_t)std::clamp<int>((int)robotControl->getAggKp(), 0, 255)); break;
         case mPI:    sendData(mPI, (uint8_t)std::clamp<int>((int)(robotControl->getAggKi()), 0, 255)); break;
         case mPD:    sendData(mPD, (uint8_t)std::clamp<int>((int)(100*robotControl->getAggKd()), 0, 255)); break;
-        case mAC:    sendData(mAC, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggAC()), 0, 255)); break;
+        // AC (angle trim) İŞARETLİ: -10..+10° -> tel baytı = AC*10 + 100
+        // (0..200). Eski kodlama işaretsizdi ve eksi trim gönderilemiyordu.
+        case mAC:    sendData(mAC, (uint8_t)std::clamp<int>((int)std::lround(10.0f*robotControl->getAggAC()) + 100, 0, 200)); break;
         case mSD:    sendData(mSD, (uint8_t)std::clamp<int>((int)(10*robotControl->getAggSD()), 0, 255)); break;
         case mSpdKp:      sendData(mSpdKp,      (uint8_t)std::clamp<int>((int)(100*robotControl->getSpdKp()), 0, 255)); break;
         case mSpdKi:      sendData(mSpdKi,      (uint8_t)std::clamp<int>((int)(100*robotControl->getSpdKi()), 0, 255)); break;
@@ -247,7 +249,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mPP: robotControl->setAggKp((float)value); qDebug() << "Kp =" << robotControl->getAggKp(); break;
         case mPI: robotControl->setAggKi((float)value); qDebug() << "Ki =" << robotControl->getAggKi(); break;
         case mPD: robotControl->setAggKd(value / 100.0f); qDebug() << "Kd =" << robotControl->getAggKd(); break;
-        case mAC: robotControl->setAggAC(value / 10.0f); qDebug() << "AC =" << robotControl->getAggAC(); break;
+        case mAC: robotControl->setAggAC((value - 100) / 10.0f); qDebug() << "AC =" << robotControl->getAggAC(); break;   // işaretli: bayt-100 -> derece*10
         case mSD: robotControl->setAggSD(value / 10.0f); qDebug() << "SD =" << robotControl->getAggSD(); break;
         case mSpdKp:      robotControl->setSpdKp(value / 100.0f); qDebug() << "Speed Kp =" << robotControl->getSpdKp(); break;
         case mSpdKi:      robotControl->setSpdKi(value / 100.0f); qDebug() << "Speed Ki =" << robotControl->getSpdKi(); break;
@@ -264,8 +266,14 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mResetTrim: robotControl->resetTrim(); break;
         case mPidLearn: {
             uint8_t v = parsedValue.isEmpty() ? 0 : (uint8_t)parsedValue[0];
-            if (v != 0) robotControl->startPidLearning();
-            else        robotControl->stopPidLearning();
+            if (v != 0) {
+                if (!robotControl->startPidLearning())
+                    // Mobil karttaki durum satırına düşsün; iOS bu öneki
+                    // görünce Start/Stop butonunu da geri çevirir.
+                    sendString(mPidStatus, "LEARN refused - robot is not balancing");
+            } else {
+                robotControl->stopPidLearning();
+            }
             break;
         }
         case mTrimFine: {
@@ -282,6 +290,18 @@ void BalanceRobot::onDataReceived(QByteArray data)
         }
         default: qDebug() << "Unknown write cmd:" << parsedCommand; break;
         }
+        // Mobilden ayar yazımlarını sesli duyur (1.5 sn sönümlemeli).
+        if (voiceAssistant) {
+            const bool pidW = (parsedCommand == mPP || parsedCommand == mPI ||
+                               parsedCommand == mPD);
+            const bool spdW = (parsedCommand == mSpdKp || parsedCommand == mSpdKi ||
+                               parsedCommand == mSpdMaxTilt || parsedCommand == mSpdMaxVel);
+            if (pidW || spdW)
+                QMetaObject::invokeMethod(voiceAssistant, "notifyGainChanged",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QString, pidW ? "pid" : "speed"));
+        }
+
         // Komut sonrası ayar değişikliği telemetri timer içinde saklanıyor;
         // burada saveSettings cağırmıyoruz (her yazma SD aşındırırdı).
     }

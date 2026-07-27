@@ -21,7 +21,7 @@ void PidAutoTuner::begin(const Gains &current)
     beginRequest_.store(true);
     active_.store(true);
     pushStatus(QString::asprintf(
-        "LEARN start Kp=%.1f Ki=%.2f Kd=%.3f",
+        "LEARN start (drive/brake/turn maneuvers) Kp=%.1f Ki=%.2f Kd=%.3f",
         current.kp, current.ki, current.kd));
 }
 
@@ -29,6 +29,23 @@ void PidAutoTuner::requestStop()
 {
     if (!active_.load()) return;
     stopRequest_.store(true);
+}
+
+// Kontrol döngüsü çalışmıyorken (disarmed) durdurma: feedSample hiç
+// çağrılmayacağı için stopRequest orada işlenemez - burada anında kapat.
+// Yalnızca disarmed durumda çağrılır; kontrol thread'i o sırada tuner'a
+// dokunmadığından yarış yoktur.
+void PidAutoTuner::abortNow()
+{
+    if (!active_.load()) return;
+    phase_ = Phase::Idle;
+    disturbanceDeg_ = 0.0f;
+    motionSpeedCmd_ = 0;
+    motionTurnCmd_  = 0;
+    active_.store(false);
+    stopRequest_.store(false);
+    fallFlag_.store(false);
+    pushStatus("LEARN done (aborted while disarmed)");
 }
 
 void PidAutoTuner::notifyFall()
@@ -79,6 +96,8 @@ void PidAutoTuner::startCandidate(const Gains &g)
     phase_ = Phase::Settle;
     loopCount_ = 0;
     disturbanceDeg_ = 0.0f;
+    motionSpeedCmd_ = 0;
+    motionTurnCmd_  = 0;
     sumErrSq_ = 0.0;
     sumRateSq_ = 0.0;
     sumPwmSq_ = 0.0;
@@ -90,6 +109,8 @@ void PidAutoTuner::finish(const char *reason)
 {
     phase_ = Phase::Idle;
     disturbanceDeg_ = 0.0f;
+    motionSpeedCmd_ = 0;
+    motionTurnCmd_  = 0;
     currentGains_ = bestGains_;
     active_.store(false);
     stopRequest_.store(false);
@@ -228,8 +249,14 @@ bool PidAutoTuner::feedSample(float angleErrDeg, float gyroRateDps,
     // A fall anywhere during a candidate — infinite cost, revert, continue
     // (up to MAX_FALLS, then abort with the best-so-far).
     if (fallFlag_.exchange(false)) {
+        // Dusme aninda manevra komutlari SIFIRLANIR - kullanici robotu
+        // dik konuma getirip auto-arm oldugunda robot aniden surulmez;
+        // yeni aday temiz bir Settle fazıyla kaldigi yerden devam eder.
+        motionSpeedCmd_ = 0;
+        motionTurnCmd_  = 0;
+        disturbanceDeg_ = 0.0f;
         fallCount_++;
-        pushStatus(QString::asprintf("FALL during eval (%d/%d)",
+        pushStatus(QString::asprintf("FALL during eval (%d/%d) - stand the robot up to continue",
                                      fallCount_, MAX_FALLS));
         if (fallCount_ >= MAX_FALLS) {
             finish("too many falls");
@@ -269,15 +296,19 @@ bool PidAutoTuner::feedSample(float angleErrDeg, float gyroRateDps,
     case Phase::Measure: {
         loopCount_++;
 
-        // Disturbance pulses — a virtual forward push then a backward push.
-        // This is what makes the cost function reward gains that recover
-        // from joystick steps instead of only rewarding standing still.
-        if (loopCount_ >= PULSE1_START && loopCount_ < PULSE1_START + PULSE_LEN)
-            disturbanceDeg_ = +PULSE_DEG;
-        else if (loopCount_ >= PULSE2_START && loopCount_ < PULSE2_START + PULSE_LEN)
-            disturbanceDeg_ = -PULSE_DEG;
-        else
-            disturbanceDeg_ = 0.0f;
+        // GERCEK manevra senaryosu: sanal egim darbesi yerine her aday,
+        // kullanicinin yasadigi durumun aynisiyla sinanir - ileri sur/kes
+        // (fren asimi), geri sur/kes ve iki yone donus. Komut kesildigi
+        // andaki toparlanma da olcum penceresinin icinde kalir; maliyet
+        // fonksiyonu boylece "dur deyince en kisa surede dengeye gel"
+        // davranisini odullendirir.
+        disturbanceDeg_ = 0.0f;
+        motionSpeedCmd_ = 0;
+        motionTurnCmd_  = 0;
+        if      (loopCount_ >= FWD_START   && loopCount_ < FWD_END)   motionSpeedCmd_ = +moveCmd_;
+        else if (loopCount_ >= BACK_START  && loopCount_ < BACK_END)  motionSpeedCmd_ = -moveCmd_;
+        else if (loopCount_ >= LEFT_START  && loopCount_ < LEFT_END)  motionTurnCmd_  = +turnCmd_;
+        else if (loopCount_ >= RIGHT_START && loopCount_ < RIGHT_END) motionTurnCmd_  = -turnCmd_;
 
         sumErrSq_  += (double)angleErrDeg * (double)angleErrDeg;
         sumRateSq_ += (double)gyroRateDps * (double)gyroRateDps;
@@ -286,6 +317,8 @@ bool PidAutoTuner::feedSample(float angleErrDeg, float gyroRateDps,
 
         if (loopCount_ >= MEASURE_LOOPS) {
             disturbanceDeg_ = 0.0f;
+            motionSpeedCmd_ = 0;
+            motionTurnCmd_  = 0;
             // Cost weighting:
             //   err²  : tracking accuracy         (deg²,   ~0.1..4)   ×100
             //   rate² : oscillation / jitter      (dps²,   ~50..2000) ×0.05

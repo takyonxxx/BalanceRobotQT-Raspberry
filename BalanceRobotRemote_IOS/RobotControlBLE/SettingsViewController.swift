@@ -17,7 +17,9 @@ class SettingsViewController: UIViewController {
     private let pSlider = LabeledSlider(title: "P (Proportional)", min: 0, max: 100, format: "%.0f")
     private let iSlider = LabeledSlider(title: "I (Integral)",     min: 0, max: 255, format: "%.2f", scaleDivider: 100)
     private let dSlider = LabeledSlider(title: "D (Derivative)",   min: 0, max: 50,  format: "%.2f", scaleDivider: 100)
-    private let acSlider = LabeledSlider(title: "Angle trim (AC)", min: 0, max: 50,  format: "%.1f°", scaleDivider: 10)
+    // Angle trim İŞARETLİ: -10..+10°, varsayılan tam ortada (0). Slider ham
+    // değeri derece*10 tutar (-100..+100); tele giderken +100 ofsetlenir.
+    private let acSlider = LabeledSlider(title: "Angle trim (AC)", min: -100, max: 100, format: "%.1f°", scaleDivider: 10)
     private let sdSlider = LabeledSlider(title: "Yaw gain (SD)",   min: 0, max: 100, format: "%.2f", scaleDivider: 10)
     
     // Speed PID sliders (B-Robot style cascade — outer loop for velocity tracking)
@@ -346,7 +348,9 @@ class SettingsViewController: UIViewController {
             self.pidLearnStatusLabel.text = "Status: " + status
             self.appendLog("[PID] " + status)
             // Tuner kendiliğinden bitti mi? Buton durumunu geri çevir.
-            if status.hasPrefix("LEARN done") {
+            if status.hasPrefix("LEARN done") || status.hasPrefix("LEARN refused") {
+                // done: tuner bitti. refused: Pi yatarken başlatmayı reddetti -
+                // iyimser çevrilen buton geri Start'a döner.
                 self.pidLearnActive = false
                 self.updatePidLearnButton()
             } else if status.hasPrefix("LEARN start") {
@@ -395,7 +399,7 @@ class SettingsViewController: UIViewController {
         pSlider.onValueChanged  = { [weak self] v in self?.sendByte(mPP, byte: UInt8(min(255, max(0, Int(v))))) }
         iSlider.onValueChanged  = { [weak self] v in self?.sendByte(mPI, byte: UInt8(min(255, max(0, Int(v))))) }
         dSlider.onValueChanged  = { [weak self] v in self?.sendByte(mPD, byte: UInt8(min(255, max(0, Int(v))))) }
-        acSlider.onValueChanged = { [weak self] v in self?.sendByte(mAC, byte: UInt8(min(255, max(0, Int(v))))) }
+        acSlider.onValueChanged = { [weak self] v in self?.sendByte(mAC, byte: UInt8(min(200, max(0, Int(v) + 100)))) }   // işaretli: derece*10 + 100
         sdSlider.onValueChanged = { [weak self] v in self?.sendByte(mSD, byte: UInt8(min(255, max(0, Int(v))))) }
         
         // Speed PID — sliders show real units, send raw int (scaled by Pi):
@@ -495,7 +499,7 @@ class SettingsViewController: UIViewController {
             (mPP, 25,  25),    // Kp = 25
             (mPI, 40,  40),    // Ki = 0.4 (real); slider raw 40
             (mPD, 10,  10),    // Kd = 0.10
-            (mAC, 0,   0),     // AC = 0
+            (mAC, 100, 100),   // AC = 0° (işaretli kodlama: bayt 100 = orta)
             (mSD, 20,  20),    // SD = 2.0
             (mSpdKp,      12, 12), // Speed Kp = 0.12   (slider raw 12 → /100)
             (mSpdKi,      20, 20), // Speed Ki = 0.20   (slider raw 20 → /100)
@@ -508,7 +512,7 @@ class SettingsViewController: UIViewController {
                 case mPP: pSlider.setValue(sliderValue)
                 case mPI: iSlider.setValue(sliderValue)
                 case mPD: dSlider.setValue(sliderValue)
-                case mAC: acSlider.setValue(sliderValue)
+                case mAC: acSlider.setValue(sliderValue - 100)   // ofseti çöz: bayt -> işaretli
                 case mSD: sdSlider.setValue(sliderValue)
                 case mSpdKp:      spdKpSlider.setValue(sliderValue)
                 case mSpdKi:      spdKiSlider.setValue(sliderValue)
@@ -572,7 +576,7 @@ extension SettingsViewController: BluetoothServiceDelegate {
                 case mPP: self.pSlider.setValue(v)
                 case mPI: self.iSlider.setValue(v)
                 case mPD: self.dSlider.setValue(v)
-                case mAC: self.acSlider.setValue(v)
+                case mAC: self.acSlider.setValue(v - 100)   // ofseti çöz: bayt -> işaretli
                 case mSD: self.sdSlider.setValue(v)
                 case mSpdKp:      self.spdKpSlider.setValue(v)
                 case mSpdKi:      self.spdKiSlider.setValue(v)

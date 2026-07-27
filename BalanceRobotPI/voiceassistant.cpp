@@ -188,6 +188,37 @@ void VoiceAssistant::start()
     llm_ = new LlmClient(this);
     loadSettings();
 
+    // Durum gözcüsü ve ayar anonsu, STT'den BAĞIMSIZ çalışır: mikrofon/vosk
+    // olmasa da arm/disarm ve PID olayları hoparlörden duyurulur.
+    stateWatchTimer_ = new QTimer(this);
+    stateWatchTimer_->setInterval(500);
+    connect(stateWatchTimer_, &QTimer::timeout, this, &VoiceAssistant::onStateWatch);
+    stateWatchTimer_->start();
+
+    gainAnnounceTimer_ = new QTimer(this);
+    gainAnnounceTimer_->setSingleShot(true);
+    gainAnnounceTimer_->setInterval(1500);
+    connect(gainAnnounceTimer_, &QTimer::timeout, this, [this]() {
+        QString msg;
+        if (gainPidChanged_) {
+            auto say = [](float v) {
+                QString t = QString::number(v, 'f', 2);
+                while (t.endsWith('0')) t.chop(1);
+                if (t.endsWith('.')) t.chop(1);
+                return t.replace('.', " nokta ");
+            };
+            msg = QString("PID ayarları güncellendi. Kp %1, Ki %2, Kd %3.")
+                      .arg(say(robot_->getAggKp()),
+                           say(robot_->getAggKi() * 0.01f),
+                           say(robot_->getAggKd()));
+        }
+        if (gainSpeedChanged_)
+            msg += msg.isEmpty() ? "Hız kontrol ayarları güncellendi."
+                                 : " Hız ayarları da güncellendi.";
+        gainPidChanged_ = gainSpeedChanged_ = false;
+        if (!msg.isEmpty()) speak(msg);
+    });
+
     if (!enabled_) {
         qDebug("VoiceAssistant: disabled in settings.ini ([assistant]/enabled=false).");
         return;
@@ -414,13 +445,14 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     if (t.contains("pid") || t.contains("öğren") || t.contains("ogren") ||
         t.contains("learn")) {
         if (containsAny(t, {"durdur", "bitir", "iptal", "stop", "kapat"})) {
-            robot_->stopPidLearning();
-            speak("PID öğrenme durdu, bulduğum en iyi değerleri kaydettim.");
+            if (!robot_->isPidLearning()) { speak("Öğrenme modu zaten kapalı."); return true; }
+            robot_->stopPidLearning();   // anonsu durum gözcüsü yapar
             return true;
         }
         if (containsAny(t, {"başlat", "baslat", "başla", "basla", "start", "aç", "ac"})) {
-            robot_->startPidLearning();
-            speak("PID öğrenme başladı. Bilerek sallanacağım, birkaç dakika sürer.");
+            if (robot_->isPidLearning()) { speak("Zaten öğrenme modundayım."); return true; }
+            if (!robot_->startPidLearning())   // başarılıysa anonsu durum gözcüsü yapar
+                speak("Şu an dengede değilim. Beni dik konuma getir, sonra tekrar iste.");
             return true;
         }
     }
@@ -456,14 +488,14 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     // ---- Arm / Disarm ----
     if (containsAny(t, {"disarm", "motorları kapat", "motorlari kapat",
                         "motoru kapat", "devre dışı", "devre disi"})) {
-        robot_->setIsArmed(false);
-        speak("Motorlar kapatıldı.");
+        if (!robot_->getIsArmed()) { speak("Motorlar zaten kapalı."); return true; }
+        robot_->setIsArmed(false);   // anonsu durum gözcüsü yapar
         return true;
     }
     if (containsWord(t, {"arm", "hazırlan", "hazirlan", "dengele"}) ||
         containsAny(t, {"motorları aç", "motorlari ac", "motoru aç", "motoru ac"})) {
-        robot_->setIsArmed(true);
-        speak("Denge kontrolü aktif, hazırım.");
+        if (robot_->getIsArmed()) { speak("Denge zaten aktif."); return true; }
+        robot_->setIsArmed(true);    // anonsu durum gözcüsü yapar
         return true;
     }
 
@@ -566,7 +598,8 @@ QString VoiceAssistant::execTool(const QString &name, const QJsonObject &args)
         return armed ? "Armed." : "Disarmed.";
     }
     if (name == "start_pid_learning") {
-        robot_->startPidLearning();
+        if (!robot_->startPidLearning())
+            return "Refused: the robot is not balancing (disarmed). Stand it upright first.";
         return "PID learning started. The robot will wobble on purpose for a few minutes.";
     }
     if (name == "stop_pid_learning") {
@@ -774,6 +807,55 @@ void VoiceAssistant::ensureBtSpeaker()
         conn->start("bluetoothctl", {"connect", btSpeakerMac_});
     });
     info->start("bluetoothctl", {"info", btSpeakerMac_});
+}
+
+// Durum gözcüsü: telemetri geçişlerini seslendirir. Komut kaynağından
+// bağımsızdır - mobil ARM butonu, sesli komut, otomatik arm ve düşme
+// hepsi buradan tek tip duyurulur (çifte anons olmaz).
+void VoiceAssistant::onStateWatch()
+{
+    const RobotControl::Telemetry t = robot_->getTelemetry();
+
+    if (!stateWatchInit_) {
+        lastArmed_    = t.armed;
+        lastLearning_ = t.pidLearning;
+        stateWatchInit_ = true;
+        return;
+    }
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    if (t.armed != lastArmed_) {
+        lastArmed_ = t.armed;
+        // Düş-kalk döngüsünde (fall -> auto-arm -> fall) konuşma seli olmasın.
+        if (now - lastArmAnnounceMs_ > 3000) {
+            lastArmAnnounceMs_ = now;
+            if (t.armed)
+                speak("Denge kontrolü aktif, dengedeyim.");
+            else if (t.fallen && t.pidLearning)
+                speak("Düştüm. Beni dik konuma getirirsen öğrenmeye kaldığım yerden devam ederim.");
+            else if (t.fallen)
+                speak("Düştüm, motorlar devre dışı.");
+            else
+                speak("Motorlar kapatıldı.");
+        }
+    }
+
+    if (t.pidLearning != lastLearning_) {
+        lastLearning_ = t.pidLearning;
+        if (t.pidLearning)
+            speak("PID öğrenme başladı. Bilerek sallanacağım, birkaç dakika sürer.");
+        else
+            speak("PID öğrenme bitti, en iyi değerler kaydedildi.");
+    }
+}
+
+void VoiceAssistant::notifyGainChanged(const QString &kind)
+{
+    if (kind == "speed") gainSpeedChanged_ = true;
+    else                 gainPidChanged_   = true;
+    if (gainAnnounceTimer_)
+        gainAnnounceTimer_->start();   // her yazımda sönümleme yeniden başlar
 }
 
 // Mobil uygulama (BLE) bağlanınca/kopunca sesli bildirim.

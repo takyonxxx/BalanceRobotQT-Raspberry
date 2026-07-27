@@ -110,6 +110,8 @@ void RobotControl::loadSettings()
     spdMaxTilt = settings.value("spdMaxTilt", 5.0f).toFloat();
     spdMaxVel  = settings.value("spdMaxVel",  3.0f).toFloat();
     spdTiltSlew = settings.value("spdTiltSlew", 0.04f).toFloat();
+    learnMoveCmd_ = settings.value("learnMoveCmd", 60).toInt();
+    learnTurnCmd_ = settings.value("learnTurnCmd", 20).toInt();
 
     // Legacy fields no longer read or written:
     //   aggSD       (was yaw PID gain for gyro-Z control; now encoder-based
@@ -141,6 +143,8 @@ void RobotControl::saveSettings()
     settings.setValue("spdMaxTilt",      spdMaxTilt);
     settings.setValue("spdMaxVel",       spdMaxVel);
     settings.setValue("spdTiltSlew",     spdTiltSlew);
+    settings.setValue("learnMoveCmd",    learnMoveCmd_);
+    settings.setValue("learnTurnCmd",    learnTurnCmd_);
     // Migrate old key names: if present from older builds, drop them.
     if (settings.contains("aggSD"))     settings.remove("aggSD");
     if (settings.contains("yawInvert")) settings.remove("yawInvert");
@@ -464,24 +468,34 @@ void RobotControl::resetTrim()
 // begin()/requestStop() sadece atomik bayrak set eder; tuner'in tüm durum
 // makinesi kontrol döngüsü thread'inde (feedSample) ilerler.
 
-void RobotControl::startPidLearning()
+bool RobotControl::startPidLearning()
 {
-    if (pidTuner_.isActive()) return;
+    if (pidTuner_.isActive()) return true;
     if (!isArmed.load()) {
-        // Denge yoksa öğrenme anlamsız - auto mode açıksa robot dik
-        // tutulunca kendisi arm olur ve tuner beklemeye başlar.
-        qDebug("PID learn requested while disarmed - will start once balancing");
+        // Robot yatarken/dengede değilken öğrenme REDDEDİLİR: tuner durum
+        // makinesi yalnızca armed kontrol dalında ilerlediği için yatarken
+        // "başlatmak" hem anlamsız hem de durdurulamaz bir sahte-aktif
+        // durum yaratıyordu. Kullanıcı robotu dik konuma getirip yeniden
+        // istemeli.
+        qDebug("PID learn REFUSED - robot is not balancing (disarmed)");
+        return false;
     }
+    pidTuner_.setManeuver(learnMoveCmd_, learnTurnCmd_);
     PidAutoTuner::Gains g;
     g.kp = aggKp;
     g.ki = aggKi * 0.01f;   // UI ölçeğinden gerçek ölçeğe
     g.kd = aggKd;
     pidTuner_.begin(g);
+    return true;
 }
 
 void RobotControl::stopPidLearning()
 {
     pidTuner_.requestStop();
+    // Disarmed iken feedSample çalışmaz ve istek asla işlenmezdi
+    // (mobil Stop'un "etki etmiyor" görünmesinin nedeni buydu):
+    if (!isArmed.load())
+        pidTuner_.abortNow();
 }
 
 // ---------------- Ana kontrol döngüsü ----------------
@@ -542,7 +556,13 @@ void RobotControl::controlLoop(float /*dt*/)
     //
     // Map: max joystick command (180 PWM) → max ±4° target tilt.
     // Asymmetric smoothing kept: ramp up smoothly, snap to zero on release.
-    int curSpeedRaw = needSpeed.load();
+    // Kullanicinin ham komutu ayrica saklanir: PID ogrenmedeki manevra
+    // komutlari 'kullanici dokundu' sayilmasin (aday bosuna yeniden
+    // baslamasin); joystick'e GERCEKTEN dokunulursa aday yine yenilenir.
+    const int userSpeedRaw = needSpeed.load();
+    int curSpeedRaw = userSpeedRaw;
+    if (pidTuner_.isActive() && userSpeedRaw == 0)
+        curSpeedRaw = pidTuner_.motionSpeed();
     int curSpeed = (std::abs(curSpeedRaw) < 15) ? 0 : curSpeedRaw;
 
     if (curSpeed == 0) {
@@ -777,8 +797,15 @@ void RobotControl::controlLoop(float /*dt*/)
     //   - Insensitive to vibration (encoder ticks are discrete events).
     //   - Same encoders we already trust for position hold.
     int turnBias = 0;
-    int needL = needTurnL.load();
-    int needR = needTurnR.load();
+    const int userTurnL = needTurnL.load();
+    const int userTurnR = needTurnR.load();
+    int needL = userTurnL;
+    int needR = userTurnR;
+    if (pidTuner_.isActive() && userTurnL == 0 && userTurnR == 0) {
+        const int mt = pidTuner_.motionTurn();   // >0 sol, <0 sag
+        if (mt > 0)      { needL = mt;  needR = 0; }
+        else if (mt < 0) { needR = -mt; needL = 0; }
+    }
     if (needR > 0)      turnBias = +needR;
     else if (needL > 0) turnBias = -needL;
 
@@ -904,7 +931,9 @@ void RobotControl::controlLoop(float /*dt*/)
 
     // ---- PID öğrenme modu: örnek besle / sonucu işle ----
     if (learnActive) {
-        bool userCmd = (curSpeed != 0) || (needL != 0) || (needR != 0);
+        // Yalnizca GERCEK kullanici girisi aday olcumunu yeniden baslatir;
+        // tuner'in kendi manevralari testin parcasidir.
+        bool userCmd = (userSpeedRaw != 0) || (userTurnL != 0) || (userTurnR != 0);
         int pwmAbs = std::max(std::abs(pwmL_), std::abs(pwmR_));
         bool finished = pidTuner_.feedSample(angErr, gyroRateX_,
                                              pwmAbs, userCmd);

@@ -111,7 +111,7 @@ public:
     // PID öğrenme modu (mobil taraftan mPidLearn ile tetiklenir).
     // Gerçek iş kontrol döngüsü thread'inde yapılır; buradaki çağrılar
     // sadece atomik istek bayrakları set eder.
-    void startPidLearning();
+    bool startPidLearning();   // false = reddedildi (dengede değil)
     void stopPidLearning();
     bool isPidLearning() const { return pidTuner_.isActive(); }
     QString takePidLearnStatus() { return pidTuner_.takeStatus(); }
@@ -205,6 +205,8 @@ private:
     // 0.04=8°/s (canlı). Sesli/joystick komutlarının ne kadar çabuk
     // ivmelendiğini belirler; settings.ini spdTiltSlew.
     float spdTiltSlew{0.04f};
+    int   learnMoveCmd_{60};   // PID ogrenme manevra siddeti (settings.ini)
+    int   learnTurnCmd_{20};
     std::atomic<float> tempMaxVel_{0.0f};
     float spdMaxVel{3.0f};
 
