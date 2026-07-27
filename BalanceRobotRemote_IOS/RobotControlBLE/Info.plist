@@ -41,5 +41,9 @@
 	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Our app uses bluetooth to find, connect and transfer data between different devices</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone is used to capture your voice questions and commands for the Claude robot assistant.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition converts your spoken questions into text before sending them to the Claude assistant.</string>
 </dict>
 </plist>

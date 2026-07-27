@@ -49,5 +49,32 @@ final class AppSettings {
         }
     }
     
+    // MARK: - Claude asistanı
+    
+    private let kClaudeApiKey   = "claude.apiKey"
+    private let kClaudeModel    = "claude.model"
+    private let kSpeakReplies   = "claude.speakReplies"
+    
+    /// Anthropic API anahtarı (sk-ant-...). Assistant sekmesinden girilir.
+    var claudeApiKey: String {
+        get { defaults.string(forKey: kClaudeApiKey) ?? "" }
+        set { defaults.set(newValue, forKey: kClaudeApiKey) }
+    }
+    
+    /// Kullanılacak Claude modeli.
+    var claudeModel: String {
+        get { defaults.string(forKey: kClaudeModel) ?? "claude-sonnet-4-6" }
+        set { defaults.set(newValue, forKey: kClaudeModel) }
+    }
+    
+    /// Claude cevapları sesli okunsun mu (AVSpeechSynthesizer).
+    var speakReplies: Bool {
+        get {
+            if defaults.object(forKey: kSpeakReplies) == nil { return true }
+            return defaults.bool(forKey: kSpeakReplies)
+        }
+        set { defaults.set(newValue, forKey: kSpeakReplies) }
+    }
+    
     static let didChange = Notification.Name("AppSettings.didChange")
 }

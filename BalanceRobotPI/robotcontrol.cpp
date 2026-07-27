@@ -455,6 +455,31 @@ void RobotControl::resetTrim()
     qDebug("Trim reset");
 }
 
+// ---------------- PID öğrenme modu ----------------
+//
+// begin()/requestStop() sadece atomik bayrak set eder; tuner'in tüm durum
+// makinesi kontrol döngüsü thread'inde (feedSample) ilerler.
+
+void RobotControl::startPidLearning()
+{
+    if (pidTuner_.isActive()) return;
+    if (!isArmed.load()) {
+        // Denge yoksa öğrenme anlamsız - auto mode açıksa robot dik
+        // tutulunca kendisi arm olur ve tuner beklemeye başlar.
+        qDebug("PID learn requested while disarmed - will start once balancing");
+    }
+    PidAutoTuner::Gains g;
+    g.kp = aggKp;
+    g.ki = aggKi * 0.01f;   // UI ölçeğinden gerçek ölçeğe
+    g.kd = aggKd;
+    pidTuner_.begin(g);
+}
+
+void RobotControl::stopPidLearning()
+{
+    pidTuner_.requestStop();
+}
+
 // ---------------- Ana kontrol döngüsü ----------------
 
 void RobotControl::controlLoop(float /*dt*/)
@@ -464,6 +489,7 @@ void RobotControl::controlLoop(float /*dt*/)
         if (!fallen_) {
             qDebug() << "FALLEN at angle:" << currentAngle_;
             fallen_ = true;
+            if (pidTuner_.isActive()) pidTuner_.notifyFall();
             if (isArmed.load()) {
                 setIsArmed(false);
             } else {
@@ -660,6 +686,14 @@ void RobotControl::controlLoop(float /*dt*/)
     lockedPos_ = chassisPos;
     posHoldActive_ = false;
 
+    // ---- PID öğrenme modu: bozucu darbe enjeksiyonu ----
+    // Tuner MEASURE fazındayken hedef açıya küçük sanal "joystick itmesi"
+    // ekler; maliyet fonksiyonu bu itmeden toparlanma kalitesini ölçer.
+    bool learnActive = pidTuner_.isActive();
+    if (learnActive) {
+        targetAngle_ += pidTuner_.disturbance();
+    }
+
     targetAngle_ = std::clamp(targetAngle_, -12.0f, 12.0f);
 
     anglePid.setSetpoint(targetAngle_);
@@ -684,20 +718,31 @@ void RobotControl::controlLoop(float /*dt*/)
     //     When the gyro pitch rate is very high (|gyroX| > 100 °/s) the
     //     robot is already swinging hard; adding more D just clips PWM
     //     to the rail. Linear fade above 100°/s, zero above 200°/s.
-    float effKi = aggKi * 0.01f;
+    // Öğrenme aktifken slider kazançları yerine tuner adayı kullanılır.
+    float baseKp = aggKp;
+    float baseKi = aggKi * 0.01f;
+    float baseKd = aggKd;
+    if (learnActive) {
+        PidAutoTuner::Gains g = pidTuner_.gains();
+        baseKp = g.kp;
+        baseKi = g.ki;
+        baseKd = g.kd;
+    }
+
+    float effKi = baseKi;
     if (std::fabs(chassisVelFilt_) > 3.0f) {
         effKi = 0.0f;
     }
     if (armRampCount_ < ARM_RAMP_SAMPLES) {
         effKi = 0.0f;
     }
-    float effKd = aggKd;
+    float effKd = baseKd;
     float absGyroX = std::fabs(gyroRateX_);
     if (absGyroX > 100.0f) {
         float fade = std::max(0.0f, 1.0f - (absGyroX - 100.0f) / 100.0f);
-        effKd = aggKd * fade;
+        effKd = baseKd * fade;
     }
-    anglePid.setTunings(aggKp, effKi, effKd);
+    anglePid.setTunings(baseKp, effKi, effKd);
 
     float pidOut = anglePid.compute(currentAngle_, gyroRateX_);
     if (pidInvert_) pidOut = -pidOut;
@@ -851,6 +896,24 @@ void RobotControl::controlLoop(float /*dt*/)
     pwmL_ = rawL;
     pwmR_ = rawR;
     applyMotors(pwmL_, pwmR_);
+
+    // ---- PID öğrenme modu: örnek besle / sonucu işle ----
+    if (learnActive) {
+        bool userCmd = (curSpeed != 0) || (needL != 0) || (needR != 0);
+        int pwmAbs = std::max(std::abs(pwmL_), std::abs(pwmR_));
+        bool finished = pidTuner_.feedSample(angErr, gyroRateX_,
+                                             pwmAbs, userCmd);
+        if (finished) {
+            PidAutoTuner::Gains best = pidTuner_.bestGains();
+            aggKp = best.kp;
+            aggKi = best.ki * 100.0f;   // gerçek ölçekten UI ölçeğine
+            aggKd = best.kd;
+            saveDirty = true;
+            qDebug().noquote() << QString::asprintf(
+                "PID learn committed: Kp=%.1f Ki=%.2f Kd=%.3f",
+                best.kp, best.ki, best.kd);
+        }
+    }
 }
 
 void RobotControl::applyMotors(int pwmL, int pwmR)
@@ -938,6 +1001,7 @@ void RobotControl::run()
             t.fallen       = fallen_;
             t.autoMode     = autoMode.load();
             t.positionHold = yawLock.load();
+            t.pidLearning  = pidTuner_.isActive();
             {
                 std::lock_guard<std::mutex> lk(telMutex_);
                 latestTelemetry_ = t;

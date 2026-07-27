@@ -51,6 +51,11 @@ class SettingsViewController: UIViewController {
     private let trimPlus   = UIButton(type: .system)
     private var currentTrimFine: Float = 0.0
     
+    // PID learning
+    private let pidLearnButton = UIButton(type: .system)
+    private let pidLearnStatusLabel = UILabel()
+    private var pidLearnActive = false
+    
     // Speak
     private let speakField  = UITextField()
     private let speakButton = UIButton(type: .system)
@@ -71,6 +76,17 @@ class SettingsViewController: UIViewController {
         
         buildUI()
         wireUp()
+        
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onPidLearnStatusNote(_:)),
+            name: BluetoothService.pidLearnStatus, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onPidLearnStateNote(_:)),
+            name: BluetoothService.pidLearnState, object: nil)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -90,6 +106,7 @@ class SettingsViewController: UIViewController {
             bluetoothService.requestData(msgId: mSpdMaxVel, data: payload)
             bluetoothService.requestData(msgId: mAutoMode, data: payload)
             bluetoothService.requestData(msgId: mPositionHold, data: payload)
+            bluetoothService.requestData(msgId: mPidLearn, data: payload)
         }
     }
     
@@ -131,6 +148,10 @@ class SettingsViewController: UIViewController {
         // Section: Joystick speeds (iOS only)
         contentStack.addArrangedSubview(makeCard(title: "JOYSTICK SPEEDS",
                                                  subviews: [forwardSpeedSlider, turnSpeedSlider]))
+        
+        // Section: PID learning (auto-tune on the robot)
+        contentStack.addArrangedSubview(makeCard(title: "PID LEARNING (AUTO-TUNE)",
+                                                 subviews: [buildPidLearnRow()]))
         
         // Section: Modes
         contentStack.addArrangedSubview(makeCard(title: "MODES", subviews: [autoModeSwitch, yawLockSwitch]))
@@ -271,6 +292,76 @@ class SettingsViewController: UIViewController {
         row.spacing = 8
         row.alignment = .center
         return row
+    }
+    
+    private func buildPidLearnRow() -> UIView {
+        let info = UILabel()
+        info.text = "Robot düz zeminde kendi kendine dengedeyken başlat. " +
+                    "Tuner birkaç dakika boyunca küçük sanal itmeler verip " +
+                    "Kp/Ki/Kd değerlerini optimize eder ve robota kaydeder."
+        info.font = .systemFont(ofSize: 12)
+        info.textColor = .compatSecondaryText
+        info.numberOfLines = 0
+        
+        pidLearnButton.setTitle("Start PID Learning", for: .normal)
+        pidLearnButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        pidLearnButton.setTitleColor(.white, for: .normal)
+        pidLearnButton.backgroundColor = .compatSystemGreen
+        pidLearnButton.layer.cornerRadius = 8
+        pidLearnButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        pidLearnButton.addTarget(self, action: #selector(pidLearnTapped), for: .touchUpInside)
+        
+        pidLearnStatusLabel.text = "Status: idle"
+        if #available(iOS 13.0, *) {
+            pidLearnStatusLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        } else {
+            pidLearnStatusLabel.font = UIFont(name: "Menlo", size: 11) ?? .systemFont(ofSize: 11)
+        }
+        pidLearnStatusLabel.textColor = .compatSecondaryText
+        pidLearnStatusLabel.numberOfLines = 3
+        
+        let v = UIStackView(arrangedSubviews: [info, pidLearnButton, pidLearnStatusLabel])
+        v.axis = .vertical
+        v.spacing = 10
+        return v
+    }
+    
+    @objc private func pidLearnTapped() {
+        pidLearnActive.toggle()
+        sendByte(mPidLearn, byte: pidLearnActive ? 1 : 0)
+        updatePidLearnButton()
+        appendLog(pidLearnActive ? "PID learning start sent" : "PID learning stop sent")
+    }
+    
+    private func updatePidLearnButton() {
+        pidLearnButton.setTitle(pidLearnActive ? "Stop PID Learning" : "Start PID Learning",
+                                for: .normal)
+        pidLearnButton.backgroundColor = pidLearnActive ? .compatSystemRed : .compatSystemGreen
+    }
+    
+    @objc private func onPidLearnStatusNote(_ note: Notification) {
+        guard let status = note.userInfo?["status"] as? String else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.pidLearnStatusLabel.text = "Status: " + status
+            self.appendLog("[PID] " + status)
+            // Tuner kendiliğinden bitti mi? Buton durumunu geri çevir.
+            if status.hasPrefix("LEARN done") {
+                self.pidLearnActive = false
+                self.updatePidLearnButton()
+            } else if status.hasPrefix("LEARN start") {
+                self.pidLearnActive = true
+                self.updatePidLearnButton()
+            }
+        }
+    }
+    
+    @objc private func onPidLearnStateNote(_ note: Notification) {
+        guard let active = note.userInfo?["active"] as? Bool else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.pidLearnActive = active
+            self?.updatePidLearnButton()
+        }
     }
     
     private func configureLogView() {

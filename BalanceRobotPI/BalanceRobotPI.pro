@@ -13,6 +13,7 @@ SOURCES += main.cpp \
     message.cpp \
     mpu6050.cpp \
     pid.cpp \
+    pidautotuner.cpp \
     robotcontrol.cpp
 
 HEADERS += \
@@ -24,6 +25,7 @@ HEADERS += \
     message.h \
     mpu6050.h \
     pid.h \
+    pidautotuner.h \
     robotcontrol.h
 
 QMAKE_INCDIR += /usr/local/include

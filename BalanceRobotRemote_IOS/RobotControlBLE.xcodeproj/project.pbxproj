@@ -27,6 +27,10 @@
 		9C93F5662FBE0FDB007F2717 /* ControlViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5642FBE0FDB007F2717 /* ControlViewController.swift */; };
 		9C93F5672FBE0FDB007F2717 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5652FBE0FDB007F2717 /* SettingsViewController.swift */; };
 		9C93F5692FBE18CA007F2717 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C93F5682FBE18CA007F2717 /* AppSettings.swift */; };
+		AA10C1A0DE00000000000B01 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A01 /* SpeechRecognizer.swift */; };
+		AA10C1A0DE00000000000B02 /* ClaudeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A02 /* ClaudeService.swift */; };
+		AA10C1A0DE00000000000B03 /* RobotCommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */; };
+		AA10C1A0DE00000000000B04 /* AssistantViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A04 /* AssistantViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +56,10 @@
 		9C93F5642FBE0FDB007F2717 /* ControlViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlViewController.swift; sourceTree = "<group>"; };
 		9C93F5652FBE0FDB007F2717 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		9C93F5682FBE18CA007F2717 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		AA10C1A0DE00000000000A01 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		AA10C1A0DE00000000000A02 /* ClaudeService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
+		AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RobotCommandExecutor.swift; sourceTree = "<group>"; };
+		AA10C1A0DE00000000000A04 /* AssistantViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistantViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -90,6 +98,7 @@
 				9C93F5612FBE0A8B007F2717 /* UIColor+Compat.swift */,
 				9C93F55D2FBE08DA007F2717 /* JoystickView.swift */,
 				9C93F55E2FBE08DA007F2717 /* TelemetryView.swift */,
+				AA10C1A0DE00000000000A00 /* Assistant */,
 				9C5F609E2253297900BCC1DD /* CustomAlert */,
 				9C5F6098225243B700BCC1DD /* Images */,
 				9C5F60912251EE8E00BCC1DD /* Ble */,
@@ -114,6 +123,17 @@
 				9C5F608D2251E8FD00BCC1DD /* PairingFlow.swift */,
 			);
 			path = Ble;
+			sourceTree = "<group>";
+		};
+		AA10C1A0DE00000000000A00 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				AA10C1A0DE00000000000A01 /* SpeechRecognizer.swift */,
+				AA10C1A0DE00000000000A02 /* ClaudeService.swift */,
+				AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */,
+				AA10C1A0DE00000000000A04 /* AssistantViewController.swift */,
+			);
+			path = Assistant;
 			sourceTree = "<group>";
 		};
 		9C5F609E2253297900BCC1DD /* CustomAlert */ = {
@@ -213,6 +233,10 @@
 				9C93F5662FBE0FDB007F2717 /* ControlViewController.swift in Sources */,
 				9C93F5672FBE0FDB007F2717 /* SettingsViewController.swift in Sources */,
 				9C93F5692FBE18CA007F2717 /* AppSettings.swift in Sources */,
+				AA10C1A0DE00000000000B01 /* SpeechRecognizer.swift in Sources */,
+				AA10C1A0DE00000000000B02 /* ClaudeService.swift in Sources */,
+				AA10C1A0DE00000000000B03 /* RobotCommandExecutor.swift in Sources */,
+				AA10C1A0DE00000000000B04 /* AssistantViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

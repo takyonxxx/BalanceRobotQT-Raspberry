@@ -45,6 +45,8 @@
 #define mTrimFine   0xf2 // Hassas trim (signed, +/-)
 #define mPositionHold 0xf3 // Position-hold modunu aç/kapa
 #define mResetTrim  0xf4 // Trim integratörünü ve auto-bias sıfırla
+#define mPidLearn   0xf5 // PID öğrenme modu: write 1=başlat 0=durdur, read=durum
+#define mPidStatus  0xf6 // Pi -> Phone: PID öğrenme durum metni (UTF-8)
 
 #define MaxPayload 1024
 

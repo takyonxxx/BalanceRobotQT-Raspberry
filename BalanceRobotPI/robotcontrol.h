@@ -7,6 +7,7 @@
 #include <QSettings>
 #include <QString>
 #include "pid.h"
+#include "pidautotuner.h"
 #include "constants.h"
 #include "i2cdev.h"
 #include "mpu6050.h"
@@ -102,6 +103,14 @@ public:
 
     void resetTrim();
 
+    // PID öğrenme modu (mobil taraftan mPidLearn ile tetiklenir).
+    // Gerçek iş kontrol döngüsü thread'inde yapılır; buradaki çağrılar
+    // sadece atomik istek bayrakları set eder.
+    void startPidLearning();
+    void stopPidLearning();
+    bool isPidLearning() const { return pidTuner_.isActive(); }
+    QString takePidLearnStatus() { return pidTuner_.takeStatus(); }
+
     // Telemetri (BLE üzerinden)
     struct Telemetry {
         float angle;        // °  - pitch
@@ -115,6 +124,7 @@ public:
         bool  fallen;
         bool  autoMode;
         bool  positionHold;  // -> yaw lock state
+        bool  pidLearning;   // PID öğrenme modu aktif mi
     };
     Telemetry getTelemetry();
 
@@ -136,6 +146,7 @@ private:
     // -------- Bileşenler --------
     PID    anglePid;
     PID    yawPid;
+    PidAutoTuner pidTuner_;
     MPU6050* gyroMPU{nullptr};
     Kalman   kalman;
 

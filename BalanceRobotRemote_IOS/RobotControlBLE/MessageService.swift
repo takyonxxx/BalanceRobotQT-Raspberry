@@ -41,6 +41,8 @@ let mAutoMode:Byte     = Byte(0xf1)
 let mTrimFine:Byte     = Byte(0xf2)
 let mPositionHold:Byte = Byte(0xf3)
 let mResetTrim:Byte    = Byte(0xf4)
+let mPidLearn:Byte     = Byte(0xf5)   // write 1=start 0=stop, read=state
+let mPidStatus:Byte    = Byte(0xf6)   // Pi -> Phone: PID learn status text
 
 public struct MessagePack {
     var header: Byte

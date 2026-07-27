@@ -138,6 +138,7 @@ void BalanceRobot::onTelemetryTick()
     if (t.fallen)       flags |= 0x02;
     if (t.autoMode)     flags |= 0x04;
     if (t.positionHold) flags |= 0x08;
+    if (t.pidLearning)  flags |= 0x10;
 
     QByteArray payload;
     auto appendBE = [&](int16_t v) {
@@ -154,6 +155,13 @@ void BalanceRobot::onTelemetryTick()
     payload.append((char)0); // reserved
 
     sendBytes(mTelemetry, payload);
+
+    // PID öğrenme durum metinleri - kuyrukta bekleyen varsa tick başına bir
+    // tane gönder (BLE MTU'yu tıkamamak için).
+    QString learnStatus = robotControl->takePidLearnStatus();
+    if (!learnStatus.isEmpty()) {
+        sendString(mPidStatus, learnStatus);
+    }
 }
 
 // ---------------- BLE data handler ----------------
@@ -205,6 +213,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mArmed: sendData(mArmed, robotControl->getIsArmed() ? 1 : 0); break;
         case mAutoMode: sendData(mAutoMode, robotControl->getAutoMode() ? 1 : 0); break;
         case mPositionHold: sendData(mPositionHold, robotControl->getPositionHold() ? 1 : 0); break;
+        case mPidLearn: sendData(mPidLearn, robotControl->isPidLearning() ? 1 : 0); break;
         default: qDebug() << "Unknown read cmd:" << parsedCommand; break;
         }
         return;
@@ -230,6 +239,12 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mAutoMode: robotControl->setAutoMode(value != 0); break;
         case mPositionHold: robotControl->setPositionHold(value != 0); break;
         case mResetTrim: robotControl->resetTrim(); break;
+        case mPidLearn: {
+            uint8_t v = parsedValue.isEmpty() ? 0 : (uint8_t)parsedValue[0];
+            if (v != 0) robotControl->startPidLearning();
+            else        robotControl->stopPidLearning();
+            break;
+        }
         case mTrimFine: {
             // signed 16-bit (BE): 0.01°
             if (parsedValue.size() >= 2) {

@@ -16,6 +16,16 @@ class BluetoothService: NSObject { // 1.
     /// post edilir. Observerlar bluetoothState'i okuyup UI'larını güncellesin.
     static let stateDidChange = Notification.Name("BluetoothService.stateDidChange")
     
+    /// PID öğrenme modundan Pi'nin gönderdiği durum metinleri
+    /// (userInfo["status"]: String).
+    static let pidLearnStatus = Notification.Name("BluetoothService.pidLearnStatus")
+    /// mPidLearn read cevabı (userInfo["active"]: Bool).
+    static let pidLearnState  = Notification.Name("BluetoothService.pidLearnState")
+    
+    /// En son alınan telemetri — delegate olmayan tüketiciler (Claude
+    /// asistanı) robotun anlık durumunu buradan okur.
+    var lastTelemetry: RobotTelemetry?
+    
     /// Peripheral bağlantı durumu değiştiğinde post edilir
     /// (didConnect, didDisconnect, didFailToConnect).
     /// Observer'lar `BluetoothService.shared.peripheral` ve `txCharacteristic`'a

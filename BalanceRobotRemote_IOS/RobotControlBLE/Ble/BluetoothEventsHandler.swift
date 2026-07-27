@@ -26,6 +26,7 @@ extension BluetoothServiceDelegate {
 
 // Robot canlı telemetri verisi
 public struct RobotTelemetry {
+    public var pidLearning: Bool = false
     public var angle: Float = 0       // °
     public var gyroRate: Float = 0    // °/s
     public var targetAngle: Float = 0 // °
@@ -136,7 +137,31 @@ extension BluetoothService: CBPeripheralDelegate {
         // Çok sık çıkan telemetri mesajını ayrı işleyelim
         if parsedPack.command == mTelemetry {
             if let tel = parseTelemetry(parsedPack.data) {
+                // Son telemetriyi merkezi olarak sakla — Claude asistanı gibi
+                // delegate olmayan tüketiciler buradan okur.
+                self.lastTelemetry = tel
                 delegate?.didReceiveTelemetry(tel)
+            }
+            return
+        }
+        
+        // PID öğrenme durum metni — hem delegate'e hem NotificationCenter'a.
+        // (Settings ve Assistant sekmeleri aynı anda dinleyebilsin.)
+        if parsedPack.command == mPidStatus {
+            if let status = String(data: parsedPack.data, encoding: .utf8), !status.isEmpty {
+                NotificationCenter.default.post(name: BluetoothService.pidLearnStatus,
+                                                object: nil,
+                                                userInfo: ["status": status])
+            }
+            return
+        }
+        
+        // mPidLearn read cevabı (0/1) — Settings butonu güncellesin.
+        if parsedPack.command == mPidLearn {
+            if parsedPack.data.count > 0 {
+                NotificationCenter.default.post(name: BluetoothService.pidLearnState,
+                                                object: nil,
+                                                userInfo: ["active": parsedPack.data[0] != 0])
             }
             return
         }
@@ -225,6 +250,7 @@ extension BluetoothService: CBPeripheralDelegate {
         t.fallen       = (flags & 0x02) != 0
         t.autoMode     = (flags & 0x04) != 0
         t.positionHold = (flags & 0x08) != 0
+        t.pidLearning  = (flags & 0x10) != 0
         return t
     }
 }
