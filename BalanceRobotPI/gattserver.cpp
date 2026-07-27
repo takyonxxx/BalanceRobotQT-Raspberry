@@ -38,6 +38,8 @@ void GattServer::handleConnected()
     try {
         // Bağlantı kurulduktan sonra veri işleme
         remoteDeviceUuid = leController.data()->remoteDeviceUuid();
+        remoteDevice     = leController.data()->remoteAddress();
+        m_RemoteName     = leController.data()->remoteName();
         m_ConnectionState = true;
 
         auto statusText = QString("Connected to device %1").arg(remoteDeviceUuid.toString());

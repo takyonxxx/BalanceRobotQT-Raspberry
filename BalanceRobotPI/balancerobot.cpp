@@ -35,6 +35,21 @@ BalanceRobot::~BalanceRobot()
 void BalanceRobot::onConnectionStatedChanged(bool state)
 {
     clientConnected = state;
+
+    // Mobil bağlantıyı hoparlörden duyur (istemci adı varsa onu, yoksa adresi söyle).
+    if (voiceAssistant) {
+        QString info;
+        if (state && gattServer) {
+            info = gattServer->remoteName().trimmed();
+            if (info.isEmpty()) {
+                info = gattServer->remoteAddressString();
+                info.replace(':', ' ');   // MAC'i hecelenebilir yap
+            }
+        }
+        QMetaObject::invokeMethod(voiceAssistant, "announceBleClient",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(bool, state), Q_ARG(QString, info));
+    }
     if (state) {
         // Bağlandığında telemetri timer'ını başlat
         if (!telemetryTimer.isActive()) telemetryTimer.start(100); // 10 Hz BLE

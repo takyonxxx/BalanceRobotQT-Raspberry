@@ -41,6 +41,9 @@ public:
 
     // Kendi thread'i içinde çağrılır (moveToThread sonrası).
     Q_INVOKABLE void start();
+    // BLE (mobil uygulama) bağlantı bildirimi - BalanceRobot thread'inden
+    // queued invoke ile çağrılır, hoparlörden seslendirilir.
+    Q_INVOKABLE void announceBleClient(bool connected, const QString &clientInfo);
     Q_INVOKABLE void shutdown();
 
     bool isEnabled() const { return enabled_; }
@@ -104,6 +107,7 @@ private:
     double  moveDefaultSecs_ = 1.5; // süre söylenmediyse hareket süresi (sn)
     double  voiceMaxVel_     = 6.0; // sesli ileri/geri için geçici hız tavanı (0=kapalı)
     int     turnDefaultPct_  = 50;  // dönüşlerde hız söylenmediyse (%100 devirdiği için ayrı)
+    double  turnDefaultSecs_ = 1.0; // dönüşlerde süre söylenmediyse (ileri/geriden kısa)
 
     // Vosk (dlopen)
     void *voskLib_   = nullptr;

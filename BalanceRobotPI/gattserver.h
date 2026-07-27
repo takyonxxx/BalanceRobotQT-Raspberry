@@ -22,6 +22,8 @@ class GattServer : public QObject
     Q_OBJECT
 
 public:
+    QString remoteName() const { return m_RemoteName; }
+    QString remoteAddressString() const { return remoteDevice.toString(); }
     explicit GattServer(QObject *parent = nullptr);
     ~GattServer();
 
@@ -40,6 +42,7 @@ private:
     QScopedPointer<QLowEnergyController> leController;
     QHash<QBluetoothUuid, ServicePtr> services;
     QBluetoothAddress remoteDevice;
+    QString m_RemoteName;
     QBluetoothUuid remoteDeviceUuid;
     bool m_ConnectionState = false;
 

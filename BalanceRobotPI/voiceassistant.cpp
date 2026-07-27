@@ -82,6 +82,7 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("moveDefaultSecs")) s.setValue("moveDefaultSecs", 1.5);
     if (!s.contains("voiceMaxVel"))     s.setValue("voiceMaxVel", 6.0);
     if (!s.contains("turnDefaultPct"))  s.setValue("turnDefaultPct", 50);
+    if (!s.contains("turnDefaultSecs")) s.setValue("turnDefaultSecs", 1.0);
 
     enabled_       = s.value("enabled").toBool();
     micDevice_     = s.value("micDevice").toString();
@@ -115,6 +116,7 @@ void VoiceAssistant::loadSettings()
     moveDefaultSecs_ = qBound(0.5, s.value("moveDefaultSecs").toDouble(), 8.0);
     voiceMaxVel_     = qBound(0.0, s.value("voiceMaxVel").toDouble(), 12.0);
     turnDefaultPct_  = qBound(10, s.value("turnDefaultPct").toInt(), 100);
+    turnDefaultSecs_ = qBound(0.3, s.value("turnDefaultSecs").toDouble(), 8.0);
 
     const QString ck = s.value("claudeApiKey").toString();
     const QString cm = s.value("claudeModel").toString();
@@ -509,6 +511,11 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         if (!pctExplicit && (dir == "left" || dir == "right"))
             pct = turnDefaultPct_;
 
+        // Dönüşlerde süre söylenmediyse de daha kısa varsayılan (1 sn):
+        // 1.5 sn tam dönüş çoğu zaman istenenden fazla yön değiştiriyor.
+        if (!secsExplicit && (dir == "left" || dir == "right"))
+            secs = turnDefaultSecs_;
+
         speak(doMove(dir, pct, secs, pctExplicit, secsExplicit));
         return true;
     }
@@ -641,11 +648,29 @@ void VoiceAssistant::stopAllMotion()
 QString VoiceAssistant::statusText() const
 {
     const RobotControl::Telemetry t = robot_->getTelemetry();
-    QString s = QString("Açı %1 derece. ").arg(t.angle, 0, 'f', 1);
-    s += t.armed  ? "Denge aktif. "  : "Denge kapalı. ";
-    if (t.fallen)      s += "Robot düşmüş durumda. ";
-    if (t.pidLearning) s += "PID öğrenme çalışıyor. ";
-    s += QString("PWM sol %1, sağ %2.").arg(t.pwmL).arg(t.pwmR);
+    QString s;
+
+    // Önce en önemli bilgi: arm durumu ve devrilme.
+    if (t.fallen)
+        s += "Düşmüş durumdayım, motorlar devre dışı. Beni dik konuma getirirsen kendim toparlanırım. ";
+    else if (t.armed)
+        s += "Motorlar aktif, dengedeyim. ";
+    else
+        s += "Motorlar kapalı, denge kontrolü beklemede. ";
+
+    s += QString("Eğim açım %1 derece").arg(t.angle, 0, 'f', 1);
+    if (t.armed)
+        s += QString(", hedef açı %1 derece").arg(t.targetAngle, 0, 'f', 1);
+    s += ". ";
+
+    if (qAbs(t.trim) > 0.05f)
+        s += QString("Trim düzeltmesi %1 derece. ").arg(t.trim, 0, 'f', 1);
+
+    if (t.pidLearning)   s += "Şu an PID öğrenme modundayım, bilerek sallanıyorum. ";
+    if (t.autoMode)      s += "Otomatik mod açık. ";
+    if (t.positionHold)  s += "Yön kilidi aktif. ";
+
+    s += QString("Motor güçleri: sol %1, sağ %2.").arg(t.pwmL).arg(t.pwmR);
     return s;
 }
 
@@ -749,6 +774,19 @@ void VoiceAssistant::ensureBtSpeaker()
         conn->start("bluetoothctl", {"connect", btSpeakerMac_});
     });
     info->start("bluetoothctl", {"info", btSpeakerMac_});
+}
+
+// Mobil uygulama (BLE) bağlanınca/kopunca sesli bildirim.
+void VoiceAssistant::announceBleClient(bool connected, const QString &clientInfo)
+{
+    if (!connected) {
+        speak("Mobil bağlantı kesildi.");
+        return;
+    }
+    if (clientInfo.isEmpty())
+        speak("Mobil uygulama bağlandı.");
+    else
+        speak(QString("Mobil uygulama bağlandı. İstemci: %1.").arg(clientInfo));
 }
 
 // Cihazın yerel IPv4 adresini hoparlörden söyle ("nokta" ile, Piper düzgün okusun).

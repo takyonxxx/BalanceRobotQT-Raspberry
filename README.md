@@ -224,8 +224,8 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 |---|---|---|
 | **İleri** | ileri, öne, forward | *"robot ileri git"* |
 | **Geri** | geri, arkaya, back | *"robot geri git"* |
-| **Sola dön** | sol, sola, left (tam kelime) | *"robot sola dön"* (varsayılan %50) |
-| **Sağa dön** | sağ, sağa, right (tam kelime) | *"robot sağa dön"* (varsayılan %50) |
+| **Sola dön** | sol, sola, left (tam kelime) | *"robot sola dön"* (varsayılan %50, 1 sn) |
+| **Sağa dön** | sağ, sağa, right (tam kelime) | *"robot sağa dön"* (varsayılan %50, 1 sn) |
 | **Dur** | dur, stop, kes, bekle | *"dur"* (pencere içinde "robot" gerekmez) |
 | **Kendini tanıt** | tanıt, tanımla, kimsin, kendini | *"robot kendini tanıt"* — tasarımcısı dahil kısa tanıtım okur |
 | **Durum oku** | durum, nasıl, status, telemetri, açı, denge | *"robot durum ne"*, *"robot nasılsın"* |
@@ -245,7 +245,7 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 | Süre | sayı + "saniye" (yarım, buçuk, bir…on veya rakam), 0.3–8 sn | *"robot üç saniye geri git"* |
 | Birleşik | hız + süre aynı cümlede | *"robot yüzde kırk iki saniye sola dön"* |
 
-Varsayılanlar (niteleyici söylenmezse): ileri/geri **%100**, dönüşler **%50**, süre **1.5 saniye** (`settings.ini` → `moveDefaultPct` / `turnDefaultPct` / `moveDefaultSecs`). Hareket süre sonunda otomatik durur; *"dur"* her an keser.
+Varsayılanlar (niteleyici söylenmezse): ileri/geri **%100 / 1.5 sn**, dönüşler **%50 / 1 sn** (`settings.ini` → `moveDefaultPct` / `turnDefaultPct` / `moveDefaultSecs`). Hareket süre sonunda otomatik durur; *"dur"* her an keser.
 
 The rows above are matched **offline by the local parser** — free, instant, no internet. Only free-form questions need an API key.
 
@@ -289,6 +289,7 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 #    moveDefaultPct=100          ; voice move speed %% when not specified (10-100)
 #    moveDefaultSecs=1.5         ; voice move duration when not specified (0.5-8 s)
 #    turnDefaultPct=50           ; default turn speed %% (100%% turns tip the robot)
+#    turnDefaultSecs=1.0         ; default turn duration (fwd/back keep moveDefaultSecs)
 #    voiceMaxVel=6.0             ; TEMP speed ceiling for voice fwd/back moves
 #                                ; (ticks/loop; joystick keeps its own spdMaxVel;
 #                                ;  released when the move stops; 0=disable)
@@ -592,6 +593,9 @@ USB UVC webcam ──> /dev/video0 ──> GStreamer (decode → H.264 encode) �
 
 ```
 rtsp://<pi-ip>:8554/webcam
+
+# Current setup (Pi at 192.168.1.8) - copy-paste ready:
+rtsp://192.168.1.8:8554/webcam
 ```
 
 **Performance tuning — why 720p, not 1080p:** software H.264 encoding at 1080p30 uses 2–3 cores on the Pi 5 and competes with the Pitch PID loop, which can introduce balance jitter. The recommended pipeline uses `1280×720 @ 30 fps`, `bitrate=1000 kbps`, `speed-preset=ultrafast`, `threads=2` — this keeps two cores free for `BalanceRobotPI` and stays under ~120% total CPU for the camera service. If you don't need the camera, just `sudo systemctl disable --now webcam-stream mediamtx` and reclaim the CPU.
