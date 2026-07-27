@@ -216,6 +216,25 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 
 **Wake word:** by default the robot only reacts to utterances containing "robot" ("robot ileri git"). After the wake word it keeps listening for 10 s so follow-ups don't need it. Set `wakeWord=` (empty) in `settings.ini` to react to everything.
 
+**Language — speak TURKISH to the Pi:** the bundled speech model (`vosk-model-small-tr`) understands **Turkish only**. English keywords exist in the parser for completeness, but the Turkish acoustic model will not transcribe spoken English reliably — so on the Pi, use Turkish. (The iOS app is different: Apple's recognizer handles both TR and EN.) To make the Pi English-speaking instead, download `vosk-model-small-en-us-0.15` and point `voskModelPath` at it.
+
+**Voice command reference (Pi):** say the wake word first — *"robot …"* — then:
+
+| Söyle | Ne yapar |
+|---|---|
+| *"robot ileri git"* / *"geri git"* | 1.5 s ileri/geri hareket, sonra otomatik durur |
+| *"robot sola dön"* / *"sağa dön"* | dönüş |
+| *"robot iki saniye ileri git"* | süre belirtme (0.3–5 sn; "yarım", "bir", "iki"… veya rakam) |
+| *"robot hızlı ileri git"* / *"yavaş"* / *"yüzde altmış"* | hız belirtme (%10–100) |
+| *"robot dur"* | tüm hareketi anında keser |
+| *"robot durum ne"* / *"nasılsın"* | açı, PWM, denge durumunu sesli okur |
+| *"robot PID öğrenmeyi başlat"* / *"durdur"* | auto-tune modu |
+| *"robot trim sıfırla"* | trim integratörünü sıfırlar |
+| *"robot motorları kapat"* / *"motorları aç"* | disarm / arm |
+| başka her şey (ör. *"robot neden devriliyorsun?"*) | API anahtarı tanımlıysa Gemini/Claude'a soru olarak gider |
+
+The rows above are matched **offline by the local parser** — free, instant, no internet. Only the last row (free-form questions) needs an API key.
+
 **New files:** `voiceassistant.cpp/.h` (mic capture, Vosk STT via `dlopen`, intent routing, TTS queue), `llmclient.cpp/.h` (Gemini + Claude REST clients with the tool loop, Qt-native). `libvosk` is loaded at **runtime** — it is *not* a build dependency, so the firmware builds and runs unchanged if voice components aren't installed.
 
 ### Setup
