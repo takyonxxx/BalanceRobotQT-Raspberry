@@ -65,7 +65,10 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("voskModelPath")) s.setValue("voskModelPath",
         QCoreApplication::applicationDirPath() + "/vosk-model-small-tr-0.3");
     if (!s.contains("wakeWord"))      s.setValue("wakeWord", "robot");
+    if (!s.contains("ttsVoice"))      s.setValue("ttsVoice", "tr+f3");   // kadın sesi
     if (!s.contains("piperModel"))    s.setValue("piperModel", "");
+    if (!s.contains("btSpeakerMac"))  s.setValue("btSpeakerMac", "F8:5C:7D:82:CE:9B");  // JBL Clip 4
+    if (!s.contains("speakerDevice")) s.setValue("speakerDevice", "");
     if (!s.contains("geminiApiKey"))  s.setValue("geminiApiKey", "");
     if (!s.contains("geminiModel"))   s.setValue("geminiModel", "gemini-2.0-flash");
     if (!s.contains("claudeApiKey"))  s.setValue("claudeApiKey", "");
@@ -79,11 +82,23 @@ void VoiceAssistant::loadSettings()
 
     enabled_       = s.value("enabled").toBool();
     micDevice_     = s.value("micDevice").toString();
-    if (micDevice_.isEmpty() || micDevice_ == "auto")
+    micAuto_       = (micDevice_.isEmpty() || micDevice_ == "auto");
+    if (micAuto_)
         micDevice_ = detectMicDevice();
     voskModelPath_ = s.value("voskModelPath").toString();
     wakeWord_      = s.value("wakeWord").toString().trimmed().toLower();
+    ttsVoice_      = s.value("ttsVoice").toString().trimmed();
+    if (ttsVoice_.isEmpty()) ttsVoice_ = "tr+f3";
     piperModel_    = s.value("piperModel").toString();
+    btSpeakerMac_  = s.value("btSpeakerMac").toString().trimmed().toUpper();
+    speakerDevice_ = s.value("speakerDevice").toString().trimmed();
+    // Çözümlenmiş TTS cihazı: override > BlueALSA (MAC'ten otomatik) > varsayılan.
+    if (!speakerDevice_.isEmpty())
+        effSpeakerDevice_ = speakerDevice_;
+    else if (!btSpeakerMac_.isEmpty())
+        effSpeakerDevice_ = QString("bluealsa:DEV=%1,PROFILE=a2dp").arg(btSpeakerMac_);
+    else
+        effSpeakerDevice_.clear();
     moveByteFwd_   = qBound(30, s.value("moveByteFwd").toInt(), 255);
     moveByteTurn_  = qBound(20, s.value("moveByteTurn").toInt(), 255);
     moveDefaultPct_  = qBound(10, s.value("moveDefaultPct").toInt(), 100);
@@ -172,6 +187,19 @@ void VoiceAssistant::start()
     moveStopTimer_->setSingleShot(true);
     connect(moveStopTimer_, &QTimer::timeout, this, [this]() { stopAllMotion(); });
 
+    // BT hoparlör: açılışta bağlan, sonra periyodik yeniden dene
+    // (JBL kapanıp açılırsa kendiliğinden geri gelir).
+    if (!btSpeakerMac_.isEmpty()) {
+        ensureBtSpeaker();
+        btReconnectTimer_ = new QTimer(this);
+        btReconnectTimer_->setInterval(30000);
+        connect(btReconnectTimer_, &QTimer::timeout,
+                this, &VoiceAssistant::ensureBtSpeaker);
+        btReconnectTimer_->start();
+        qDebug().noquote() << "VoiceAssistant: BT speaker" << btSpeakerMac_
+                           << "-> device" << effSpeakerDevice_;
+    }
+
     startRecorder();
     qDebug().noquote() << "VoiceAssistant: listening on" << micDevice_
                        << (wakeWord_.isEmpty()
@@ -192,6 +220,7 @@ void VoiceAssistant::startRecorder()
             this, &VoiceAssistant::onAudioData);
     connect(recorder_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &VoiceAssistant::onRecorderFinished);
+    qDebug().noquote() << "VoiceAssistant: starting arecord" << args.join(' ');
     recorder_->start("arecord", args);
     if (!recorder_->waitForStarted(3000)) {
         qDebug("VoiceAssistant: arecord failed to start (alsa-utils installed? mic plugged?)");
@@ -240,9 +269,24 @@ QString VoiceAssistant::detectMicDevice() const
 
 void VoiceAssistant::onRecorderFinished(int exitCode, QProcess::ExitStatus)
 {
-    qDebug("VoiceAssistant: arecord exited (%d) - restarting in 3 s", exitCode);
+    // Asıl ALSA hatasını göster - "exited (1)" tek başına teşhis ettirmiyor.
+    const QString err = recorder_
+        ? QString::fromUtf8(recorder_->readAllStandardError()).trimmed()
+        : QString();
+    qDebug().noquote() << "VoiceAssistant: arecord exited (" << exitCode << ")"
+                       << (err.isEmpty() ? QString() : "- " + err)
+                       << "- restarting in 3 s";
     QTimer::singleShot(3000, this, [this]() {
         if (recorder_) { recorder_->deleteLater(); recorder_ = nullptr; }
+        // Kart numarası değişmiş olabilir (USB yeniden numaralanması):
+        // "auto" modundaysak her denemede mikrofonu baştan algıla.
+        if (micAuto_) {
+            const QString dev = detectMicDevice();
+            if (dev != micDevice_) {
+                qDebug().noquote() << "VoiceAssistant: mic device changed ->" << dev;
+                micDevice_ = dev;
+            }
+        }
         startRecorder();
     });
 }
@@ -586,18 +630,29 @@ void VoiceAssistant::speakNext()
         speaking_ = false;
         return;
     }
-    const QString text = speakQueue_.takeFirst();
+    startSpeaker(speakQueue_.takeFirst(), false);
+}
+
+// TTS başlat. fallbackToDefault=true ise BT/özel cihaz atlanır, varsayılan
+// ses çıkışı (3.5mm/HDMI) kullanılır - hoparlör kapalıysa robot sessiz kalmaz.
+void VoiceAssistant::startSpeaker(const QString &text, bool fallbackToDefault)
+{
     speaking_ = true;
+    lastSpokenText_  = text;
+    lastWasFallback_ = fallbackToDefault;
+    lastUsedDevice_  = fallbackToDefault ? QString() : effSpeakerDevice_;
+    const QString dev = lastUsedDevice_;
 
     speaker_ = new QProcess(this);
     connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &VoiceAssistant::onSpeakFinished);
 
+    // Piper: doğal Türkçe ses (varsa tercih edilir).
     if (!piperModel_.isEmpty() && QFile::exists(piperModel_)) {
-        // Piper: doğal Türkçe ses. stdin'den metin alır, raw PCM üretir.
+        const QString aplayDev = dev.isEmpty() ? "" : QString(" -D \"%1\"").arg(dev);
         const QString cmd = QString("piper -m %1 --output_raw 2>/dev/null | "
-                                    "aplay -q -r 22050 -f S16_LE -t raw -c 1")
-                                .arg(piperModel_);
+                                    "aplay -q%2 -r 22050 -f S16_LE -t raw -c 1")
+                                .arg(piperModel_, aplayDev);
         speaker_->start("sh", {"-c", cmd});
         if (speaker_->waitForStarted(2000)) {
             speaker_->write(text.toUtf8());
@@ -609,26 +664,63 @@ void VoiceAssistant::speakNext()
         // düşerek espeak'e devam
     }
 
-    // espeak-ng: hafif, robotik ama anlaşılır Türkçe.
+    // espeak-ng. Özel cihaz gerekiyorsa --stdout | aplay hattı kurulur
+    // (espeak-ng'nin kendi ses çıkışı ALSA cihazı seçtirmez).
     speaker_ = new QProcess(this);
     connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &VoiceAssistant::onSpeakFinished);
-    speaker_->start("espeak-ng", {"-v", "tr", "-s", "160", text});
-    if (!speaker_->waitForStarted(2000)) {
-        qDebug("VoiceAssistant: espeak-ng not found (sudo apt-get install espeak-ng)");
-        speaker_->deleteLater();
-        speaker_ = nullptr;
-        speaking_ = false;
-        speakQueue_.clear();
+    if (!dev.isEmpty()) {
+        const QString cmd = QString("espeak-ng -v %1 -s 160 --stdout | "
+                                    "aplay -q -D \"%2\"").arg(ttsVoice_, dev);
+        speaker_->start("sh", {"-c", cmd});
+        if (speaker_->waitForStarted(2000)) {
+            speaker_->write(text.toUtf8());
+            speaker_->closeWriteChannel();
+            return;
+        }
+    } else {
+        speaker_->start("espeak-ng", {"-v", ttsVoice_, "-s", "160", text});
+        if (speaker_->waitForStarted(2000))
+            return;
     }
+    qDebug("VoiceAssistant: espeak-ng not found (sudo apt-get install espeak-ng)");
+    speaker_->deleteLater();
+    speaker_ = nullptr;
+    speaking_ = false;
+    speakQueue_.clear();
 }
 
-void VoiceAssistant::onSpeakFinished(int, QProcess::ExitStatus)
+// bluetoothctl connect <mac> - bağlıysa zararsız, kopuksa yeniden bağlar.
+void VoiceAssistant::ensureBtSpeaker()
 {
+    if (btSpeakerMac_.isEmpty())
+        return;
+    QProcess::startDetached("bluetoothctl", {"connect", btSpeakerMac_});
+}
+
+void VoiceAssistant::onSpeakFinished(int exitCode, QProcess::ExitStatus)
+{
+    // Gerçek ALSA/BlueALSA hatasını yakala - teşhis için şart.
+    const QString err = speaker_
+        ? QString::fromUtf8(speaker_->readAllStandardError()).trimmed()
+        : QString();
     if (speaker_) {
         speaker_->deleteLater();
         speaker_ = nullptr;
     }
+
+    // BT/özel hoparlörde çalma başarısız olduysa (JBL kapalı, bağlantı yok)
+    // aynı metni bir kez varsayılan çıkışta tekrarla ve yeniden bağlanmayı tetikle.
+    if (exitCode != 0 && !lastUsedDevice_.isEmpty() && !lastWasFallback_) {
+        qDebug().noquote() << "VoiceAssistant: speaker device failed ("
+                           << lastUsedDevice_ << ")"
+                           << (err.isEmpty() ? QString() : "- " + err)
+                           << "- falling back to default output";
+        ensureBtSpeaker();
+        startSpeaker(lastSpokenText_, true);
+        return;
+    }
+
     // Hoparlör sesi mikrofona sızmış olabilir - tanıyıcıyı temizle.
     if (p_rec_final && voskRec_)
         p_rec_final((VoskRecognizer*)voskRec_);

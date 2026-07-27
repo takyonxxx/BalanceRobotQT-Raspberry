@@ -284,7 +284,9 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 #    wakeWord=robot
 #    geminiApiKey=AIza...        ; optional - free quota, for questions
 #    claudeApiKey=               ; optional - takes priority if set
-#    piperModel=                 ; optional - path to a Piper .onnx voice for natural TTS
+#    ttsVoice=tr+f3              ; espeak-ng voice: tr+f3 = female (default), tr = male,
+#                                ;   tr+f1..f5 female variants, tr+m1..m7 male variants
+#    piperModel=                 ; optional - path to a Piper .onnx voice (pick a female one, e.g. tr_TR-dfki-medium) for natural TTS
 #    moveDefaultPct=100          ; voice move speed %% when not specified (10-100)
 #    moveDefaultSecs=1.5         ; voice move duration when not specified (0.5-8 s)
 #    turnDefaultPct=50           ; default turn speed %% (100%% turns tip the robot)
@@ -301,6 +303,89 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 
 # 6. Restart the app; look for:  VoiceAssistant: listening on plughw:1,0 (wake word: "robot")
 ```
+
+**Bluetooth speaker (e.g. JBL) for the robot's voice:** replies can play through a BT speaker, managed entirely from `settings.ini`. The stack is **BlueALSA** (not PulseAudio/PipeWire) because the app runs as root and needs a system-level ALSA path.
+
+```bash
+# One-time setup
+sudo apt-get install bluez-alsa-utils
+
+# Verify the BlueALSA daemon supports playback (a2dp-source):
+systemctl status bluealsa    # if OPTIONS lack a2dp-source: edit /etc/default/bluez-alsa
+                             # -> OPTIONS="-p a2dp-source"  then: sudo systemctl restart bluealsa
+
+```
+
+**Pairing walkthrough (one-time, from scratch):**
+
+1. Stop the robot app first if it's running (Ctrl+C) — its 30-second auto-connect
+   attempts can interfere with pairing.
+2. Put the speaker in **pairing mode**: on the JBL Clip 4, with the speaker ON,
+   press the **Bluetooth button** (next to power) once — the LED starts
+   **blinking blue**. Solid LED = it's connected to another device (e.g. your
+   phone): turn that device's Bluetooth off first, then press the BT button.
+3. SSH into the Pi and enter the Bluetooth shell — the prompt changes to
+   `[bluetooth]#`:
+
+```bash
+ssh pi@192.168.1.8
+bluetoothctl
+```
+
+4. Inside `[bluetooth]#` run, in order (Tab completes the MAC after a few chars):
+
+```
+power on
+default-agent
+scan on                        # wait until "JBL Clip 4" appears with its MAC
+pair F8:5C:7D:82:CE:9B         # expect: Pairing successful
+trust F8:5C:7D:82:CE:9B        # IMPORTANT - enables automatic reconnection
+connect F8:5C:7D:82:CE:9B      # expect: Connection successful + tone from JBL
+scan off
+quit
+```
+
+5. Quick audio test back in the normal shell:
+
+```bash
+aplay -D bluealsa:DEV=F8:5C:7D:82:CE:9B,PROFILE=a2dp /usr/share/sounds/alsa/Front_Center.wav
+```
+
+**Pairing troubleshooting:**
+
+| Error | Cause | Fix |
+|---|---|---|
+| `AuthenticationFailed` | Speaker not in pairing mode / connected to your phone | Phone BT off → JBL BT button (blinking blue) → retry `pair` |
+| `AlreadyExists` | Stale half-pairing record | `remove F8:5C:7D:82:CE:9B`, then `pair` again |
+| `not available` | Dropped from scan list | `scan on`, retry `pair` as soon as it reappears |
+| `ConnectionAttemptFailed` | Range/timing | Move JBL closer, press BT button, retry |
+| Paired but no sound | Audio path issue, not pairing | Continue with the `bluez-alsa-utils` / `aplay` test above || `Couldn't get BlueALSA PCM: PCM not found` + `Device not available: .../sep1/fd0` in `journalctl -u bluealsa` | **PipeWire/WirePlumber grabs the BT stream** before BlueALSA (default on RPi OS Bookworm) | Disable PipeWire's Bluetooth module, then reconnect — see below |
+
+**PipeWire conflict fix (RPi OS Bookworm, one-time):** bluetoothctl reports `Connection successful` yet BlueALSA playback fails, because the desktop audio stack owns the A2DP endpoint. Hand Bluetooth audio to BlueALSA (other audio is unaffected):
+
+```bash
+mkdir -p ~/.config/wireplumber/bluetooth.lua.d
+echo 'bluez_monitor.enabled = false' > ~/.config/wireplumber/bluetooth.lua.d/80-disable-bluez.lua
+systemctl --user restart wireplumber
+
+bluetoothctl disconnect F8:5C:7D:82:CE:9B && sleep 2 && bluetoothctl connect F8:5C:7D:82:CE:9B
+aplay -D bluealsa:DEV=F8:5C:7D:82:CE:9B,PROFILE=a2dp /usr/share/sounds/alsa/Front_Center.wav   # should play
+```
+
+The change is persistent across reboots. (On headless/Lite images without PipeWire, `systemctl --user` may fail — then a plain disconnect/reconnect usually suffices.)
+
+
+Pairing is **persistent** (stored under `/var/lib/bluetooth/`): it survives reboots and is never repeated in daily use. Day-to-day you only power the JBL on — the app's auto-connect (every 30 s) does the rest.
+
+Then in `settings.ini` `[assistant]`:
+
+```ini
+btSpeakerMac=F8:5C:7D:82:CE:9B   ; default: Türkay's JBL Clip 4; empty = no BT speaker
+speakerDevice=                   ; optional ALSA device override; empty = auto
+                                 ; (bluealsa:DEV=<MAC>,PROFILE=a2dp built from the MAC)
+```
+
+Behavior: on startup the assistant runs `bluetoothctl connect <MAC>` and retries every 30 s, so power-cycling the JBL just works. If a reply fails to play on the BT device (speaker off / out of range), the same sentence is **automatically repeated on the default output** (3.5 mm/HDMI) and reconnection is triggered — the robot never goes silent. Expect ~0.2–0.5 s of extra latency on BT audio; the microphone path (webcam) is unaffected.
 
 **Better TTS (optional):** `espeak-ng` is robotic. For a natural Turkish voice install [Piper](https://github.com/rhasspy/piper) and point `piperModel` at a `tr_TR` `.onnx` voice file; the assistant automatically prefers it and falls back to espeak-ng.
 

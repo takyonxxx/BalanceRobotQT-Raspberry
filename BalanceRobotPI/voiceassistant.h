@@ -75,6 +75,8 @@ private:
     // ---- TTS ----
     void speak(const QString &text);
     void speakNext();
+    void startSpeaker(const QString &text, bool fallbackToDefault);
+    void ensureBtSpeaker();   // bluetoothctl connect <mac> (idempotent)
 
     // ---- Yardımcılar ----
     static bool containsAny(const QString &t, const QStringList &keys);
@@ -87,9 +89,14 @@ private:
     // Ayarlar ([assistant] bölümü, settings.ini)
     bool    enabled_      = false;
     QString micDevice_;          // arecord -D cihazı ("default", "plughw:1,0"...)
+    bool    micAuto_ = true;     // settings "auto" ise her yeniden başlatmada tekrar algıla
     QString voskModelPath_;      // Vosk model klasörü
     QString wakeWord_;           // boş = her söylenen işlenir
+    QString ttsVoice_;           // espeak-ng ses (tr+f3 = kadın; tr = erkek)
     QString piperModel_;         // boş = espeak-ng kullan
+    QString btSpeakerMac_;       // JBL vb. BT hoparlör MAC'i (boş = yok)
+    QString speakerDevice_;      // TTS ALSA cihazı override (boş = otomatik)
+    QString effSpeakerDevice_;   // çözümlenmiş cihaz (bluealsa:DEV=... veya override)
     int     moveByteFwd_  = 180; // ileri/geri komut baytı tavanı (BLE ile aynı ölçek)
     int     moveByteTurn_ = 60;  // dönüş komut baytı tavanı
     int     moveDefaultPct_  = 100; // hız söylenmediyse kullanılacak hız yüzdesi
@@ -115,6 +122,10 @@ private:
     // TTS kuyruğu
     QProcess    *speaker_ = nullptr;
     QStringList  speakQueue_;
+    QString      lastSpokenText_;      // BT hoparlör başarısız olursa
+    bool         lastWasFallback_ = false;  // varsayılan çıkışa geri düşme için
+    QString      lastUsedDevice_;
+    QTimer      *btReconnectTimer_ = nullptr;
 };
 
 #endif // VOICEASSISTANT_H
