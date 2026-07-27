@@ -185,9 +185,9 @@ private:
     // in robotcontrol.cpp. These values are used when no settings.ini
     // exists yet (constructor writes them out via saveSettings()).
     //   Kp=25, Ki=40 (UI scale → real Ki=0.4), Kd=0.10
-    float aggKp{25.0f};
-    float aggKi{40.0f};
-    float aggKd{0.10f};
+    float aggKp{29.2f};
+    float aggKi{64.0f};
+    float aggKd{0.103f};
     float aggAC{0.0f};
 
     // Legacy: SD slider field kept for iOS-side compatibility but not

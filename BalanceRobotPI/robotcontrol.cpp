@@ -89,9 +89,11 @@ void RobotControl::loadSettings()
     // Defaults below are the values found most stable after extensive
     // bench testing with the encoder-based position hold enabled.
     //   Kp=25, Ki=40 (UI scale → real Ki=0.4), Kd=0.10
-    aggKp     = settings.value("aggKp",     25.0f).toFloat();
-    aggKi     = settings.value("aggKi",     40.0f).toFloat();
-    aggKd     = settings.value("aggKd",      0.10f).toFloat();
+    // Defaults: Twiddle auto-tune sonucu (gerçek donanımda, push-recovery
+    // maliyeti 166 -> 44). aggKi UI ölçeğidir (gerçek Ki = aggKi*0.01).
+    aggKp     = settings.value("aggKp",     29.2f).toFloat();
+    aggKi     = settings.value("aggKi",     64.0f).toFloat();
+    aggKd     = settings.value("aggKd",      0.103f).toFloat();
     aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
     trimFine  = settings.value("trimFine",   0.0f).toFloat();
     autoZeroIntegral = settings.value("autoZero", 0.0f).toFloat();

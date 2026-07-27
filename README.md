@@ -224,8 +224,8 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 |---|---|---|
 | **İleri** | ileri, öne, forward | *"robot ileri git"* |
 | **Geri** | geri, arkaya, back | *"robot geri git"* |
-| **Sola dön** | sol, sola, left | *"robot sola dön"* |
-| **Sağa dön** | sağ, sağa, right | *"robot sağa dön"* |
+| **Sola dön** | sol, sola, left (tam kelime) | *"robot sola dön"* (varsayılan %50) |
+| **Sağa dön** | sağ, sağa, right (tam kelime) | *"robot sağa dön"* (varsayılan %50) |
 | **Dur** | dur, stop, kes, bekle | *"dur"* (pencere içinde "robot" gerekmez) |
 | **Durum oku** | durum, nasıl, status, telemetri, açı, denge | *"robot durum ne"*, *"robot nasılsın"* |
 | **PID öğrenme başlat** | pid/öğren/learn + başlat, başla, start, aç | *"robot PID öğrenmeyi başlat"* |
@@ -244,7 +244,7 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 | Süre | sayı + "saniye" (yarım, buçuk, bir…on veya rakam), 0.3–8 sn | *"robot üç saniye geri git"* |
 | Birleşik | hız + süre aynı cümlede | *"robot yüzde kırk iki saniye sola dön"* |
 
-Varsayılanlar (niteleyici söylenmezse): **%100 hız, 1.5 saniye** (`settings.ini` → `moveDefaultPct` / `moveDefaultSecs`). Hareket süre sonunda otomatik durur; *"dur"* her an keser.
+Varsayılanlar (niteleyici söylenmezse): ileri/geri **%100**, dönüşler **%50**, süre **1.5 saniye** (`settings.ini` → `moveDefaultPct` / `turnDefaultPct` / `moveDefaultSecs`). Hareket süre sonunda otomatik durur; *"dur"* her an keser.
 
 The rows above are matched **offline by the local parser** — free, instant, no internet. Only free-form questions need an API key.
 
@@ -287,6 +287,7 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 #    piperModel=                 ; optional - path to a Piper .onnx voice for natural TTS
 #    moveDefaultPct=100          ; voice move speed %% when not specified (10-100)
 #    moveDefaultSecs=1.5         ; voice move duration when not specified (0.5-8 s)
+#    turnDefaultPct=50           ; default turn speed %% (100%% turns tip the robot)
 #    voiceMaxVel=6.0             ; TEMP speed ceiling for voice fwd/back moves
 #                                ; (ticks/loop; joystick keeps its own spdMaxVel;
 #                                ;  released when the move stops; 0=disable)
@@ -916,7 +917,7 @@ Look for these lines on stdout / journal:
 
 ```
 WiringPi ready (encoder ISRs enabled)
-RobotControl ready. Kp= 25 Ki= 40 Kd= 0.1 trim= 0
+RobotControl ready. Kp= 29.2 Ki= 64 Kd= 0.103 trim= 0
 Local IP: 192.168.x.x MAC: xx:xx:xx:xx:xx:xx
 GattServer advertising as "BalanceRobot"
 ```

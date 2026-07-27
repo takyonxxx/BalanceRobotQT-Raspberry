@@ -75,6 +75,7 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("moveDefaultPct"))  s.setValue("moveDefaultPct", 100);
     if (!s.contains("moveDefaultSecs")) s.setValue("moveDefaultSecs", 1.5);
     if (!s.contains("voiceMaxVel"))     s.setValue("voiceMaxVel", 6.0);
+    if (!s.contains("turnDefaultPct"))  s.setValue("turnDefaultPct", 50);
 
     enabled_       = s.value("enabled").toBool();
     micDevice_     = s.value("micDevice").toString();
@@ -88,6 +89,7 @@ void VoiceAssistant::loadSettings()
     moveDefaultPct_  = qBound(10, s.value("moveDefaultPct").toInt(), 100);
     moveDefaultSecs_ = qBound(0.5, s.value("moveDefaultSecs").toDouble(), 8.0);
     voiceMaxVel_     = qBound(0.0, s.value("voiceMaxVel").toDouble(), 12.0);
+    turnDefaultPct_  = qBound(10, s.value("turnDefaultPct").toInt(), 100);
 
     const QString ck = s.value("claudeApiKey").toString();
     const QString cm = s.value("claudeModel").toString();
@@ -295,9 +297,10 @@ void VoiceAssistant::handleUtterance(QString text)
 
     // Uyandırma sözcüğü filtresi ÖNCE: bize söylenmeyen konuşmalar
     // (ortam sesi, TV, sohbet) loglanmadan sessizce atlanır.
+    bool viaWakeWord = wakeWord_.isEmpty();
     if (!wakeWord_.isEmpty()) {
         if (lower.contains(wakeWord_)) {
-            // Uyandırma sözcüğünü çıkar, 10 sn'lik dikkat penceresi aç.
+            viaWakeWord = true;
             lower.remove(wakeWord_);
             lower = lower.trimmed();
             attentionUntilMs_ = now + 10000;
@@ -307,22 +310,33 @@ void VoiceAssistant::handleUtterance(QString text)
                 return;
             }
         } else if (now < attentionUntilMs_) {
-            // Dikkat penceresi içinde: sözcüksüz devam et.
+            // Dikkat penceresi içinde: sözcüksüz devam edilebilir,
+            // ama eşleşmezse SESSİZCE atlanır (muhtemelen ortam sesi).
         } else {
             return;   // bize söylenmedi - log yok
         }
     }
 
-    qDebug().noquote() << "ASSIST heard:" << text;
-    emit statusLine("ASSIST heard: " + text);
-
-    attentionUntilMs_ = now + 10000;   // konuşma sürdükçe pencereyi uzat
-
     if (tryLocalCommand(lower)) {
+        qDebug().noquote() << "ASSIST heard:" << text;
         qDebug("ASSIST -> local command executed");
+        emit statusLine("ASSIST heard: " + text);
+        // Pencere yalnızca BAŞARILI komutla uzar - ortam sesi uzatamaz.
+        attentionUntilMs_ = now + 10000;
         return;
     }
+
+    // Komut eşleşmedi:
+    if (!viaWakeWord) {
+        // Pencere içi ortam sesi - sessizce yut, cevap verme, pencereyi uzatma.
+        return;
+    }
+
+    // Kullanıcı "robot ..." diye AÇIKÇA seslendi ama komut değil - soru say.
+    qDebug().noquote() << "ASSIST heard:" << text;
     qDebug("ASSIST -> no local command match, treating as question");
+    emit statusLine("ASSIST heard: " + text);
+    attentionUntilMs_ = now + 10000;
 
     if (llm_->hasProvider()) {
         askLlm(text);
@@ -334,9 +348,8 @@ void VoiceAssistant::handleUtterance(QString text)
 
 bool VoiceAssistant::tryLocalCommand(const QString &t)
 {
-    // ---- Durdurma (en yüksek öncelik; "durum"/"durdur" hariç) ----
-    if (containsAny(t, {"dur", "stop", "kes", "bekle"}) &&
-        !containsAny(t, {"durum", "durdur"})) {
+    // ---- Durdurma (en yüksek öncelik; tam kelime - "durum"/"durdur" doğal olarak eşleşmez) ----
+    if (containsWord(t, {"dur", "stop", "kes", "bekle"})) {
         stopAllMotion();
         speak("Durdum.");
         return true;
@@ -366,8 +379,8 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     }
 
     // ---- Durum sorgusu ----
-    if (containsAny(t, {"durum", "nasıl", "nasil", "status", "telemetri",
-                        "açı", "aci", "denge"})) {
+    if (containsWord(t, {"durum", "nasıl", "nasil", "nasılsın", "nasilsin",
+                         "status", "telemetri", "açı", "aci", "denge"})) {
         speak(statusText());
         return true;
     }
@@ -379,24 +392,27 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         speak("Motorlar kapatildi.");
         return true;
     }
-    if (containsAny(t, {"arm", "hazırlan", "hazirlan", "dengele",
-                        "motorları aç", "motorlari ac", "motoru aç", "motoru ac"})) {
+    if (containsWord(t, {"arm", "hazırlan", "hazirlan", "dengele"}) ||
+        containsAny(t, {"motorları aç", "motorlari ac", "motoru aç", "motoru ac"})) {
         robot_->setIsArmed(true);
         speak("Denge kontrolu aktif.");
         return true;
     }
 
     // ---- Hareket ----
+    // Yönler TAM KELİME olarak aranır: "sağladı" içindeki "sağ" gibi
+    // alt-dizi yanlış pozitifleri komut sayılmasın.
     QString dir;
-    if      (containsAny(t, {"ileri", "öne", "one", "forward"})) dir = "forward";
-    else if (containsAny(t, {"geri", "arkaya", "back"}))         dir = "backward";
-    else if (containsAny(t, {"sol", "left"}))                    dir = "left";
-    else if (containsAny(t, {"sağ", "sag", "right"}))            dir = "right";
+    if      (containsWord(t, {"ileri", "öne", "forward"}))            dir = "forward";
+    else if (containsWord(t, {"geri", "arkaya", "back"}))             dir = "backward";
+    else if (containsWord(t, {"sol", "sola", "left"}))                dir = "left";
+    else if (containsWord(t, {"sağ", "sağa", "sag", "saga", "right"})) dir = "right";
 
     if (!dir.isEmpty()) {
         // Hız: "yüzde ..." veya "%" işaretinden SONRAKİ sayıyı al.
         // ("yüzde" kelimesi "yüz"ü içerdiği için tüm metinde arama yanlış olur.)
         int pct = moveDefaultPct_;
+        bool pctExplicit = false;
         int pctPos = -1, pctLen = 0;
         for (const QString &kw : {QString("yüzde"), QString("yuzde"), QString("%")}) {
             const int i = t.indexOf(kw);
@@ -404,7 +420,7 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         }
         if (pctPos >= 0) {
             const double n = firstNumber(t.mid(pctPos + pctLen));
-            if (n > 0) pct = qBound(10, (int)n, 100);
+            if (n > 0) { pct = qBound(10, (int)n, 100); pctExplicit = true; }
         }
 
         // Süre: önce "yüzde <sayı>" kısmını çıkar ki hız sayısı süre sanılmasın.
@@ -416,10 +432,15 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
             const double n = firstNumber(td);
             if (n > 0) secs = qBound(0.3, n, 8.0);
         }
-        if (containsAny(t, {"tam gaz", "full"}))                                pct = 100;
-        else if (containsAny(t, {"çok hızlı", "cok hizli"}))                    pct = 90;
-        else if (containsAny(t, {"hızlı", "hizli", "fast"}) && pctPos < 0)      pct = 75;
-        else if (containsAny(t, {"yavaş", "yavas", "slow", "nazik"}))           pct = 30;
+        if (containsAny(t, {"tam gaz", "full"}))                              { pct = 100; pctExplicit = true; }
+        else if (containsAny(t, {"çok hızlı", "cok hizli"}))                  { pct = 90;  pctExplicit = true; }
+        else if (containsAny(t, {"hızlı", "hizli", "fast"}) && pctPos < 0)    { pct = 75;  pctExplicit = true; }
+        else if (containsAny(t, {"yavaş", "yavas", "slow", "nazik"}))         { pct = 30;  pctExplicit = true; }
+
+        // Dönüşlerde hız söylenmediyse daha nazik varsayılan:
+        // tam güç dönüş yalpa ekseninde ani sarsıntıyla robotu deviriyor.
+        if (!pctExplicit && (dir == "left" || dir == "right"))
+            pct = turnDefaultPct_;
 
         speak(doMove(dir, pct, secs));
         return true;
@@ -620,6 +641,17 @@ bool VoiceAssistant::containsAny(const QString &t, const QStringList &keys)
 {
     for (const QString &k : keys)
         if (t.contains(k)) return true;
+    return false;
+}
+
+// Tam kelime eşleşmesi: "sağladı" içindeki "sağ" gibi alt-dizi yanlış
+// pozitiflerini engeller. Vosk çıktısı boşlukla ayrılmış kelimelerdir.
+bool VoiceAssistant::containsWord(const QString &t, const QStringList &keys)
+{
+    const QStringList tokens = t.split(' ', Qt::SkipEmptyParts);
+    for (const QString &tok : tokens)
+        for (const QString &k : keys)
+            if (tok == k) return true;
     return false;
 }
 

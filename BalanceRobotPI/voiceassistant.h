@@ -78,6 +78,7 @@ private:
 
     // ---- Yardımcılar ----
     static bool containsAny(const QString &t, const QStringList &keys);
+    static bool containsWord(const QString &t, const QStringList &keys); // tam kelime eşleşmesi
     static double firstNumber(const QString &t);
 
     RobotControl *robot_ = nullptr;
@@ -94,6 +95,7 @@ private:
     int     moveDefaultPct_  = 100; // hız söylenmediyse kullanılacak hız yüzdesi
     double  moveDefaultSecs_ = 1.5; // süre söylenmediyse hareket süresi (sn)
     double  voiceMaxVel_     = 6.0; // sesli ileri/geri için geçici hız tavanı (0=kapalı)
+    int     turnDefaultPct_  = 50;  // dönüşlerde hız söylenmediyse (%100 devirdiği için ayrı)
 
     // Vosk (dlopen)
     void *voskLib_   = nullptr;
