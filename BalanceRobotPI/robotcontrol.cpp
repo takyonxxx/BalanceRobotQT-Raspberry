@@ -94,7 +94,11 @@ void RobotControl::loadSettings()
     aggKp     = settings.value("aggKp",     29.2f).toFloat();
     aggKi     = settings.value("aggKi",     64.0f).toFloat();
     aggKd     = settings.value("aggKd",      0.103f).toFloat();
-    aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
+    // Varsayılan -5°: bu şasinin gerçek mekanik denge noktası (donanımda
+    // doğrulandı - robot bu trimle "çok iyi" dengede duruyor). Yeni/temiz
+    // kurulum doğrudan doğru noktadan başlar; settings.ini'deki değer
+    // her zaman önceliklidir.
+    aggAC     = settings.value("angleCorrection", -5.0f).toFloat();
     trimFine  = settings.value("trimFine",   0.0f).toFloat();
     autoZeroIntegral = settings.value("autoZero", 0.0f).toFloat();
 
@@ -928,6 +932,23 @@ void RobotControl::controlLoop(float /*dt*/)
     pwmL_ = rawL;
     pwmR_ = rawR;
     applyMotors(pwmL_, pwmR_);
+
+    // ---- Sürüş teşhisi: komut varken 1 Hz özet satırı ----
+    // 'gitmeye çalışıyor ama gidemiyor' tarzı şikayetlerde zincirin hangi
+    // halkasında koptuğu buradan okunur: cmd -> tgtVel -> vel(enkoder) ->
+    // spdTilt -> tgtAng/ang -> pwm. Ör: vel hep 0 + pwm yüksekse motor/
+    // sürtünme; spdTilt tavandaysa spdMaxTilt dar; tgtVel küçükse spdMaxVel.
+    if (curSpeed != 0 || needL != 0 || needR != 0) {
+        if (++driveLogDiv_ >= 200) {
+            driveLogDiv_ = 0;
+            qDebug("DRIVE cmd=%d tgtVel=%.2f vel=%.2f spdTilt=%.2f tgtAng=%.2f ang=%.2f pwm=%d/%d",
+                   curSpeed, (double)targetVelFilt_, (double)chassisVelFilt_,
+                   (double)speedOffsetFilt_, (double)targetAngle_,
+                   (double)currentAngle_, pwmL_, pwmR_);
+        }
+    } else {
+        driveLogDiv_ = 199;   // komut başlar başlamaz ilk satır hemen gelsin
+    }
 
     // ---- PID öğrenme modu: örnek besle / sonucu işle ----
     if (learnActive) {

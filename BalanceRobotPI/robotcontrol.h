@@ -188,7 +188,7 @@ private:
     float aggKp{29.2f};
     float aggKi{64.0f};
     float aggKd{0.103f};
-    float aggAC{0.0f};
+    float aggAC{-5.0f};
 
     // Legacy: SD slider field kept for iOS-side compatibility but not
     // applied by the encoder yaw loop. Default left at 2.0 just so the
@@ -205,6 +205,7 @@ private:
     // 0.04=8°/s (canlı). Sesli/joystick komutlarının ne kadar çabuk
     // ivmelendiğini belirler; settings.ini spdTiltSlew.
     float spdTiltSlew{0.04f};
+    int   driveLogDiv_{0};     // surus teshis logu 1 Hz bolucusu
     int   learnMoveCmd_{60};   // PID ogrenme manevra siddeti (settings.ini)
     int   learnTurnCmd_{20};
     std::atomic<float> tempMaxVel_{0.0f};

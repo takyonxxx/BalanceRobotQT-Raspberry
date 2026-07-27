@@ -499,7 +499,7 @@ class SettingsViewController: UIViewController {
             (mPP, 25,  25),    // Kp = 25
             (mPI, 40,  40),    // Ki = 0.4 (real); slider raw 40
             (mPD, 10,  10),    // Kd = 0.10
-            (mAC, 100, 100),   // AC = 0° (işaretli kodlama: bayt 100 = orta)
+            (mAC, 50,  -50),   // AC = -5° (bu şasinin denge noktası; bayt = -50+100)
             (mSD, 20,  20),    // SD = 2.0
             (mSpdKp,      12, 12), // Speed Kp = 0.12   (slider raw 12 → /100)
             (mSpdKi,      20, 20), // Speed Ki = 0.20   (slider raw 20 → /100)
