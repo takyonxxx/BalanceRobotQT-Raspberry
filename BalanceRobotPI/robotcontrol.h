@@ -112,6 +112,10 @@ public:
     // Gerçek iş kontrol döngüsü thread'inde yapılır; buradaki çağrılar
     // sadece atomik istek bayrakları set eder.
     bool startPidLearning();   // false = reddedildi (dengede değil)
+    int  getLearnMoveCmd() const { return learnMoveCmd_; }
+    int  getLearnTurnCmd() const { return learnTurnCmd_; }
+    void setLearnMoveCmd(int v) { learnMoveCmd_ = std::clamp(v, 20, 160); saveDirty = true; }
+    void setLearnTurnCmd(int v) { learnTurnCmd_ = std::clamp(v, 10, 50);  saveDirty = true; }
     void stopPidLearning();
     bool isPidLearning() const { return pidTuner_.isActive(); }
     QString takePidLearnStatus() { return pidTuner_.takeStatus(); }

@@ -43,6 +43,8 @@ let mPositionHold:Byte = Byte(0xf3)
 let mResetTrim:Byte    = Byte(0xf4)
 let mPidLearn:Byte     = Byte(0xf5)   // write 1=start 0=stop, read=state
 let mPidStatus:Byte    = Byte(0xf6)   // Pi -> Phone: PID learn status text
+let mLearnMove:Byte    = Byte(0xf7)   // PID learn fwd/back maneuver intensity (20-160)
+let mLearnTurn:Byte    = Byte(0xf8)   // PID learn turn maneuver intensity (10-50)
 
 public struct MessagePack {
     var header: Byte

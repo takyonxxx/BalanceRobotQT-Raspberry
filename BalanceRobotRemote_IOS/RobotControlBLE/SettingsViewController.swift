@@ -57,6 +57,11 @@ class SettingsViewController: UIViewController {
     private let pidLearnButton = UIButton(type: .system)
     private let pidLearnStatusLabel = UILabel()
     private var pidLearnActive = false
+    // Öğrenme manevra şiddeti (Pi'de settings.ini'ye kaydedilir; bir sonraki
+    // öğrenme turunda geçerli olur).
+    private let learnMoveSlider = LabeledSlider(title: "Learn move intensity", min: 20, max: 160, format: "%.0f")
+    private let learnTurnSlider = LabeledSlider(title: "Learn turn intensity", min: 10, max: 50,  format: "%.0f")
+    private let pidLearnProgress = UIProgressView(progressViewStyle: .default)
     
     // Speak
     private let speakField  = UITextField()
@@ -109,6 +114,8 @@ class SettingsViewController: UIViewController {
             bluetoothService.requestData(msgId: mAutoMode, data: payload)
             bluetoothService.requestData(msgId: mPositionHold, data: payload)
             bluetoothService.requestData(msgId: mPidLearn, data: payload)
+            bluetoothService.requestData(msgId: mLearnMove, data: payload)
+            bluetoothService.requestData(msgId: mLearnTurn, data: payload)
         }
     }
     
@@ -322,7 +329,12 @@ class SettingsViewController: UIViewController {
         pidLearnStatusLabel.textColor = .compatSecondaryText
         pidLearnStatusLabel.numberOfLines = 3
         
-        let v = UIStackView(arrangedSubviews: [info, pidLearnButton, pidLearnStatusLabel])
+        pidLearnProgress.isHidden = true
+        pidLearnProgress.progressTintColor = .compatSystemGreen
+        
+        let v = UIStackView(arrangedSubviews: [info, pidLearnButton, pidLearnProgress,
+                                               learnMoveSlider, learnTurnSlider,
+                                               pidLearnStatusLabel])
         v.axis = .vertical
         v.spacing = 10
         return v
@@ -333,6 +345,36 @@ class SettingsViewController: UIViewController {
         sendByte(mPidLearn, byte: pidLearnActive ? 1 : 0)
         updatePidLearnButton()
         appendLog(pidLearnActive ? "PID learning start sent" : "PID learning stop sent")
+    }
+    
+    /// "eval N/M" durum satırından ilerleme çubuğunu besle.
+    /// LEARN start -> göster+sıfırla, done/refused -> gizle.
+    private func updatePidLearnProgress(from status: String) {
+        if status.hasPrefix("LEARN start") {
+            pidLearnProgress.isHidden = false
+            pidLearnProgress.setProgress(0.02, animated: false)
+            return
+        }
+        if status.hasPrefix("LEARN done") || status.hasPrefix("LEARN refused") {
+            pidLearnProgress.setProgress(1.0, animated: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                self?.pidLearnProgress.isHidden = true
+            }
+            return
+        }
+        if status.hasPrefix("baseline") {
+            pidLearnProgress.isHidden = false
+            pidLearnProgress.setProgress(0.05, animated: true)
+            return
+        }
+        // "eval 12/40 ..." kalıbı
+        if let r = status.range(of: #"eval (\d+)/(\d+)"#, options: .regularExpression) {
+            let parts = status[r].dropFirst(5).split(separator: "/")
+            if parts.count == 2, let n = Float(parts[0]), let m = Float(parts[1]), m > 0 {
+                pidLearnProgress.isHidden = false
+                pidLearnProgress.setProgress(min(1.0, n / m), animated: true)
+            }
+        }
     }
     
     private func updatePidLearnButton() {
@@ -347,6 +389,7 @@ class SettingsViewController: UIViewController {
             guard let self = self else { return }
             self.pidLearnStatusLabel.text = "Status: " + status
             self.appendLog("[PID] " + status)
+            self.updatePidLearnProgress(from: status)
             // Tuner kendiliğinden bitti mi? Buton durumunu geri çevir.
             if status.hasPrefix("LEARN done") || status.hasPrefix("LEARN refused") {
                 // done: tuner bitti. refused: Pi yatarken başlatmayı reddetti -
@@ -400,6 +443,8 @@ class SettingsViewController: UIViewController {
         iSlider.onValueChanged  = { [weak self] v in self?.sendByte(mPI, byte: UInt8(min(255, max(0, Int(v))))) }
         dSlider.onValueChanged  = { [weak self] v in self?.sendByte(mPD, byte: UInt8(min(255, max(0, Int(v))))) }
         acSlider.onValueChanged = { [weak self] v in self?.sendByte(mAC, byte: UInt8(min(200, max(0, Int(v) + 100)))) }   // işaretli: derece*10 + 100
+        learnMoveSlider.onValueChanged = { [weak self] v in self?.sendByte(mLearnMove, byte: UInt8(min(160, max(20, Int(v))))) }
+        learnTurnSlider.onValueChanged = { [weak self] v in self?.sendByte(mLearnTurn, byte: UInt8(min(50,  max(10, Int(v))))) }
         sdSlider.onValueChanged = { [weak self] v in self?.sendByte(mSD, byte: UInt8(min(255, max(0, Int(v))))) }
         
         // Speed PID — sliders show real units, send raw int (scaled by Pi):
@@ -577,6 +622,8 @@ extension SettingsViewController: BluetoothServiceDelegate {
                 case mPI: self.iSlider.setValue(v)
                 case mPD: self.dSlider.setValue(v)
                 case mAC: self.acSlider.setValue(v - 100)   // ofseti çöz: bayt -> işaretli
+                case mLearnMove: self.learnMoveSlider.setValue(v)
+                case mLearnTurn: self.learnTurnSlider.setValue(v)
                 case mSD: self.sdSlider.setValue(v)
                 case mSpdKp:      self.spdKpSlider.setValue(v)
                 case mSpdKi:      self.spdKiSlider.setValue(v)

@@ -207,6 +207,7 @@ void BalanceRobot::onDataReceived(QByteArray data)
                       parsedCommand == mBackward || parsedCommand == mLeft ||
                       parsedCommand == mRight || parsedCommand == mAutoMode ||
                       parsedCommand == mPositionHold ||
+                      parsedCommand == mLearnMove || parsedCommand == mLearnTurn ||
                       parsedCommand == mSpdKp || parsedCommand == mSpdKi ||
                       parsedCommand == mSpdMaxTilt || parsedCommand == mSpdMaxVel);
 
@@ -239,6 +240,8 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mAutoMode: sendData(mAutoMode, robotControl->getAutoMode() ? 1 : 0); break;
         case mPositionHold: sendData(mPositionHold, robotControl->getPositionHold() ? 1 : 0); break;
         case mPidLearn: sendData(mPidLearn, robotControl->isPidLearning() ? 1 : 0); break;
+        case mLearnMove: sendData(mLearnMove, (uint8_t)robotControl->getLearnMoveCmd()); break;
+        case mLearnTurn: sendData(mLearnTurn, (uint8_t)robotControl->getLearnTurnCmd()); break;
         default: qDebug() << "Unknown read cmd:" << parsedCommand; break;
         }
         return;
@@ -264,6 +267,8 @@ void BalanceRobot::onDataReceived(QByteArray data)
         case mAutoMode: robotControl->setAutoMode(value != 0); break;
         case mPositionHold: robotControl->setPositionHold(value != 0); break;
         case mResetTrim: robotControl->resetTrim(); break;
+        case mLearnMove: robotControl->setLearnMoveCmd(value); qDebug() << "learnMoveCmd =" << robotControl->getLearnMoveCmd(); break;
+        case mLearnTurn: robotControl->setLearnTurnCmd(value); qDebug() << "learnTurnCmd =" << robotControl->getLearnTurnCmd(); break;
         case mPidLearn: {
             uint8_t v = parsedValue.isEmpty() ? 0 : (uint8_t)parsedValue[0];
             if (v != 0) {

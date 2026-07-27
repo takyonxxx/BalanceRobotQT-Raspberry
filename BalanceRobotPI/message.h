@@ -47,6 +47,8 @@
 #define mResetTrim  0xf4 // Trim integratörünü ve auto-bias sıfırla
 #define mPidLearn   0xf5 // PID öğrenme modu: write 1=başlat 0=durdur, read=durum
 #define mPidStatus  0xf6 // Pi -> Phone: PID öğrenme durum metni (UTF-8)
+#define mLearnMove  0xf7 // PID öğrenme ileri/geri manevra şiddeti (20-160)
+#define mLearnTurn  0xf8 // PID öğrenme dönüş manevra şiddeti (10-50)
 
 #define MaxPayload 1024
 
