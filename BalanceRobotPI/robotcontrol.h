@@ -188,7 +188,7 @@ private:
     float aggKp{29.2f};
     float aggKi{64.0f};
     float aggKd{0.103f};
-    float aggAC{-5.0f};
+    float aggAC{0.0f};
 
     // Legacy: SD slider field kept for iOS-side compatibility but not
     // applied by the encoder yaw loop. Default left at 2.0 just so the
@@ -198,18 +198,17 @@ private:
     // Speed PID defaults — settings.ini'den yüklenir, iOS Settings'ten ayarlanabilir.
     // Bu defaults önceki bench testte stabil çalışan değerler.
     //   spdKp=0.12, spdKi=0.20, spdMaxTilt=5°, spdMaxVel=3.0
-    float spdKp{0.12f};
-    float spdKi{0.20f};
-    float spdMaxTilt{5.0f};
+    float spdKp{0.25f};
+    float spdKi{0.45f};
+    float spdMaxTilt{7.0f};
     // Hedef eğim rampa hızı (derece/döngü). 0.02=4°/s (çok nazik),
     // 0.04=8°/s (canlı). Sesli/joystick komutlarının ne kadar çabuk
     // ivmelendiğini belirler; settings.ini spdTiltSlew.
     float spdTiltSlew{0.04f};
-    int   driveLogDiv_{0};     // surus teshis logu 1 Hz bolucusu
     int   learnMoveCmd_{60};   // PID ogrenme manevra siddeti (settings.ini)
     int   learnTurnCmd_{20};
     std::atomic<float> tempMaxVel_{0.0f};
-    float spdMaxVel{3.0f};
+    float spdMaxVel{5.0f};
 
     float trimFine{0.0f};
     float autoZeroIntegral{0.0f};

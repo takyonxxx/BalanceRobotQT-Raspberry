@@ -499,12 +499,12 @@ class SettingsViewController: UIViewController {
             (mPP, 25,  25),    // Kp = 25
             (mPI, 40,  40),    // Ki = 0.4 (real); slider raw 40
             (mPD, 10,  10),    // Kd = 0.10
-            (mAC, 50,  -50),   // AC = -5° (bu şasinin denge noktası; bayt = -50+100)
+            (mAC, 100, 0),     // AC = 0° (işaretli kodlama: bayt 100 = orta)
             (mSD, 20,  20),    // SD = 2.0
-            (mSpdKp,      12, 12), // Speed Kp = 0.12   (slider raw 12 → /100)
-            (mSpdKi,      20, 20), // Speed Ki = 0.20   (slider raw 20 → /100)
-            (mSpdMaxTilt, 5,  5),  // Speed Max Tilt = 5°
-            (mSpdMaxVel,  30, 30), // Speed Max Vel = 3.0 (slider raw 30 → /10)
+            (mSpdKp,      25, 25), // Speed Kp = 0.25   (slider raw 25 → /100)
+            (mSpdKi,      45, 45), // Speed Ki = 0.45   (slider raw 45 → /100)
+            (mSpdMaxTilt, 7,  7),  // Speed Max Tilt = 7°
+            (mSpdMaxVel,  50, 50), // Speed Max Vel = 5.0 (slider raw 50 → /10)
         ]
         for (cmd, byte, sliderValue) in robotDefaults {
             sendByte(cmd, byte: byte)

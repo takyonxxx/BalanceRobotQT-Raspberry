@@ -297,8 +297,8 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 # Feeling sluggish even at 100%? The speed cascade is deliberately gentle.
 # Three knobs (root section of settings.ini, shared with the joystick):
 #    spdTiltSlew=0.04   ; accel ramp, deg/loop (0.02=4°/s gentle, 0.06=12°/s brisk)
-#    spdMaxVel=3.0      ; top speed target, encoder ticks/loop - try 4.0-5.0
-#    spdKi=0.20         ; speed integral - try 0.30 for faster spool-up
+#    spdMaxVel=5.0      ; top speed target, encoder ticks/loop (default)
+#    spdKi=0.45         ; speed integral (default; spdKp=0.25 for instant response)
 # Raise ONE at a time and retest; too much of any can reintroduce tip-overs.
 
 # 6. Restart the app; look for:  VoiceAssistant: listening on plughw:1,0 (wake word: "robot")

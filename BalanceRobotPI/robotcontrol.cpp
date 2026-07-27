@@ -94,11 +94,10 @@ void RobotControl::loadSettings()
     aggKp     = settings.value("aggKp",     29.2f).toFloat();
     aggKi     = settings.value("aggKi",     64.0f).toFloat();
     aggKd     = settings.value("aggKd",      0.103f).toFloat();
-    // Varsayılan -5°: bu şasinin gerçek mekanik denge noktası (donanımda
-    // doğrulandı - robot bu trimle "çok iyi" dengede duruyor). Yeni/temiz
-    // kurulum doğrudan doğru noktadan başlar; settings.ini'deki değer
-    // her zaman önceliklidir.
-    aggAC     = settings.value("angleCorrection", -5.0f).toFloat();
+    // Varsayılan 0°: trim şasiden şasiye değişir, nötr başlangıç doğrusu.
+    // Kullanıcının slider'dan bulduğu değer settings.ini'ye kaydedilir ve
+    // her zaman önceliklidir (bu robotta kayıtlı değer: -5).
+    aggAC     = settings.value("angleCorrection", 0.0f).toFloat();
     trimFine  = settings.value("trimFine",   0.0f).toFloat();
     autoZeroIntegral = settings.value("autoZero", 0.0f).toFloat();
 
@@ -109,10 +108,13 @@ void RobotControl::loadSettings()
     encoderInvertR_ = settings.value("encoderInvertR", true).toBool();
 
     // Speed PID — B-Robot tarzı cascade. Defaults bench testing'den.
-    spdKp      = settings.value("spdKp",      0.12f).toFloat();
-    spdKi      = settings.value("spdKi",      0.20f).toFloat();
-    spdMaxTilt = settings.value("spdMaxTilt", 5.0f).toFloat();
-    spdMaxVel  = settings.value("spdMaxVel",  3.0f).toFloat();
+    // Defaults: donanımda doğrulanmış canlı sürüş seti (DRIVE teşhisiyle
+    // bulundu): anlık tepki için Kp yüksek, hızlı dolum için Ki yüksek,
+    // hız tavanı 5, eğim yetkisi 7° (entegral tavanı da buna bağlı).
+    spdKp      = settings.value("spdKp",      0.25f).toFloat();
+    spdKi      = settings.value("spdKi",      0.45f).toFloat();
+    spdMaxTilt = settings.value("spdMaxTilt", 7.0f).toFloat();
+    spdMaxVel  = settings.value("spdMaxVel",  5.0f).toFloat();
     spdTiltSlew = settings.value("spdTiltSlew", 0.04f).toFloat();
     learnMoveCmd_ = settings.value("learnMoveCmd", 60).toInt();
     learnTurnCmd_ = settings.value("learnTurnCmd", 20).toInt();
@@ -638,7 +640,11 @@ void RobotControl::controlLoop(float /*dt*/)
     const float MAX_TARGET_VEL      = (tmpVel_ > 0.0f) ? tmpVel_ : spdMaxVel;
     const float SPD_PID_KP          = spdKp;
     const float SPD_PID_KI          = spdKi;
-    constexpr float SPD_PID_I_LIMIT = 3.0f;
+    // Entegral tavanı spdMaxTilt'i izler. Eskiden sabit 3° idi ve
+    // spdMaxTilt yükseltilse bile sürekli hızlanma eğimini gizlice
+    // ~3°'ye sıkıştırıyordu (DRIVE loglarında spdTilt'in tavana hiç
+    // yaklaşamamasının nedeni). Artık tek düğme: spdMaxTilt.
+    const float SPD_PID_I_LIMIT = MAX_SPEED_TILT_DEG;
 
     // Map joystick (-180..+180) → target velocity (-MAX..+MAX).
     // Sign convention finalized 2026-05-21:
@@ -933,22 +939,6 @@ void RobotControl::controlLoop(float /*dt*/)
     pwmR_ = rawR;
     applyMotors(pwmL_, pwmR_);
 
-    // ---- Sürüş teşhisi: komut varken 1 Hz özet satırı ----
-    // 'gitmeye çalışıyor ama gidemiyor' tarzı şikayetlerde zincirin hangi
-    // halkasında koptuğu buradan okunur: cmd -> tgtVel -> vel(enkoder) ->
-    // spdTilt -> tgtAng/ang -> pwm. Ör: vel hep 0 + pwm yüksekse motor/
-    // sürtünme; spdTilt tavandaysa spdMaxTilt dar; tgtVel küçükse spdMaxVel.
-    if (curSpeed != 0 || needL != 0 || needR != 0) {
-        if (++driveLogDiv_ >= 200) {
-            driveLogDiv_ = 0;
-            qDebug("DRIVE cmd=%d tgtVel=%.2f vel=%.2f spdTilt=%.2f tgtAng=%.2f ang=%.2f pwm=%d/%d",
-                   curSpeed, (double)targetVelFilt_, (double)chassisVelFilt_,
-                   (double)speedOffsetFilt_, (double)targetAngle_,
-                   (double)currentAngle_, pwmL_, pwmR_);
-        }
-    } else {
-        driveLogDiv_ = 199;   // komut başlar başlamaz ilk satır hemen gelsin
-    }
 
     // ---- PID öğrenme modu: örnek besle / sonucu işle ----
     if (learnActive) {
