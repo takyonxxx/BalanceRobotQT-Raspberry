@@ -502,10 +502,15 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     // ---- Hareket ----
     // Yönler TAM KELİME olarak aranır: "sağladı" içindeki "sağ" gibi
     // alt-dizi yanlış pozitifleri komut sayılmasın.
+    // Yönler TAM KELİME + Türkçe çekim varyantları: "ileriye git",
+    // "geriye git", "ilerle" gibi doğal söyleyişler de komuttur.
+    // (Prefix eşleşmesi kullanılamaz: "sağladı" yine "sağ" sayılırdı.)
     QString dir;
-    if      (containsWord(t, {"ileri", "öne", "forward"}))            dir = "forward";
-    else if (containsWord(t, {"geri", "arkaya", "back"}))             dir = "backward";
-    else if (containsWord(t, {"sol", "sola", "left"}))                dir = "left";
+    if      (containsWord(t, {"ileri", "ileriye", "ilerle", "öne", "one",
+                              "forward"}))                             dir = "forward";
+    else if (containsWord(t, {"geri", "geriye", "gerile", "arkaya",
+                              "arkana", "back"}))                      dir = "backward";
+    else if (containsWord(t, {"sol", "sola", "left"}))                 dir = "left";
     else if (containsWord(t, {"sağ", "sağa", "sag", "saga", "right"})) dir = "right";
 
     if (!dir.isEmpty()) {
