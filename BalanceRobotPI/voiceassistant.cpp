@@ -12,6 +12,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
+#include <QNetworkInterface>
 
 #include <dlfcn.h>
 #include <climits>
@@ -65,8 +66,9 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("voskModelPath")) s.setValue("voskModelPath",
         QCoreApplication::applicationDirPath() + "/vosk-model-small-tr-0.3");
     if (!s.contains("wakeWord"))      s.setValue("wakeWord", "robot");
-    if (!s.contains("ttsEngine"))     s.setValue("ttsEngine", "auto");   // gtts = online doğal kadın sesi
-    if (!s.contains("ttsVoice"))      s.setValue("ttsVoice", "tr+f3");   // kadın sesi
+    // Tek TTS motoru: Piper. Eski motor anahtarlarını temizle.
+    if (s.contains("ttsEngine")) s.remove("ttsEngine");
+    if (s.contains("ttsVoice"))  s.remove("ttsVoice");
     if (!s.contains("piperModel"))    s.setValue("piperModel", "");
     if (!s.contains("btSpeakerMac"))  s.setValue("btSpeakerMac", "F8:5C:7D:82:CE:9B");  // JBL Clip 4
     if (!s.contains("speakerDevice")) s.setValue("speakerDevice", "");
@@ -88,13 +90,10 @@ void VoiceAssistant::loadSettings()
         micDevice_ = detectMicDevice();
     voskModelPath_ = s.value("voskModelPath").toString();
     wakeWord_      = s.value("wakeWord").toString().trimmed().toLower();
-    ttsEngine_     = s.value("ttsEngine").toString().trimmed().toLower();
-    ttsVoice_      = s.value("ttsVoice").toString().trimmed();
-    if (ttsVoice_.isEmpty()) ttsVoice_ = "tr+f3";
     piperModel_    = s.value("piperModel").toString().trimmed();
     // Ayar boşsa uygulama klasöründeki doğal Türkçe KADIN sesini otomatik
-    // kullan (indirilmişse): tr_TR-dfki-medium. İndirilmemişse espeak-ng
-    // (ttsVoice, varsayılan tr+f3 kadın) devrede kalır.
+    // kullan (indirilmişse): tr_TR-dfki-medium. Model yoksa TTS devre dışı
+    // kalır ve açılışta uyarı loglanır (tek motor: Piper).
     if (piperModel_.isEmpty()) {
         const QString candidate = QCoreApplication::applicationDirPath()
                                   + "/tr_TR-dfki-medium.onnx";
@@ -396,7 +395,7 @@ void VoiceAssistant::handleUtterance(QString text)
     if (llm_->hasProvider()) {
         askLlm(text);
     } else {
-        speak("Bunu anlamadım.");
+        speak("Bunu anlamadım, tekrar söyler misin?");
     }
 }
 
@@ -405,7 +404,7 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     // ---- Durdurma (en yüksek öncelik; tam kelime - "durum"/"durdur" doğal olarak eşleşmez) ----
     if (containsWord(t, {"dur", "stop", "kes", "bekle"})) {
         stopAllMotion();
-        speak("Durdum.");
+        speak("Tamam, durdum.");
         return true;
     }
 
@@ -414,12 +413,12 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         t.contains("learn")) {
         if (containsAny(t, {"durdur", "bitir", "iptal", "stop", "kapat"})) {
             robot_->stopPidLearning();
-            speak("PID öğrenme durdu.");
+            speak("PID öğrenme durdu, bulduğum en iyi değerleri kaydettim.");
             return true;
         }
         if (containsAny(t, {"başlat", "baslat", "başla", "basla", "start", "aç", "ac"})) {
             robot_->startPidLearning();
-            speak("PID öğrenme başladı, birkaç dakika sürer.");
+            speak("PID öğrenme başladı. Bilerek sallanacağım, birkaç dakika sürer.");
             return true;
         }
     }
@@ -429,6 +428,19 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         containsAny(t, {"sıfırla", "sifirla", "resetle", "reset", "temizle"})) {
         robot_->resetTrim();
         speak("Trim sıfırlandı.");
+        return true;
+    }
+
+    // ---- Kendini tanıtma ----
+    // Vosk "tanıt"ı bazen "tanımla" diye çıkarıyor; ikisi de kabul.
+    if (containsWord(t, {"tanıt", "tanit", "tanımla", "tanimla", "kimsin"}) ||
+        t.contains("kendini")) {
+        speak("Merhaba! Ben iki tekerlek üzerinde kendi kendine dengede duran "
+              "bir robotum. Beni Türkay tasarladı. İçimde bir Raspberry Pi beş "
+              "var; hareket sensörümle saniyede iki yüz kez dengemi düzeltirim. "
+              "Sesli komutlarla ilerleyebilir, dönebilir, hatta kendi denge "
+              "ayarlarımı kendim öğrenebilirim. Bir şey söylemek istersen "
+              "önce robot demen yeterli.");
         return true;
     }
 
@@ -449,7 +461,7 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     if (containsWord(t, {"arm", "hazırlan", "hazirlan", "dengele"}) ||
         containsAny(t, {"motorları aç", "motorlari ac", "motoru aç", "motoru ac"})) {
         robot_->setIsArmed(true);
-        speak("Denge aktif.");
+        speak("Denge kontrolü aktif, hazırım.");
         return true;
     }
 
@@ -568,7 +580,7 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
                                bool sayPct, bool saySecs)
 {
     if (!robot_->getIsArmed())
-        return "Robot dengede değil.";
+        return "Şu an dengede değilim, önce beni dik konuma getir.";
 
     stopAllMotion();
 
@@ -604,7 +616,7 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
 
     // Kisa onay: yalnizca kullanicinin SOYLEDIGI niteleyiciler tekrarlanir.
     // "sola don" -> "Sola donuyorum." / "1 saniye sola don" -> "... 1 saniye."
-    QString reply = what;
+    QString reply = "Tamam, " + what;
     if (saySecs) {
         const QString secStr = (seconds == (int)seconds)
             ? QString::number((int)seconds)
@@ -659,97 +671,106 @@ void VoiceAssistant::speakNext()
 }
 
 // TTS başlat. fallbackToDefault=true ise BT/özel cihaz atlanır, varsayılan
-// ses çıkışı (3.5mm/HDMI) kullanılır - hoparlör kapalıysa robot sessiz kalmaz.
-void VoiceAssistant::startSpeaker(const QString &text, bool fallbackToDefault,
-                                  bool avoidGtts)
+// ses çıkışı kullanılır - hoparlör kapalıysa robot sessiz kalmaz.
+// Tek motor: Piper (tr_TR-dfki-medium). Model/binary yoksa konuşma atlanır.
+void VoiceAssistant::startSpeaker(const QString &text, bool fallbackToDefault)
 {
     speaking_ = true;
     lastSpokenText_  = text;
     lastWasFallback_ = fallbackToDefault;
     lastUsedDevice_  = fallbackToDefault ? QString() : effSpeakerDevice_;
-    lastUsedGtts_    = false;
     const QString dev = lastUsedDevice_;
 
-    // gTTS: Google'in dogal Turkce KADIN sesi (internet gerektirir).
-    // settings.ini [assistant] ttsEngine=gtts ile acilir. Internet yoksa
-    // surec hata verir ve ayni cumle otomatik olarak Piper/espeak'e duser.
-    if (!avoidGtts && ttsEngine_ == "gtts") {
-        lastUsedGtts_ = true;
-        // Donanımda doğrulanmış hat: gtts-cli mp3 üretir, mpg123 -s ham
-        // PCM'e çözer (gTTS mp3'leri 24 kHz mono), aplay BlueALSA'da çalar.
-        // (mpg123'ün -w/-a çıkışları bluealsa ile sorunlu çıktı; -s güvenilir.)
-        const QString aplayDev = dev.isEmpty() ? "" : QString(" -D \"%1\"").arg(dev);
-        const QString cmd = QString("gtts-cli -l tr - | mpg123 -q -s - | "
-                                    "aplay -q%1 -t raw -f S16_LE -r 24000 -c 1")
-                                .arg(aplayDev);
-        speaker_ = new QProcess(this);
-        connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this, &VoiceAssistant::onSpeakFinished);
-        speaker_->start("sh", {"-c", cmd});
-        if (speaker_->waitForStarted(2000)) {
-            speaker_->write(text.toUtf8());
-            speaker_->closeWriteChannel();
-            return;
-        }
-        speaker_->deleteLater();
-        speaker_ = nullptr;
-        lastUsedGtts_ = false;
-        // duserek yerel motora devam
+    if (piperModel_.isEmpty() || !QFile::exists(piperModel_)) {
+        qDebug("VoiceAssistant: Piper model missing - reply not spoken "
+               "(see README: Natural Turkish voice / Piper setup)");
+        speaking_ = false;
+        speakQueue_.clear();
+        return;
     }
 
     speaker_ = new QProcess(this);
     connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &VoiceAssistant::onSpeakFinished);
 
-    // Piper: doğal Türkçe ses (varsa tercih edilir).
-    if (!piperModel_.isEmpty() && QFile::exists(piperModel_)) {
-        const QString aplayDev = dev.isEmpty() ? "" : QString(" -D \"%1\"").arg(dev);
-        const QString cmd = QString("piper -m %1 --output_raw 2>/dev/null | "
-                                    "aplay -q%2 -r 22050 -f S16_LE -t raw -c 1")
-                                .arg(piperModel_, aplayDev);
-        speaker_->start("sh", {"-c", cmd});
-        if (speaker_->waitForStarted(2000)) {
-            speaker_->write(text.toUtf8());
-            speaker_->closeWriteChannel();
-            return;
-        }
-        speaker_->deleteLater();
-        speaker_ = nullptr;
-        // düşerek espeak'e devam
+    const QString aplayDev = dev.isEmpty() ? "" : QString(" -D \"%1\"").arg(dev);
+    const QString cmd = QString("piper -m %1 --output_raw 2>/dev/null | "
+                                "aplay -q%2 -r 22050 -f S16_LE -t raw -c 1")
+                            .arg(piperModel_, aplayDev);
+    speaker_->start("sh", {"-c", cmd});
+    if (speaker_->waitForStarted(2000)) {
+        speaker_->write(text.toUtf8());
+        speaker_->closeWriteChannel();
+        return;
     }
 
-    // espeak-ng. Özel cihaz gerekiyorsa --stdout | aplay hattı kurulur
-    // (espeak-ng'nin kendi ses çıkışı ALSA cihazı seçtirmez).
-    speaker_ = new QProcess(this);
-    connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, &VoiceAssistant::onSpeakFinished);
-    if (!dev.isEmpty()) {
-        const QString cmd = QString("espeak-ng -v %1 -s 160 --stdout | "
-                                    "aplay -q -D \"%2\"").arg(ttsVoice_, dev);
-        speaker_->start("sh", {"-c", cmd});
-        if (speaker_->waitForStarted(2000)) {
-            speaker_->write(text.toUtf8());
-            speaker_->closeWriteChannel();
-            return;
-        }
-    } else {
-        speaker_->start("espeak-ng", {"-v", ttsVoice_, "-s", "160", text});
-        if (speaker_->waitForStarted(2000))
-            return;
-    }
-    qDebug("VoiceAssistant: espeak-ng not found (sudo apt-get install espeak-ng)");
+    qDebug("VoiceAssistant: piper failed to start (is /usr/local/bin/piper installed?)");
     speaker_->deleteLater();
     speaker_ = nullptr;
     speaking_ = false;
     speakQueue_.clear();
 }
 
-// bluetoothctl connect <mac> - bağlıysa zararsız, kopuksa yeniden bağlar.
+// BT hoparlör bakımı. Önce durum sorgulanır: BAĞLIYKEN hiçbir şey yapılmaz
+// (log kirliliği yok). Kopuksa bağlanılır; bağlantı KURULDUĞU anda cihazın
+// IP adresi hoparlörden seslendirilir - robotu ekransız açınca SSH için
+// IP'yi öğrenmenin en pratik yolu.
 void VoiceAssistant::ensureBtSpeaker()
 {
     if (btSpeakerMac_.isEmpty())
         return;
-    QProcess::startDetached("bluetoothctl", {"connect", btSpeakerMac_});
+
+    QProcess *info = new QProcess(this);
+    connect(info, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, info](int, QProcess::ExitStatus) {
+        const QString out = QString::fromUtf8(info->readAllStandardOutput());
+        info->deleteLater();
+
+        if (out.contains("Connected: yes")) {
+            if (!btConnected_) {          // ilk tespit (uygulama açılışında bağlıysa)
+                btConnected_ = true;
+                announceIp();
+            }
+            return;                       // bağlı - sessizce çık
+        }
+
+        btConnected_ = false;
+        QProcess *conn = new QProcess(this);
+        connect(conn, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, conn](int, QProcess::ExitStatus) {
+            const QString res = QString::fromUtf8(conn->readAllStandardOutput());
+            conn->deleteLater();
+            if (res.contains("successful")) {
+                qDebug("VoiceAssistant: BT speaker connected");
+                btConnected_ = true;
+                announceIp();
+            }
+        });
+        conn->start("bluetoothctl", {"connect", btSpeakerMac_});
+    });
+    info->start("bluetoothctl", {"info", btSpeakerMac_});
+}
+
+// Cihazın yerel IPv4 adresini hoparlörden söyle ("nokta" ile, Piper düzgün okusun).
+void VoiceAssistant::announceIp()
+{
+    QString ip;
+    for (const QHostAddress &a : QNetworkInterface::allAddresses()) {
+        if (a.protocol() == QAbstractSocket::IPv4Protocol && !a.isLoopback()) {
+            ip = a.toString();
+            break;
+        }
+    }
+    if (ip.isEmpty()) {
+        speak("Bağlandım.");
+        return;
+    }
+    QString spoken = ip;
+    spoken.replace(".", " nokta ");
+    // "IP" -> "ip", "Aypi" -> "ipe" okunuyordu; iki ayrı hece olarak
+    // yazmak ("ay pi") Piper'a doğru telaffuzu garantiliyor.
+    speak(QString("Bağlandım. Ay pi adresim %1.").arg(spoken));
+    qDebug().noquote() << "VoiceAssistant: announced IP" << ip;
 }
 
 void VoiceAssistant::onSpeakFinished(int exitCode, QProcess::ExitStatus)
@@ -761,16 +782,6 @@ void VoiceAssistant::onSpeakFinished(int exitCode, QProcess::ExitStatus)
     if (speaker_) {
         speaker_->deleteLater();
         speaker_ = nullptr;
-    }
-
-    // gTTS başarısız olduysa (internet yok / gtts-cli kurulu değil) aynı
-    // cümleyi AYNI cihazda yerel motorla (Piper/espeak) tekrarla.
-    if (exitCode != 0 && lastUsedGtts_) {
-        qDebug().noquote() << "VoiceAssistant: gtts failed"
-                           << (err.isEmpty() ? QString() : "- " + err)
-                           << "- using local TTS engine";
-        startSpeaker(lastSpokenText_, lastWasFallback_, /*avoidGtts=*/true);
-        return;
     }
 
     // BT/özel hoparlörde çalma başarısız olduysa (JBL kapalı, bağlantı yok)

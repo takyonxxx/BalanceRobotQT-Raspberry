@@ -76,9 +76,9 @@ private:
     // ---- TTS ----
     void speak(const QString &text);
     void speakNext();
-    void startSpeaker(const QString &text, bool fallbackToDefault,
-                      bool avoidGtts = false);
-    void ensureBtSpeaker();   // bluetoothctl connect <mac> (idempotent)
+    void startSpeaker(const QString &text, bool fallbackToDefault);
+    void ensureBtSpeaker();   // bağlı değilse bağlan; bağlanınca IP'yi seslendir
+    void announceIp();        // "Bağlandım. IP adresim 192 nokta 168 ..." 
 
     // ---- Yardımcılar ----
     static bool containsAny(const QString &t, const QStringList &keys);
@@ -94,8 +94,6 @@ private:
     bool    micAuto_ = true;     // settings "auto" ise her yeniden başlatmada tekrar algıla
     QString voskModelPath_;      // Vosk model klasörü
     QString wakeWord_;           // boş = her söylenen işlenir
-    QString ttsEngine_;          // "auto" (piper/espeak) | "gtts" (online, doğal KADIN sesi)
-    QString ttsVoice_;           // espeak-ng ses (tr+f3 = kadın; tr = erkek)
     QString piperModel_;         // boş = espeak-ng kullan
     QString btSpeakerMac_;       // JBL vb. BT hoparlör MAC'i (boş = yok)
     QString speakerDevice_;      // TTS ALSA cihazı override (boş = otomatik)
@@ -127,9 +125,9 @@ private:
     QStringList  speakQueue_;
     QString      lastSpokenText_;      // BT hoparlör başarısız olursa
     bool         lastWasFallback_ = false;  // varsayılan çıkışa geri düşme için
-    bool         lastUsedGtts_ = false;     // gtts başarısızsa (internet yok) yerel motora düş
     QString      lastUsedDevice_;
     QTimer      *btReconnectTimer_ = nullptr;
+    bool         btConnected_ = false;   // geçiş algılama: yeniden bağlanınca IP söyle
 };
 
 #endif // VOICEASSISTANT_H

@@ -209,7 +209,7 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
                                                   ▼
                                    RobotControl (atomic, thread-safe)
                                                   +
-                                   Piper / espeak-ng TTS ──> speaker
+                                   Piper TTS ────────> speaker
 ```
 
 **How commands vs questions are separated:** every recognized utterance first goes through the local keyword parser (same vocabulary as the iOS offline mode). If it matches a robot command it executes immediately — offline, free, low latency. Anything that doesn't match is treated as a question and forwarded to the LLM (Gemini free tier or Claude, whichever key is set in `settings.ini`), which can still drive the robot through the same 7 tools. No key set → commands still work, questions get a spoken "komutları söyle" hint.
@@ -227,6 +227,7 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 | **Sola dön** | sol, sola, left (tam kelime) | *"robot sola dön"* (varsayılan %50) |
 | **Sağa dön** | sağ, sağa, right (tam kelime) | *"robot sağa dön"* (varsayılan %50) |
 | **Dur** | dur, stop, kes, bekle | *"dur"* (pencere içinde "robot" gerekmez) |
+| **Kendini tanıt** | tanıt, tanımla, kimsin, kendini | *"robot kendini tanıt"* — tasarımcısı dahil kısa tanıtım okur |
 | **Durum oku** | durum, nasıl, status, telemetri, açı, denge | *"robot durum ne"*, *"robot nasılsın"* |
 | **PID öğrenme başlat** | pid/öğren/learn + başlat, başla, start, aç | *"robot PID öğrenmeyi başlat"* |
 | **PID öğrenme durdur** | pid/öğren/learn + durdur, bitir, iptal, stop, kapat | *"robot PID öğrenmeyi durdur"* |
@@ -254,7 +255,7 @@ The rows above are matched **offline by the local parser** — free, instant, no
 
 ```bash
 # 1. Audio tools + TTS
-sudo apt-get install alsa-utils espeak-ng
+sudo apt-get install alsa-utils
 
 # 2. Vosk library (prebuilt aarch64, ~2 MB)
 cd /tmp
@@ -284,8 +285,6 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 #    wakeWord=robot
 #    geminiApiKey=AIza...        ; optional - free quota, for questions
 #    claudeApiKey=               ; optional - takes priority if set
-#    ttsVoice=tr+f3              ; espeak-ng voice: tr+f3 = female (default), tr = male,
-#                                ;   tr+f1..f5 female variants, tr+m1..m7 male variants
 #    piperModel=                 ; optional - path to a Piper .onnx voice (pick a female one, e.g. tr_TR-dfki-medium) for natural TTS
 #    moveDefaultPct=100          ; voice move speed %% when not specified (10-100)
 #    moveDefaultSecs=1.5         ; voice move duration when not specified (0.5-8 s)
@@ -387,20 +386,7 @@ speakerDevice=                   ; optional ALSA device override; empty = auto
 
 Behavior: on startup the assistant runs `bluetoothctl connect <MAC>` and retries every 30 s, so power-cycling the JBL just works. If a reply fails to play on the BT device (speaker off / out of range), the same sentence is **automatically repeated on the default output** (3.5 mm/HDMI) and reconnection is triggered — the robot never goes silent. Expect ~0.2–0.5 s of extra latency on BT audio; the microphone path (webcam) is unaffected.
 
-**Natural Turkish FEMALE voice — the honest picture:** the official Piper catalog has only three Turkish voices (dfki, fahrettin, fettah) and **all three are male**. espeak-ng's `tr+f3` is female but robotic. For a genuinely natural female Turkish voice the practical option is **Google TTS (online)**:
-
-```bash
-sudo apt-get install mpg123
-sudo pip3 install --break-system-packages gTTS   # provides /usr/local/bin/gtts-cli
-
-# Test on the JBL:
-echo "Merhaba, ben denge robotu." | gtts-cli -l tr - | \
-  mpg123 -q -s - | aplay -q -D bluealsa:DEV=F8:5C:7D:82:CE:9B,PROFILE=a2dp -t raw -f S16_LE -r 24000 -c 1
-```
-
-Then in `settings.ini` `[assistant]`: `ttsEngine=gtts`. Trade-offs: requires internet and sends the reply text to Google, and adds ~0.5–1.5 s of network latency. **If the internet drops, the same sentence automatically falls back to the local engine** (Piper if installed, else espeak-ng) — the robot never goes silent. Set `ttsEngine=auto` to go back to fully offline TTS.
-
-**Natural Turkish MALE voice, fully offline (Piper):** install [Piper](https://github.com/rhasspy/piper) once; the firmware **auto-detects** the model file and switches to it, no settings change needed:
+**Voice output — Piper (the only TTS engine):** natural offline Turkish voice (`tr_TR-dfki-medium`). Install once; the firmware auto-detects the model file. Without the model+binary, replies are simply not spoken (a log line says so) — everything else keeps working. install [Piper](https://github.com/rhasspy/piper) once; the firmware **auto-detects** the model file and switches to it, no settings change needed:
 
 ```bash
 # 1. Piper binary (aarch64)
@@ -420,8 +406,6 @@ echo "Merhaba, ben denge robotu." | piper -m tr_TR-dfki-medium.onnx --output_raw
 ```
 
 Restart the app — replies now use the natural female voice (adds ~0.5 s per sentence on the Pi 5). Reply wording is intentionally SHORT: qualifiers (duration/speed) are spoken back **only if you said them** — *"sola dön"* → *"Sola dönüyorum."*, *"1 saniye sola dön"* → *"Sola dönüyorum, 1 saniye."*
-
-**Better TTS (optional):** `espeak-ng` is robotic. For a natural Turkish voice install [Piper](https://github.com/rhasspy/piper) and point `piperModel` at a `tr_TR` `.onnx` voice file; the assistant automatically prefers it and falls back to espeak-ng.
 
 **CPU budget:** the assistant thread runs at low priority; Vosk small uses well under one core. Combined with the camera stream, prefer 640×480 video or disable the camera during PID auto-tune — same guidance as before, the 200 Hz balance loop always has priority.
 
