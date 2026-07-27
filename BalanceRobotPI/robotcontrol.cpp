@@ -107,6 +107,7 @@ void RobotControl::loadSettings()
     spdKi      = settings.value("spdKi",      0.20f).toFloat();
     spdMaxTilt = settings.value("spdMaxTilt", 5.0f).toFloat();
     spdMaxVel  = settings.value("spdMaxVel",  3.0f).toFloat();
+    spdTiltSlew = settings.value("spdTiltSlew", 0.04f).toFloat();
 
     // Legacy fields no longer read or written:
     //   aggSD       (was yaw PID gain for gyro-Z control; now encoder-based
@@ -137,6 +138,7 @@ void RobotControl::saveSettings()
     settings.setValue("spdKi",           spdKi);
     settings.setValue("spdMaxTilt",      spdMaxTilt);
     settings.setValue("spdMaxVel",       spdMaxVel);
+    settings.setValue("spdTiltSlew",     spdTiltSlew);
     // Migrate old key names: if present from older builds, drop them.
     if (settings.contains("aggSD"))     settings.remove("aggSD");
     if (settings.contains("yawInvert")) settings.remove("yawInvert");
@@ -606,7 +608,8 @@ void RobotControl::controlLoop(float /*dt*/)
     // Speed PID parametreleri — settings.ini'den yüklenir, iOS Settings'ten ayarlanabilir.
     // Defaults: spdKp=0.15, spdKi=0.30, spdMaxTilt=6.0°, spdMaxVel=4.0
     const float MAX_SPEED_TILT_DEG  = spdMaxTilt;
-    const float MAX_TARGET_VEL      = spdMaxVel;
+    const float tmpVel_ = tempMaxVel_.load();
+    const float MAX_TARGET_VEL      = (tmpVel_ > 0.0f) ? tmpVel_ : spdMaxVel;
     const float SPD_PID_KP          = spdKp;
     const float SPD_PID_KI          = spdKi;
     constexpr float SPD_PID_I_LIMIT = 3.0f;
@@ -650,7 +653,7 @@ void RobotControl::controlLoop(float /*dt*/)
     // Tight slew rate — log showed spdTilt jumping from 0 to -0.94° in
     // a single cycle when stick was pushed (cmd 0 → +95), too fast for
     // the pitch loop to track. Limit to 0.02°/loop = 4°/sec ramp.
-    constexpr float MAX_TILT_DELTA_PER_LOOP = 0.02f;
+    const float MAX_TILT_DELTA_PER_LOOP = spdTiltSlew;   // settings.ini'den
     float tiltDelta = speedTiltTarget - speedOffsetFilt_;
     if (tiltDelta >  MAX_TILT_DELTA_PER_LOOP) tiltDelta =  MAX_TILT_DELTA_PER_LOOP;
     if (tiltDelta < -MAX_TILT_DELTA_PER_LOOP) tiltDelta = -MAX_TILT_DELTA_PER_LOOP;

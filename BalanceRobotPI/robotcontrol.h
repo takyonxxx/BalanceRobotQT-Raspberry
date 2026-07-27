@@ -70,6 +70,11 @@ public:
     void  setSpdKi(float v) { spdKi = v; saveDirty = true; }
     float getSpdMaxTilt() const { return spdMaxTilt; }
     void  setSpdMaxTilt(float v) { spdMaxTilt = v; saveDirty = true; }
+    float getSpdTiltSlew() const { return spdTiltSlew; }
+    void  setSpdTiltSlew(float v) { spdTiltSlew = v; saveDirty = true; }
+    // Geçici hız tavanı (sesli komut için). 0 = kapalı, spdMaxVel geçerli.
+    // Kalıcı DEĞİLDİR: settings.ini'ye yazılmaz, joystick ayarına dokunmaz.
+    void  setTempMaxVel(float v) { tempMaxVel_.store(v); }
     float getSpdMaxVel() const { return spdMaxVel; }
     void  setSpdMaxVel(float v) { spdMaxVel = v; saveDirty = true; }
 
@@ -196,6 +201,11 @@ private:
     float spdKp{0.12f};
     float spdKi{0.20f};
     float spdMaxTilt{5.0f};
+    // Hedef eğim rampa hızı (derece/döngü). 0.02=4°/s (çok nazik),
+    // 0.04=8°/s (canlı). Sesli/joystick komutlarının ne kadar çabuk
+    // ivmelendiğini belirler; settings.ini spdTiltSlew.
+    float spdTiltSlew{0.04f};
+    std::atomic<float> tempMaxVel_{0.0f};
     float spdMaxVel{3.0f};
 
     float trimFine{0.0f};

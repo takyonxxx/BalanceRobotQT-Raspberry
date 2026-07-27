@@ -218,22 +218,35 @@ USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
 
 **Language — speak TURKISH to the Pi:** the bundled speech model (`vosk-model-small-tr`) understands **Turkish only**. English keywords exist in the parser for completeness, but the Turkish acoustic model will not transcribe spoken English reliably — so on the Pi, use Turkish. (The iOS app is different: Apple's recognizer handles both TR and EN.) To make the Pi English-speaking instead, download `vosk-model-small-en-us-0.15` and point `voskModelPath` at it.
 
-**Voice command reference (Pi):** say the wake word first — *"robot …"* — then:
+**Voice command reference (Pi) — complete list.** Say the wake word first — *"robot …"*. After any command a 10-second attention window opens: follow-ups don't need the wake word. Saying just *"robot"* gets *"Evet, dinliyorum"* and opens the window. Word order inside the sentence doesn't matter.
 
-| Söyle | Ne yapar |
-|---|---|
-| *"robot ileri git"* / *"geri git"* | 1.5 s ileri/geri hareket, sonra otomatik durur |
-| *"robot sola dön"* / *"sağa dön"* | dönüş |
-| *"robot iki saniye ileri git"* | süre belirtme (0.3–5 sn; "yarım", "bir", "iki"… veya rakam) |
-| *"robot hızlı ileri git"* / *"yavaş"* / *"yüzde altmış"* | hız belirtme (%10–100) |
-| *"robot dur"* | tüm hareketi anında keser |
-| *"robot durum ne"* / *"nasılsın"* | açı, PWM, denge durumunu sesli okur |
-| *"robot PID öğrenmeyi başlat"* / *"durdur"* | auto-tune modu |
-| *"robot trim sıfırla"* | trim integratörünü sıfırlar |
-| *"robot motorları kapat"* / *"motorları aç"* | disarm / arm |
-| başka her şey (ör. *"robot neden devriliyorsun?"*) | API anahtarı tanımlıysa Gemini/Claude'a soru olarak gider |
+| Amaç | Tetikleyici kelimeler (herhangi biri yeter) | Örnek |
+|---|---|---|
+| **İleri** | ileri, öne, forward | *"robot ileri git"* |
+| **Geri** | geri, arkaya, back | *"robot geri git"* |
+| **Sola dön** | sol, sola, left | *"robot sola dön"* |
+| **Sağa dön** | sağ, sağa, right | *"robot sağa dön"* |
+| **Dur** | dur, stop, kes, bekle | *"dur"* (pencere içinde "robot" gerekmez) |
+| **Durum oku** | durum, nasıl, status, telemetri, açı, denge | *"robot durum ne"*, *"robot nasılsın"* |
+| **PID öğrenme başlat** | pid/öğren/learn + başlat, başla, start, aç | *"robot PID öğrenmeyi başlat"* |
+| **PID öğrenme durdur** | pid/öğren/learn + durdur, bitir, iptal, stop, kapat | *"robot PID öğrenmeyi durdur"* |
+| **Trim sıfırla** | trim + sıfırla, resetle, reset, temizle | *"robot trim sıfırla"* |
+| **Motorları kapat (disarm)** | disarm, motorları kapat, motoru kapat, devre dışı | *"robot motorları kapat"* |
+| **Motorları aç (arm)** | arm, hazırlan, dengele, motorları aç, motoru aç | *"robot motorları aç"* |
+| **Serbest soru** (API anahtarı gerekir) | yukarıdakilerle eşleşmeyen her şey | *"robot neden devriliyorsun?"* |
 
-The rows above are matched **offline by the local parser** — free, instant, no internet. Only the last row (free-form questions) needs an API key.
+**Hareket komutlarına eklenebilen niteleyiciler** (ileri/geri/sola/sağa ile birlikte, sırası önemsiz):
+
+| Niteleyici | Söyleyiş | Etki |
+|---|---|---|
+| Hız — kelimeyle | yavaş / nazik → %30 · hızlı → %75 · çok hızlı → %90 · tam gaz / full → %100 | *"robot yavaş ileri git"* |
+| Hız — yüzdeyle | "yüzde" + sayı (on…doksan, yüz veya rakam), %10–100 | *"robot yüzde altmış ileri git"* |
+| Süre | sayı + "saniye" (yarım, buçuk, bir…on veya rakam), 0.3–8 sn | *"robot üç saniye geri git"* |
+| Birleşik | hız + süre aynı cümlede | *"robot yüzde kırk iki saniye sola dön"* |
+
+Varsayılanlar (niteleyici söylenmezse): **%100 hız, 1.5 saniye** (`settings.ini` → `moveDefaultPct` / `moveDefaultSecs`). Hareket süre sonunda otomatik durur; *"dur"* her an keser.
+
+The rows above are matched **offline by the local parser** — free, instant, no internet. Only free-form questions need an API key.
 
 **New files:** `voiceassistant.cpp/.h` (mic capture, Vosk STT via `dlopen`, intent routing, TTS queue), `llmclient.cpp/.h` (Gemini + Claude REST clients with the tool loop, Qt-native). `libvosk` is loaded at **runtime** — it is *not* a build dependency, so the firmware builds and runs unchanged if voice components aren't installed.
 
@@ -263,7 +276,8 @@ unzip vosk-model-small-tr-0.3.zip
 arecord -l          # e.g. "card 1: Device [USB Audio Device], device 0" -> plughw:1,0
 arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   # 3 s mic test
 
-# 5. Enable in settings.ini (created on first run) - [assistant] section:
+# 5. settings.ini ([assistant] section, created on first run - voice is
+#    ENABLED BY DEFAULT; set enabled=false to turn it off):
 #    enabled=true
 #    micDevice=auto              ; or plughw:1,0 to pin a specific card
 #    voskModelPath=/home/pi/BalanceRobotPI/vosk-model-small-tr-0.3
@@ -271,6 +285,18 @@ arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   
 #    geminiApiKey=AIza...        ; optional - free quota, for questions
 #    claudeApiKey=               ; optional - takes priority if set
 #    piperModel=                 ; optional - path to a Piper .onnx voice for natural TTS
+#    moveDefaultPct=100          ; voice move speed %% when not specified (10-100)
+#    moveDefaultSecs=1.5         ; voice move duration when not specified (0.5-8 s)
+#    voiceMaxVel=6.0             ; TEMP speed ceiling for voice fwd/back moves
+#                                ; (ticks/loop; joystick keeps its own spdMaxVel;
+#                                ;  released when the move stops; 0=disable)
+#
+# Feeling sluggish even at 100%? The speed cascade is deliberately gentle.
+# Three knobs (root section of settings.ini, shared with the joystick):
+#    spdTiltSlew=0.04   ; accel ramp, deg/loop (0.02=4°/s gentle, 0.06=12°/s brisk)
+#    spdMaxVel=3.0      ; top speed target, encoder ticks/loop - try 4.0-5.0
+#    spdKi=0.20         ; speed integral - try 0.30 for faster spool-up
+# Raise ONE at a time and retest; too much of any can reintroduce tip-overs.
 
 # 6. Restart the app; look for:  VoiceAssistant: listening on plughw:1,0 (wake word: "robot")
 ```

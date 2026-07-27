@@ -14,6 +14,7 @@
 #include <QThread>
 
 #include <dlfcn.h>
+#include <climits>
 
 // ---------------------------------------------------------------- Vosk C API
 // libvosk derleme bağımlılığı DEĞİLDİR: çalışma anında dlopen edilir.
@@ -59,7 +60,7 @@ void VoiceAssistant::loadSettings()
 
     s.beginGroup("assistant");
     // İlk çalıştırmada varsayılanları dosyaya yaz ki kullanıcı düzenleyebilsin.
-    if (!s.contains("enabled"))       s.setValue("enabled", false);
+    if (!s.contains("enabled"))       s.setValue("enabled", true);
     if (!s.contains("micDevice"))     s.setValue("micDevice", "auto");
     if (!s.contains("voskModelPath")) s.setValue("voskModelPath",
         QCoreApplication::applicationDirPath() + "/vosk-model-small-tr-0.3");
@@ -71,6 +72,9 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("claudeModel"))   s.setValue("claudeModel", "claude-sonnet-4-6");
     if (!s.contains("moveByteFwd"))   s.setValue("moveByteFwd", 180);
     if (!s.contains("moveByteTurn"))  s.setValue("moveByteTurn", 60);
+    if (!s.contains("moveDefaultPct"))  s.setValue("moveDefaultPct", 100);
+    if (!s.contains("moveDefaultSecs")) s.setValue("moveDefaultSecs", 1.5);
+    if (!s.contains("voiceMaxVel"))     s.setValue("voiceMaxVel", 6.0);
 
     enabled_       = s.value("enabled").toBool();
     micDevice_     = s.value("micDevice").toString();
@@ -81,6 +85,9 @@ void VoiceAssistant::loadSettings()
     piperModel_    = s.value("piperModel").toString();
     moveByteFwd_   = qBound(30, s.value("moveByteFwd").toInt(), 255);
     moveByteTurn_  = qBound(20, s.value("moveByteTurn").toInt(), 255);
+    moveDefaultPct_  = qBound(10, s.value("moveDefaultPct").toInt(), 100);
+    moveDefaultSecs_ = qBound(0.5, s.value("moveDefaultSecs").toDouble(), 8.0);
+    voiceMaxVel_     = qBound(0.0, s.value("voiceMaxVel").toDouble(), 12.0);
 
     const QString ck = s.value("claudeApiKey").toString();
     const QString cm = s.value("claudeModel").toString();
@@ -284,11 +291,10 @@ void VoiceAssistant::onAudioData()
 void VoiceAssistant::handleUtterance(QString text)
 {
     QString lower = text.toLower();
-    qDebug().noquote() << "ASSIST heard:" << text;
-    emit statusLine("ASSIST heard: " + text);
-
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
 
+    // Uyandırma sözcüğü filtresi ÖNCE: bize söylenmeyen konuşmalar
+    // (ortam sesi, TV, sohbet) loglanmadan sessizce atlanır.
     if (!wakeWord_.isEmpty()) {
         if (lower.contains(wakeWord_)) {
             // Uyandırma sözcüğünü çıkar, 10 sn'lik dikkat penceresi aç.
@@ -296,20 +302,27 @@ void VoiceAssistant::handleUtterance(QString text)
             lower = lower.trimmed();
             attentionUntilMs_ = now + 10000;
             if (lower.size() < 3) {
+                qDebug().noquote() << "ASSIST heard:" << text;
                 speak("Evet, dinliyorum.");
                 return;
             }
         } else if (now < attentionUntilMs_) {
-            // Pencere içinde: sözcüksüz devam et.
+            // Dikkat penceresi içinde: sözcüksüz devam et.
         } else {
-            return;   // bize söylenmedi
+            return;   // bize söylenmedi - log yok
         }
     }
 
+    qDebug().noquote() << "ASSIST heard:" << text;
+    emit statusLine("ASSIST heard: " + text);
+
     attentionUntilMs_ = now + 10000;   // konuşma sürdükçe pencereyi uzat
 
-    if (tryLocalCommand(lower))
+    if (tryLocalCommand(lower)) {
+        qDebug("ASSIST -> local command executed");
         return;
+    }
+    qDebug("ASSIST -> no local command match, treating as question");
 
     if (llm_->hasProvider()) {
         askLlm(text);
@@ -381,18 +394,31 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     else if (containsAny(t, {"sağ", "sag", "right"}))            dir = "right";
 
     if (!dir.isEmpty()) {
-        double secs = 1.5;
-        if (containsAny(t, {"saniye", "second", "sec"})) {
-            const double n = firstNumber(t);
-            if (n > 0) secs = qBound(0.3, n, 5.0);
+        // Hız: "yüzde ..." veya "%" işaretinden SONRAKİ sayıyı al.
+        // ("yüzde" kelimesi "yüz"ü içerdiği için tüm metinde arama yanlış olur.)
+        int pct = moveDefaultPct_;
+        int pctPos = -1, pctLen = 0;
+        for (const QString &kw : {QString("yüzde"), QString("yuzde"), QString("%")}) {
+            const int i = t.indexOf(kw);
+            if (i >= 0 && (pctPos < 0 || i < pctPos)) { pctPos = i; pctLen = kw.size(); }
         }
-        int pct = 50;
-        if (t.contains("yüzde") || t.contains("yuzde") || t.contains("%")) {
-            const double n = firstNumber(t);
+        if (pctPos >= 0) {
+            const double n = firstNumber(t.mid(pctPos + pctLen));
             if (n > 0) pct = qBound(10, (int)n, 100);
         }
-        else if (containsAny(t, {"çok hızlı", "cok hizli", "tam gaz", "full"})) pct = 90;
-        else if (containsAny(t, {"hızlı", "hizli", "fast"}))                    pct = 75;
+
+        // Süre: önce "yüzde <sayı>" kısmını çıkar ki hız sayısı süre sanılmasın.
+        QString td = t;
+        static const QRegularExpression pctRe("(yüzde|yuzde|%)\\s*\\S*");
+        td.remove(pctRe);
+        double secs = moveDefaultSecs_;
+        if (containsAny(td, {"saniye", "second", "sec"})) {
+            const double n = firstNumber(td);
+            if (n > 0) secs = qBound(0.3, n, 8.0);
+        }
+        if (containsAny(t, {"tam gaz", "full"}))                                pct = 100;
+        else if (containsAny(t, {"çok hızlı", "cok hizli"}))                    pct = 90;
+        else if (containsAny(t, {"hızlı", "hizli", "fast"}) && pctPos < 0)      pct = 75;
         else if (containsAny(t, {"yavaş", "yavas", "slow", "nazik"}))           pct = 30;
 
         speak(doMove(dir, pct, secs));
@@ -426,9 +452,11 @@ QString VoiceAssistant::execTool(const QString &name, const QJsonObject &args)
     if (name == "move_robot") {
         const QString dir = args.value("direction").toString();
         const int pct     = args.contains("speed_percent")
-                              ? qBound(10, args.value("speed_percent").toInt(), 100) : 50;
+                              ? qBound(10, args.value("speed_percent").toInt(), 100)
+                              : moveDefaultPct_;
         const double secs = args.contains("duration_seconds")
-                              ? qBound(0.3, args.value("duration_seconds").toDouble(), 5.0) : 1.5;
+                              ? qBound(0.3, args.value("duration_seconds").toDouble(), 8.0)
+                              : moveDefaultSecs_;
         return doMove(dir, pct, secs);
     }
     if (name == "stop_robot") {
@@ -467,9 +495,11 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
 
     QString what;
     if (direction == "forward") {
+        if (voiceMaxVel_ > 0) robot_->setTempMaxVel((float)voiceMaxVel_);
         robot_->setNeedSpeed(moveByteFwd_ * speedPercent / 100);
         what = "Ileri gidiyorum";
     } else if (direction == "backward") {
+        if (voiceMaxVel_ > 0) robot_->setTempMaxVel((float)voiceMaxVel_);
         robot_->setNeedSpeed(-moveByteFwd_ * speedPercent / 100);
         what = "Geri gidiyorum";
     } else if (direction == "left") {
@@ -485,6 +515,13 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
     }
 
     moveStopTimer_->start(int(seconds * 1000));
+    qDebug().noquote() << QString("ASSIST move: dir=%1 cmd(needSpeed/turn)=%2 pct=%3 dur=%4s")
+                          .arg(direction)
+                          .arg(direction == "left" || direction == "right"
+                                   ? moveByteTurn_ * speedPercent / 100
+                                   : moveByteFwd_ * speedPercent / 100)
+                          .arg(speedPercent)
+                          .arg(seconds, 0, 'f', 1);
     return QString("%1, %2 saniye, yuzde %3 hiz.")
         .arg(what).arg(seconds, 0, 'f', 1).arg(speedPercent);
 }
@@ -496,6 +533,7 @@ void VoiceAssistant::stopAllMotion()
     robot_->setNeedSpeed(0);
     robot_->setNeedTurnL(0);
     robot_->setNeedTurnR(0);
+    robot_->setTempMaxVel(0.0f);   // sesli hız tavanını bırak - joystick ayarı geçerli
 }
 
 QString VoiceAssistant::statusText() const
@@ -515,6 +553,7 @@ void VoiceAssistant::speak(const QString &text)
 {
     if (text.trimmed().isEmpty())
         return;
+    qDebug().noquote() << "ASSIST say:" << text;
     speakQueue_.append(text);
     if (!speaker_)
         speakNext();
@@ -586,23 +625,36 @@ bool VoiceAssistant::containsAny(const QString &t, const QStringList &keys)
 
 double VoiceAssistant::firstNumber(const QString &t)
 {
-    // Rakamlar ("2", "0.5", "0,5")
+    // Metinde EN ONCE gecen sayi kazanir (rakam veya sozcuk) - "yuzde kirk
+    // yarim saniye" gibi cumlelerde dogru esleme icin konum karsilastirilir.
+    int bestPos = INT_MAX;
+    double bestVal = -1;
+
     static const QRegularExpression re("[0-9]+([.,][0-9]+)?");
     const QRegularExpressionMatch m = re.match(t);
     if (m.hasMatch()) {
         bool ok = false;
         const double v = QString(m.captured(0)).replace(',', '.').toDouble(&ok);
-        if (ok) return v;
+        if (ok) { bestPos = m.capturedStart(0); bestVal = v; }
     }
     // Sayı sözcükleri (vosk rakamları çoğunlukla yazıyla döker)
+    // Sıralama önemli: onluklar ve "yüz" birimlerden ÖNCE denenir
+    // ("altmış" içinden "altı" çıkmasın); kısa "on" en sonda (yanlış
+    // eşleşme riski en yüksek olan o).
     static const QList<QPair<QString, double>> words = {
         {"yarım", 0.5}, {"yarim", 0.5}, {"buçuk", 1.5}, {"bucuk", 1.5},
-        {"bir", 1}, {"iki", 2}, {"üç", 3}, {"uc", 3}, {"dört", 4}, {"dort", 4},
+        {"yirmi", 20}, {"otuz", 30}, {"kırk", 40}, {"kirk", 40},
+        {"elli", 50}, {"altmış", 60}, {"altmis", 60},
+        {"yetmiş", 70}, {"yetmis", 70}, {"seksen", 80}, {"doksan", 90},
+        {"yüz", 100}, {"yuz", 100},
+        {"iki", 2}, {"üç", 3}, {"dört", 4}, {"dort", 4},
         {"beş", 5}, {"bes", 5}, {"altı", 6}, {"alti", 6}, {"yedi", 7},
-        {"sekiz", 8}, {"dokuz", 9}, {"on", 10},
+        {"sekiz", 8}, {"dokuz", 9}, {"bir", 1}, {"on", 10},
         {"one", 1}, {"two", 2}, {"three", 3}, {"four", 4}, {"five", 5}
     };
-    for (const auto &w : words)
-        if (t.contains(w.first)) return w.second;
-    return -1;
+    for (const auto &w : words) {
+        const int i = t.indexOf(w.first);
+        if (i >= 0 && i < bestPos) { bestPos = i; bestVal = w.second; }
+    }
+    return bestVal;
 }

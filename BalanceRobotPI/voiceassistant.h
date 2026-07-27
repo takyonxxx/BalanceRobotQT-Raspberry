@@ -91,6 +91,9 @@ private:
     QString piperModel_;         // boş = espeak-ng kullan
     int     moveByteFwd_  = 180; // ileri/geri komut baytı tavanı (BLE ile aynı ölçek)
     int     moveByteTurn_ = 60;  // dönüş komut baytı tavanı
+    int     moveDefaultPct_  = 100; // hız söylenmediyse kullanılacak hız yüzdesi
+    double  moveDefaultSecs_ = 1.5; // süre söylenmediyse hareket süresi (sn)
+    double  voiceMaxVel_     = 6.0; // sesli ileri/geri için geçici hız tavanı (0=kapalı)
 
     // Vosk (dlopen)
     void *voskLib_   = nullptr;
