@@ -76,5 +76,22 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: kSpeakReplies) }
     }
     
+    // MARK: - Gemini asistanı (ücretsiz kotalı alternatif)
+    
+    private let kGeminiApiKey = "gemini.apiKey"
+    private let kGeminiModel  = "gemini.model"
+    
+    /// Google AI Studio API anahtarı (AIza...). Ücretsiz kota ile çalışır.
+    var geminiApiKey: String {
+        get { defaults.string(forKey: kGeminiApiKey) ?? "" }
+        set { defaults.set(newValue, forKey: kGeminiApiKey) }
+    }
+    
+    /// Kullanılacak Gemini modeli (ücretsiz katmanda flash önerilir).
+    var geminiModel: String {
+        get { defaults.string(forKey: kGeminiModel) ?? "gemini-2.0-flash" }
+        set { defaults.set(newValue, forKey: kGeminiModel) }
+    }
+    
     static let didChange = Notification.Name("AppSettings.didChange")
 }

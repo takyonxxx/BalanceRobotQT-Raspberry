@@ -137,6 +137,14 @@ If you do want full conversational Claude: the assistant talks directly to the A
 
 Default model is `claude-sonnet-4-6` (`AppSettings.claudeModel`). The **speak replies** switch on the tab toggles text-to-speech; typing in the text field works as an alternative to the mic.
 
+**Free cloud alternative — Google Gemini (free quota):** full conversational assistant without paying, using Gemini's free API tier:
+
+1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey), sign in with any Google account and create an API key (starts with `AIza`). **No credit card required** — the free tier gives a daily request quota that is plenty for hobby use.
+2. In the app, tap the **key (🔑) button** on the Claude tab → **"Gemini anahtarı gir (ücretsiz)"**, paste the key.
+3. Done — the same voice pipeline, tools and robot commands now run through Gemini (`GeminiService.swift`, default model `gemini-2.0-flash`).
+
+Provider priority is automatic: **Claude key → Gemini key → offline parser**. If both keys are set, Claude is used; delete keys from the same 🔑 menu to fall back. If the Gemini free quota runs out for the day (HTTP 429), the app tells you to wait — or just use the offline command mode, which never runs out.
+
 ## Direction convention
 
 - **Joystick up** = forward
@@ -183,6 +191,76 @@ mPidStatus     = 0xf6  // Pi -> Phone: PID learn status text (UTF-8)
 > `0xe0` is reserved (formerly `mSpeak` / on-board TTS, removed in the cleanup pass).
 
 Telemetry flags byte (packet byte 12): bit0 = armed, bit1 = fallen, bit2 = auto-mode, bit3 = position-hold, **bit4 = PID learning active**.
+
+## Voice assistant on the Pi — phone-free operation
+
+The robot can also listen and act **entirely on its own**: a USB microphone on the Pi, offline Turkish speech recognition, and the same command/LLM pipeline as the iOS app — working even when the mobile app is closed. Main control lives on the Pi; the phone becomes optional.
+
+```
+USB mic ──> arecord ──> Vosk (offline TR STT) ──> intent router
+                                                     │
+                                     ┌───────────────┴───────────────┐
+                                     │ command?                       │ question?
+                                     ▼                                ▼
+                          local keyword parser              Gemini (free) / Claude API
+                          (ileri/geri/dur/PID/durum)        with the same robot tools
+                                     │                                │
+                                     └────────────┬───────────────────┘
+                                                  ▼
+                                   RobotControl (atomic, thread-safe)
+                                                  +
+                                   Piper / espeak-ng TTS ──> speaker
+```
+
+**How commands vs questions are separated:** every recognized utterance first goes through the local keyword parser (same vocabulary as the iOS offline mode). If it matches a robot command it executes immediately — offline, free, low latency. Anything that doesn't match is treated as a question and forwarded to the LLM (Gemini free tier or Claude, whichever key is set in `settings.ini`), which can still drive the robot through the same 7 tools. No key set → commands still work, questions get a spoken "komutları söyle" hint.
+
+**Wake word:** by default the robot only reacts to utterances containing "robot" ("robot ileri git"). After the wake word it keeps listening for 10 s so follow-ups don't need it. Set `wakeWord=` (empty) in `settings.ini` to react to everything.
+
+**New files:** `voiceassistant.cpp/.h` (mic capture, Vosk STT via `dlopen`, intent routing, TTS queue), `llmclient.cpp/.h` (Gemini + Claude REST clients with the tool loop, Qt-native). `libvosk` is loaded at **runtime** — it is *not* a build dependency, so the firmware builds and runs unchanged if voice components aren't installed.
+
+### Setup
+
+```bash
+# 1. Audio tools + TTS
+sudo apt-get install alsa-utils espeak-ng
+
+# 2. Vosk library (prebuilt aarch64, ~2 MB)
+cd /tmp
+wget https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-linux-aarch64-0.3.45.zip
+unzip vosk-linux-aarch64-0.3.45.zip
+sudo cp vosk-linux-aarch64-0.3.45/libvosk.so /usr/local/lib/
+sudo ldconfig
+
+# 3. Turkish speech model (~45 MB, runs real-time on one Pi 5 core)
+cd ~/BalanceRobotPI
+wget https://alphacephei.com/vosk/models/vosk-model-small-tr-0.3.zip
+unzip vosk-model-small-tr-0.3.zip
+
+# 4. Microphone: the WEBCAM'S BUILT-IN MIC works - no separate mic needed.
+#    The camera streaming service only holds the VIDEO device (v4l2), so the
+#    same webcam's audio capture is free to use concurrently.
+#    micDevice=auto scans `arecord -l` and picks the USB/webcam mic itself;
+#    to check manually:
+arecord -l          # e.g. "card 1: Device [USB Audio Device], device 0" -> plughw:1,0
+arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 3 test.wav && aplay test.wav   # 3 s mic test
+
+# 5. Enable in settings.ini (created on first run) - [assistant] section:
+#    enabled=true
+#    micDevice=auto              ; or plughw:1,0 to pin a specific card
+#    voskModelPath=/home/pi/BalanceRobotPI/vosk-model-small-tr-0.3
+#    wakeWord=robot
+#    geminiApiKey=AIza...        ; optional - free quota, for questions
+#    claudeApiKey=               ; optional - takes priority if set
+#    piperModel=                 ; optional - path to a Piper .onnx voice for natural TTS
+
+# 6. Restart the app; look for:  VoiceAssistant: listening on plughw:1,0 (wake word: "robot")
+```
+
+**Better TTS (optional):** `espeak-ng` is robotic. For a natural Turkish voice install [Piper](https://github.com/rhasspy/piper) and point `piperModel` at a `tr_TR` `.onnx` voice file; the assistant automatically prefers it and falls back to espeak-ng.
+
+**CPU budget:** the assistant thread runs at low priority; Vosk small uses well under one core. Combined with the camera stream, prefer 640×480 video or disable the camera during PID auto-tune — same guidance as before, the 200 Hz balance loop always has priority.
+
+**Coexistence with the app:** BLE and voice use the same atomic `RobotControl` interface, so both can be active at once. Voice `move` commands auto-stop after their duration; touching the phone joystick simply overrides them.
 
 ## Hardware
 
@@ -531,7 +609,7 @@ After the first run, parameters tuned from the iOS app are persisted to `setting
 2. Open `RobotControlBLE.xcodeproj` in Xcode
 3. Update the bundle identifier with your developer account
 4. Build & Run to the device
-5. (Optional) For full conversational Claude: get an API key from [console.anthropic.com](https://console.anthropic.com), enter it via the key button on the **Claude** tab, and grant the microphone + speech recognition permission prompts on first use. No username/password is needed anywhere — the API key is the only credential. **Without a key, voice robot commands still work for free** via the built-in offline parser.
+5. (Optional) For full conversational Claude: get an API key from [console.anthropic.com](https://console.anthropic.com), enter it via the key button on the **Claude** tab, and grant the microphone + speech recognition permission prompts on first use. No username/password is needed anywhere — the API key is the only credential. **Without a key, voice robot commands still work for free** via the built-in offline parser — and for free conversational AI, a Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) works too (free quota, no credit card).
 
 ### Auto-start on boot (Pi systemd)
 
@@ -703,6 +781,8 @@ BalanceRobotPI/                 # Pi side (Qt/C++)
 ├── gattserver.cpp/.h           # BLE GATT server
 ├── message.cpp/.h              # BLE wire-format pack / parse
 ├── pidautotuner.cpp/.h         # Twiddle PID auto-tuner (learning mode)
+├── voiceassistant.cpp/.h       # Phone-free voice assistant (mic + Vosk + TTS)
+├── llmclient.cpp/.h            # Gemini/Claude REST client with robot tools (Qt)
 ├── constants.h                 # Pin definitions + small helpers
 ├── BalanceRobotPI.pro          # qmake project
 └── settings.ini                # Runtime-persisted parameters (created on first run)
@@ -719,6 +799,7 @@ BalanceRobotRemote_IOS/         # iOS side (Swift)
     │   ├── AssistantViewController.swift # Claude tab (chat UI, mic, TTS)
     │   ├── ClaudeService.swift           # Anthropic Messages API client + tool loop
     │   ├── LocalCommandParser.swift      # FREE offline keyword command mode (no API)
+    │   ├── GeminiService.swift           # FREE-quota Google Gemini client + tool loop
     │   ├── RobotCommandExecutor.swift    # Claude tool calls -> BLE robot commands
     │   └── SpeechRecognizer.swift        # AVAudioEngine + SFSpeechRecognizer
     └── Ble/

@@ -4,6 +4,9 @@
 #include "robotcontrol.h"
 #include <gattserver.h>
 #include <QTimer>
+#include <QThread>
+
+class VoiceAssistant;
 
 class BalanceRobot : public QObject
 {
@@ -32,6 +35,8 @@ private:
 
     RobotControl *robotControl{};
     GattServer   *gattServer{};
+    VoiceAssistant *voiceAssistant{};
+    QThread         assistantThread;
 
     Message      message;
     QStringList  keyList{};

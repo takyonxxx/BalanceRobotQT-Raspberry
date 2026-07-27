@@ -32,6 +32,7 @@
 		AA10C1A0DE00000000000B03 /* RobotCommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */; };
 		AA10C1A0DE00000000000B04 /* AssistantViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A04 /* AssistantViewController.swift */; };
 		AA10C1A0DE00000000000B05 /* LocalCommandParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A05 /* LocalCommandParser.swift */; };
+		AA10C1A0DE00000000000B06 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10C1A0DE00000000000A06 /* GeminiService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +63,7 @@
 		AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RobotCommandExecutor.swift; sourceTree = "<group>"; };
 		AA10C1A0DE00000000000A04 /* AssistantViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistantViewController.swift; sourceTree = "<group>"; };
 		AA10C1A0DE00000000000A05 /* LocalCommandParser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalCommandParser.swift; sourceTree = "<group>"; };
+		AA10C1A0DE00000000000A06 /* GeminiService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +137,7 @@
 				AA10C1A0DE00000000000A03 /* RobotCommandExecutor.swift */,
 				AA10C1A0DE00000000000A04 /* AssistantViewController.swift */,
 				AA10C1A0DE00000000000A05 /* LocalCommandParser.swift */,
+				AA10C1A0DE00000000000A06 /* GeminiService.swift */,
 			);
 			path = Assistant;
 			sourceTree = "<group>";
@@ -241,6 +244,7 @@
 				AA10C1A0DE00000000000B03 /* RobotCommandExecutor.swift in Sources */,
 				AA10C1A0DE00000000000B04 /* AssistantViewController.swift in Sources */,
 				AA10C1A0DE00000000000B05 /* LocalCommandParser.swift in Sources */,
+				AA10C1A0DE00000000000B06 /* GeminiService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

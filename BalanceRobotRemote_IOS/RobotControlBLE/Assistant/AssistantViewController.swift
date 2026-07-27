@@ -73,9 +73,13 @@ class AssistantViewController: UIViewController {
         statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = .compatSecondaryText
         statusLabel.textAlignment = .center
-        statusLabel.text = AppSettings.shared.claudeApiKey.isEmpty
-            ? "Çevrimdışı mod - sesli komutlar ücretsiz çalışır (sohbet için 🔑)"
-            : "Hazır"
+        if !AppSettings.shared.claudeApiKey.isEmpty {
+            statusLabel.text = "Hazır"
+        } else if !AppSettings.shared.geminiApiKey.isEmpty {
+            statusLabel.text = "Hazır (Gemini - ücretsiz kota)"
+        } else {
+            statusLabel.text = "Çevrimdışı mod - sesli komutlar ücretsiz çalışır (sohbet için 🔑)"
+        }
         statusLabel.numberOfLines = 2
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(statusLabel)
@@ -186,6 +190,8 @@ class AssistantViewController: UIViewController {
         switch who {
         case "user":   prefix = "🧑 "
         case "claude": prefix = "🤖 "
+        case "gemini": prefix = "✨ "
+        case "robot":  prefix = "🧭 "
         case "tool":   prefix = "⚙️ "
         default:       prefix = "ℹ️ "
         }
@@ -250,13 +256,16 @@ class AssistantViewController: UIViewController {
         sendToClaude(text)
     }
 
-    // MARK: - Claude
+    // MARK: - Asistan yönlendirme (Claude -> Gemini -> çevrimdışı)
 
     private func sendToClaude(_ text: String) {
-        // API anahtarı girilmemişse ücretsiz ÇEVRİMDIŞI komut modu:
+        let hasClaude = !AppSettings.shared.claudeApiKey.isEmpty
+        let hasGemini = !AppSettings.shared.geminiApiKey.isEmpty
+
+        // Hiç anahtar yoksa ücretsiz ÇEVRİMDIŞI komut modu:
         // LocalCommandParser anahtar kelimelerle robotu sürer, internet
-        // ve API gerektirmez. Sohbet/soru-cevap için Claude anahtarı gerekir.
-        guard !AppSettings.shared.claudeApiKey.isEmpty else {
+        // ve API gerektirmez. Sohbet için Claude/Gemini anahtarı gerekir.
+        guard hasClaude || hasGemini else {
             appendLine("user", text)
             let reply = LocalCommandParser.shared.handle(text)
             appendLine("robot", reply)
@@ -264,19 +273,22 @@ class AssistantViewController: UIViewController {
             if AppSettings.shared.speakReplies { speak(reply) }
             return
         }
+
+        let providerName = hasClaude ? "Claude" : "Gemini"
         appendLine("user", text)
-        statusLabel.text = "Claude düşünüyor…"
+        statusLabel.text = "\(providerName) düşünüyor…"
         busy = true
 
-        ClaudeService.shared.send(userText: text, onToolActivity: { [weak self] info in
+        let onTool: (String) -> Void = { [weak self] info in
             self?.appendLine("tool", info)
-        }, completion: { [weak self] result in
+        }
+        let onDone: (Result<String, Error>) -> Void = { [weak self] result in
             guard let self = self else { return }
             self.busy = false
             switch result {
             case .success(let reply):
-                self.statusLabel.text = "Hazır"
-                self.appendLine("claude", reply)
+                self.statusLabel.text = hasClaude ? "Hazır" : "Hazır (Gemini - ücretsiz kota)"
+                self.appendLine(hasClaude ? "claude" : "gemini", reply)
                 if AppSettings.shared.speakReplies {
                     self.speak(reply)
                 }
@@ -285,9 +297,17 @@ class AssistantViewController: UIViewController {
                 self.appendLine("system", "Hata: \(error.localizedDescription)")
                 if case ClaudeService.ClaudeError.noApiKey = error {
                     self.promptForApiKey()
+                } else if case GeminiService.GeminiError.noApiKey = error {
+                    self.promptForGeminiApiKey()
                 }
             }
-        })
+        }
+
+        if hasClaude {
+            ClaudeService.shared.send(userText: text, onToolActivity: onTool, completion: onDone)
+        } else {
+            GeminiService.shared.send(userText: text, onToolActivity: onTool, completion: onDone)
+        }
     }
 
     // MARK: - TTS
@@ -322,7 +342,30 @@ class AssistantViewController: UIViewController {
             let key = alert.textFields?.first?.text ?? ""
             AppSettings.shared.claudeApiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
             if !AppSettings.shared.claudeApiKey.isEmpty {
-                self.appendLine("system", "API anahtarı kaydedildi.")
+                self.appendLine("system", "Claude API anahtarı kaydedildi.")
+            }
+        })
+        alert.addAction(UIAlertAction(title: "İptal", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func promptForGeminiApiKey() {
+        let alert = UIAlertController(
+            title: "Gemini API Key (ücretsiz kota)",
+            message: "aistudio.google.com/apikey adresinden Google hesabınla ÜCRETSİZ anahtar al (AIza…). Kredi kartı gerekmez, günlük ücretsiz kota ile çalışır. Cihazda saklanır.",
+            preferredStyle: .alert)
+        alert.addTextField { tf in
+            tf.placeholder = "AIza…"
+            tf.isSecureTextEntry = true
+            tf.text = AppSettings.shared.geminiApiKey
+        }
+        alert.addAction(UIAlertAction(title: "Kaydet", style: .default) { _ in
+            let key = alert.textFields?.first?.text ?? ""
+            AppSettings.shared.geminiApiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !AppSettings.shared.geminiApiKey.isEmpty {
+                GeminiService.shared.resetConversation()
+                self.appendLine("system", "Gemini API anahtarı kaydedildi - sohbet artık ücretsiz kotayla Gemini üzerinden.")
+                self.statusLabel.text = "Hazır (Gemini - ücretsiz kota)"
             }
         })
         alert.addAction(UIAlertAction(title: "İptal", style: .cancel))
@@ -330,7 +373,31 @@ class AssistantViewController: UIViewController {
     }
 
     @objc private func apiKeyTapped() {
-        promptForApiKey()
+        let sheet = UIAlertController(
+            title: "Asistan sağlayıcısı",
+            message: "Claude (ücretli, en yetenekli) veya Gemini (ücretsiz kotalı) anahtarı girebilirsin. İkisi de yoksa sesli komutlar yine ücretsiz çevrimdışı modda çalışır.",
+            preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Claude anahtarı gir", style: .default) { _ in
+            self.promptForApiKey()
+        })
+        sheet.addAction(UIAlertAction(title: "Gemini anahtarı gir (ücretsiz)", style: .default) { _ in
+            self.promptForGeminiApiKey()
+        })
+        if !AppSettings.shared.claudeApiKey.isEmpty || !AppSettings.shared.geminiApiKey.isEmpty {
+            sheet.addAction(UIAlertAction(title: "Anahtarları sil (çevrimdışı mod)", style: .destructive) { _ in
+                AppSettings.shared.claudeApiKey = ""
+                AppSettings.shared.geminiApiKey = ""
+                ClaudeService.shared.resetConversation()
+                GeminiService.shared.resetConversation()
+                self.appendLine("system", "Anahtarlar silindi - ücretsiz çevrimdışı komut modu aktif.")
+                self.statusLabel.text = "Çevrimdışı mod - sesli komutlar ücretsiz çalışır (sohbet için 🔑)"
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "İptal", style: .cancel))
+        // iPad'de action sheet popover ister
+        sheet.popoverPresentationController?.sourceView = keyButton
+        sheet.popoverPresentationController?.sourceRect = keyButton.bounds
+        present(sheet, animated: true)
     }
 
     @objc private func speakSwitchChanged() {

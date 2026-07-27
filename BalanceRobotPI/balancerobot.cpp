@@ -1,4 +1,5 @@
 #include "balancerobot.h"
+#include "voiceassistant.h"
 #include "constants.h"
 
 BalanceRobot *BalanceRobot::theInstance_ = nullptr;
@@ -17,6 +18,13 @@ BalanceRobot::BalanceRobot(QObject *parent) : QObject(parent)
 
 BalanceRobot::~BalanceRobot()
 {
+    if (assistantThread.isRunning()) {
+        if (voiceAssistant)
+            QMetaObject::invokeMethod(voiceAssistant, "shutdown",
+                                      Qt::BlockingQueuedConnection);
+        assistantThread.quit();
+        assistantThread.wait(2000);
+    }
     if (robotControl) {
         robotControl->stop();
         delete robotControl;
@@ -301,6 +309,19 @@ void BalanceRobot::init()
         robotControl->setAutoMode(true);
         robotControl->setPositionHold(true);
         robotControl->start();
+    }
+
+    // Telefonsuz sesli asistan: kendi thread'inde, düşük öncelikte çalışır.
+    // settings.ini [assistant]/enabled=true ile açılır; vosk/mikrofon yoksa
+    // kendini kapatır, firmware'i etkilemez.
+    if (robotControl) {
+        voiceAssistant = new VoiceAssistant(robotControl);
+        voiceAssistant->moveToThread(&assistantThread);
+        QObject::connect(&assistantThread, &QThread::started,
+                         voiceAssistant, &VoiceAssistant::start);
+        QObject::connect(&assistantThread, &QThread::finished,
+                         voiceAssistant, &QObject::deleteLater);
+        assistantThread.start(QThread::LowPriority);
     }
 
     QObject::connect(&telemetryTimer, &QTimer::timeout,

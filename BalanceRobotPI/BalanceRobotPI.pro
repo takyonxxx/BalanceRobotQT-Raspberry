@@ -14,6 +14,8 @@ SOURCES += main.cpp \
     mpu6050.cpp \
     pid.cpp \
     pidautotuner.cpp \
+    voiceassistant.cpp \
+    llmclient.cpp \
     robotcontrol.cpp
 
 HEADERS += \
@@ -26,6 +28,8 @@ HEADERS += \
     mpu6050.h \
     pid.h \
     pidautotuner.h \
+    voiceassistant.h \
+    llmclient.h \
     robotcontrol.h
 
 QMAKE_INCDIR += /usr/local/include
@@ -33,7 +37,7 @@ QMAKE_LIBDIR += /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu
 INCLUDEPATH  += /usr/local/include
 
 # Link order matters: WiringPi (GPIO + soft PWM) + libi2c (MPU6050 bus access).
-LIBS += -lm -lcrypt -lwiringPi -li2c
+LIBS += -lm -lcrypt -lwiringPi -li2c -ldl
 
 # -------- Build environment notes --------
 #
