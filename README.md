@@ -1,6 +1,6 @@
 # Balance Robot — Pi 5 + iOS Remote (BLE)
 
-A two-wheeled self-balancing robot. Qt/C++ control application on Raspberry Pi 5, with an iOS BLE remote control.
+A two-wheeled self-balancing robot. Qt/C++ control application on Raspberry Pi 5, with an iOS BLE remote control featuring a **PID auto-tune (learning) mode** and a **Claude voice assistant** (speak to the robot, Claude drives it).
 
 <p align="center">
     <a href="https://github.com/takyonxxx/BalanceRobotQT-Raspberry/blob/master/remote_ios.jpg">
@@ -82,6 +82,61 @@ All parameters can be tuned live from the iOS Settings tab and are persisted to 
 ### Reset to Defaults
 At the bottom of the iOS Settings tab, the red **"Reset all settings to defaults"** button restores every PID parameter to the Pi-side defaults.
 
+## PID auto-tune — learning mode
+
+Instead of tuning the Pitch PID by hand, the robot can tune itself. The Pi runs a **Twiddle (coordinate-descent) auto-tuner** that evaluates candidate `[Kp, Kd, Ki]` sets live while the robot balances, and commits the best set to `settings.ini` when done.
+
+**How it works:**
+
+1. Each candidate is evaluated for ~9 s (2 s settle + 7 s measure).
+2. During measurement the tuner injects small **virtual push pulses (±1.5°)** into the target angle — the cost function scores exactly the failure mode that matters in practice: recovery from a forward/backward command step.
+3. Cost = angle-error² + gyro-rate² + PWM² (weighted) → tracking accuracy, oscillation and motor chatter are all penalized together.
+4. Twiddle shrinks/grows the search deltas per gain; the run converges typically in 3–6 minutes (hard cap: 40 evaluations).
+
+**Safety:** a fall during an evaluation gives that candidate infinite cost and instantly reverts to the best known gains. Three falls abort the whole run (best-so-far is kept). Touching the joystick restarts the current candidate's measurement — learning is never corrupted, just extended.
+
+**How to start it:**
+
+- iOS **Settings tab → "PID LEARNING (AUTO-TUNE)" card → Start**. Live status lines from the Pi (baseline cost, per-evaluation results, best gains found) stream into the card.
+- Or by voice, from the **Claude tab**: *"PID öğrenmeyi başlat"* / *"start PID learning"*.
+
+**Ground rules:** run it on a hard, flat floor with ~1 m of clear space around the robot — it wobbles on purpose. The robot must already be able to balance on its own before you start. Only the Pitch PID (inner loop) is optimized; Speed PID stays on the sliders.
+
+## Claude voice assistant (iOS)
+
+The third tab, **Claude**, turns the phone into a voice interface for the robot. Tap the mic, speak (Turkish or English), and Claude answers out loud — and can actually drive the robot through tool calls.
+
+```
+Mic ──> SFSpeechRecognizer (tr-TR) ──> Anthropic Messages API ──> tool calls ──> BLE commands
+                                              │
+                                              └──> reply text ──> AVSpeechSynthesizer (spoken)
+```
+
+**Tools Claude can use:**
+
+| Tool | What it does |
+|---|---|
+| `move_robot` | forward / backward / left / right, speed 10–100 %, duration 0.3–5 s (auto-stops when the duration ends) |
+| `stop_robot` | zero all motion commands immediately |
+| `set_armed` | ARM / DISARM |
+| `start_pid_learning` / `stop_pid_learning` | PID auto-tune control |
+| `get_robot_status` | reads live telemetry (angle, PWM, armed / fallen / learning flags) |
+| `reset_trim` | zero the trim integrator |
+
+Example voice commands: *"ileri git"*, *"iki saniye sağa dön"*, *"dur"*, *"PID öğrenmeyi başlat"*, *"robot nasıl, denge durumu ne?"*, *"motorları kapat"*.
+
+**Setup — API key only, no username/password:**
+
+**Free offline mode (no API, no cost):** if no API key is entered, the Claude tab automatically falls back to an **on-device keyword parser** (`LocalCommandParser.swift`). All robot voice commands — move, stop, arm/disarm, PID learning, status, trim — work **completely free and offline** (speech recognition itself is Apple's, also free). What you lose without an API key is only the conversational part: free-form questions, multi-step reasoning, and natural phrasing ("take it easy and go a bit forward"). Commands must roughly match the keywords (*ileri, geri, sola, sağa, dur, durum, PID öğrenmeyi başlat, trim sıfırla, motorları kapat* — with optional "*iki saniye*" duration and "*hızlı/yavaş/%60*" speed modifiers).
+
+If you do want full conversational Claude: the assistant talks directly to the Anthropic API. There is **no login, no username, no password anywhere** — the only credential is an **API key** (pay-per-use, separate from any Claude subscription):
+
+1. Create a key at [console.anthropic.com](https://console.anthropic.com) → **API Keys** (the key starts with `sk-ant-`). This is tied to your Anthropic account and billing; the app itself never asks you to sign in.
+2. In the app, open the **Claude** tab and tap the **key (🔑) button**, paste the key. It is stored on-device in `UserDefaults` and sent only in the `x-api-key` header of API requests.
+3. On first mic use, iOS will ask for **Microphone** and **Speech Recognition** permissions — both must be granted (usage descriptions are already in `Info.plist`).
+
+Default model is `claude-sonnet-4-6` (`AppSettings.claudeModel`). The **speak replies** switch on the tab toggles text-to-speech; typing in the text field works as an alternative to the mic.
+
 ## Direction convention
 
 - **Joystick up** = forward
@@ -121,9 +176,13 @@ mAutoMode      = 0xf1  // Auto-arm on/off
 mTrimFine      = 0xf2  // Fine trim
 mPositionHold  = 0xf3  // Position hold
 mResetTrim     = 0xf4  // Reset trim
+mPidLearn      = 0xf5  // PID auto-tune: write 1=start 0=stop, read=state
+mPidStatus     = 0xf6  // Pi -> Phone: PID learn status text (UTF-8)
 ```
 
 > `0xe0` is reserved (formerly `mSpeak` / on-board TTS, removed in the cleanup pass).
+
+Telemetry flags byte (packet byte 12): bit0 = armed, bit1 = fallen, bit2 = auto-mode, bit3 = position-hold, **bit4 = PID learning active**.
 
 ## Hardware
 
@@ -472,6 +531,7 @@ After the first run, parameters tuned from the iOS app are persisted to `setting
 2. Open `RobotControlBLE.xcodeproj` in Xcode
 3. Update the bundle identifier with your developer account
 4. Build & Run to the device
+5. (Optional) For full conversational Claude: get an API key from [console.anthropic.com](https://console.anthropic.com), enter it via the key button on the **Claude** tab, and grant the microphone + speech recognition permission prompts on first use. No username/password is needed anywhere — the API key is the only credential. **Without a key, voice robot commands still work for free** via the built-in offline parser.
 
 ### Auto-start on boot (Pi systemd)
 
@@ -642,6 +702,7 @@ BalanceRobotPI/                 # Pi side (Qt/C++)
 ├── i2cdev.cpp/.h               # I²C transport for the MPU6050
 ├── gattserver.cpp/.h           # BLE GATT server
 ├── message.cpp/.h              # BLE wire-format pack / parse
+├── pidautotuner.cpp/.h         # Twiddle PID auto-tuner (learning mode)
 ├── constants.h                 # Pin definitions + small helpers
 ├── BalanceRobotPI.pro          # qmake project
 └── settings.ini                # Runtime-persisted parameters (created on first run)
@@ -653,9 +714,16 @@ BalanceRobotRemote_IOS/         # iOS side (Swift)
     ├── SettingsViewController.swift  # Settings tab (PID sliders)
     ├── JoystickView.swift            # Joystick widget
     ├── MessageService.swift          # BLE message IDs
-    ├── AppSettings.swift             # UserDefaults wrapper
+    ├── AppSettings.swift             # UserDefaults wrapper (incl. Claude API key/model)
+    ├── Assistant/
+    │   ├── AssistantViewController.swift # Claude tab (chat UI, mic, TTS)
+    │   ├── ClaudeService.swift           # Anthropic Messages API client + tool loop
+    │   ├── LocalCommandParser.swift      # FREE offline keyword command mode (no API)
+    │   ├── RobotCommandExecutor.swift    # Claude tool calls -> BLE robot commands
+    │   └── SpeechRecognizer.swift        # AVAudioEngine + SFSpeechRecognizer
     └── Ble/
-        └── BluetoothService.swift    # CoreBluetooth wrapper
+        ├── BluetoothService.swift        # CoreBluetooth wrapper
+        └── BluetoothEventsHandler.swift  # Telemetry / notification parsing
 ```
 
 ## Runtime flow

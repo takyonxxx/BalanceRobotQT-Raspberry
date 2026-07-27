@@ -73,7 +73,9 @@ class AssistantViewController: UIViewController {
         statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = .compatSecondaryText
         statusLabel.textAlignment = .center
-        statusLabel.text = "Hazır"
+        statusLabel.text = AppSettings.shared.claudeApiKey.isEmpty
+            ? "Çevrimdışı mod - sesli komutlar ücretsiz çalışır (sohbet için 🔑)"
+            : "Hazır"
         statusLabel.numberOfLines = 2
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(statusLabel)
@@ -251,8 +253,15 @@ class AssistantViewController: UIViewController {
     // MARK: - Claude
 
     private func sendToClaude(_ text: String) {
+        // API anahtarı girilmemişse ücretsiz ÇEVRİMDIŞI komut modu:
+        // LocalCommandParser anahtar kelimelerle robotu sürer, internet
+        // ve API gerektirmez. Sohbet/soru-cevap için Claude anahtarı gerekir.
         guard !AppSettings.shared.claudeApiKey.isEmpty else {
-            promptForApiKey()
+            appendLine("user", text)
+            let reply = LocalCommandParser.shared.handle(text)
+            appendLine("robot", reply)
+            statusLabel.text = "Çevrimdışı mod - komutlar ücretsiz, sohbet için API anahtarı gir"
+            if AppSettings.shared.speakReplies { speak(reply) }
             return
         }
         appendLine("user", text)
