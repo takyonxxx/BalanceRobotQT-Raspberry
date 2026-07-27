@@ -67,7 +67,8 @@ private:
     void askLlm(const QString &text);
 
     // ---- Robot eylemleri (RobotControl atomikleri - her thread'den güvenli) ----
-    QString doMove(const QString &direction, int speedPercent, double seconds);
+    QString doMove(const QString &direction, int speedPercent, double seconds,
+                   bool sayPct = false, bool saySecs = false);
     void    stopAllMotion();
     QString statusText() const;
     QString execTool(const QString &name, const class QJsonObject &args);
@@ -75,7 +76,8 @@ private:
     // ---- TTS ----
     void speak(const QString &text);
     void speakNext();
-    void startSpeaker(const QString &text, bool fallbackToDefault);
+    void startSpeaker(const QString &text, bool fallbackToDefault,
+                      bool avoidGtts = false);
     void ensureBtSpeaker();   // bluetoothctl connect <mac> (idempotent)
 
     // ---- Yardımcılar ----
@@ -92,6 +94,7 @@ private:
     bool    micAuto_ = true;     // settings "auto" ise her yeniden başlatmada tekrar algıla
     QString voskModelPath_;      // Vosk model klasörü
     QString wakeWord_;           // boş = her söylenen işlenir
+    QString ttsEngine_;          // "auto" (piper/espeak) | "gtts" (online, doğal KADIN sesi)
     QString ttsVoice_;           // espeak-ng ses (tr+f3 = kadın; tr = erkek)
     QString piperModel_;         // boş = espeak-ng kullan
     QString btSpeakerMac_;       // JBL vb. BT hoparlör MAC'i (boş = yok)
@@ -124,6 +127,7 @@ private:
     QStringList  speakQueue_;
     QString      lastSpokenText_;      // BT hoparlör başarısız olursa
     bool         lastWasFallback_ = false;  // varsayılan çıkışa geri düşme için
+    bool         lastUsedGtts_ = false;     // gtts başarısızsa (internet yok) yerel motora düş
     QString      lastUsedDevice_;
     QTimer      *btReconnectTimer_ = nullptr;
 };

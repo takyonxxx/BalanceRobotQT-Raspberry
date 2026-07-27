@@ -65,6 +65,7 @@ void VoiceAssistant::loadSettings()
     if (!s.contains("voskModelPath")) s.setValue("voskModelPath",
         QCoreApplication::applicationDirPath() + "/vosk-model-small-tr-0.3");
     if (!s.contains("wakeWord"))      s.setValue("wakeWord", "robot");
+    if (!s.contains("ttsEngine"))     s.setValue("ttsEngine", "auto");   // gtts = online doğal kadın sesi
     if (!s.contains("ttsVoice"))      s.setValue("ttsVoice", "tr+f3");   // kadın sesi
     if (!s.contains("piperModel"))    s.setValue("piperModel", "");
     if (!s.contains("btSpeakerMac"))  s.setValue("btSpeakerMac", "F8:5C:7D:82:CE:9B");  // JBL Clip 4
@@ -87,9 +88,19 @@ void VoiceAssistant::loadSettings()
         micDevice_ = detectMicDevice();
     voskModelPath_ = s.value("voskModelPath").toString();
     wakeWord_      = s.value("wakeWord").toString().trimmed().toLower();
+    ttsEngine_     = s.value("ttsEngine").toString().trimmed().toLower();
     ttsVoice_      = s.value("ttsVoice").toString().trimmed();
     if (ttsVoice_.isEmpty()) ttsVoice_ = "tr+f3";
-    piperModel_    = s.value("piperModel").toString();
+    piperModel_    = s.value("piperModel").toString().trimmed();
+    // Ayar boşsa uygulama klasöründeki doğal Türkçe KADIN sesini otomatik
+    // kullan (indirilmişse): tr_TR-dfki-medium. İndirilmemişse espeak-ng
+    // (ttsVoice, varsayılan tr+f3 kadın) devrede kalır.
+    if (piperModel_.isEmpty()) {
+        const QString candidate = QCoreApplication::applicationDirPath()
+                                  + "/tr_TR-dfki-medium.onnx";
+        if (QFile::exists(candidate))
+            piperModel_ = candidate;
+    }
     btSpeakerMac_  = s.value("btSpeakerMac").toString().trimmed().toUpper();
     speakerDevice_ = s.value("speakerDevice").toString().trimmed();
     // Çözümlenmiş TTS cihazı: override > BlueALSA (MAC'ten otomatik) > varsayılan.
@@ -350,7 +361,7 @@ void VoiceAssistant::handleUtterance(QString text)
             attentionUntilMs_ = now + 10000;
             if (lower.size() < 3) {
                 qDebug().noquote() << "ASSIST heard:" << text;
-                speak("Evet, dinliyorum.");
+                speak("Evet?");
                 return;
             }
         } else if (now < attentionUntilMs_) {
@@ -385,8 +396,7 @@ void VoiceAssistant::handleUtterance(QString text)
     if (llm_->hasProvider()) {
         askLlm(text);
     } else {
-        speak("Bunu anlamadim. Komutlar: ileri, geri, sola don, saga don, dur, "
-              "durum, pid ogrenmeyi baslat, trim sifirla.");
+        speak("Bunu anlamadım.");
     }
 }
 
@@ -404,12 +414,12 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         t.contains("learn")) {
         if (containsAny(t, {"durdur", "bitir", "iptal", "stop", "kapat"})) {
             robot_->stopPidLearning();
-            speak("PID ogrenme durduruluyor, en iyi degerler saklaniyor.");
+            speak("PID öğrenme durdu.");
             return true;
         }
         if (containsAny(t, {"başlat", "baslat", "başla", "basla", "start", "aç", "ac"})) {
             robot_->startPidLearning();
-            speak("PID ogrenme basladi. Robot bilerek sallanacak, birkac dakika surer.");
+            speak("PID öğrenme başladı, birkaç dakika sürer.");
             return true;
         }
     }
@@ -418,7 +428,7 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     if (t.contains("trim") &&
         containsAny(t, {"sıfırla", "sifirla", "resetle", "reset", "temizle"})) {
         robot_->resetTrim();
-        speak("Trim sifirlandi.");
+        speak("Trim sıfırlandı.");
         return true;
     }
 
@@ -433,13 +443,13 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
     if (containsAny(t, {"disarm", "motorları kapat", "motorlari kapat",
                         "motoru kapat", "devre dışı", "devre disi"})) {
         robot_->setIsArmed(false);
-        speak("Motorlar kapatildi.");
+        speak("Motorlar kapatıldı.");
         return true;
     }
     if (containsWord(t, {"arm", "hazırlan", "hazirlan", "dengele"}) ||
         containsAny(t, {"motorları aç", "motorlari ac", "motoru aç", "motoru ac"})) {
         robot_->setIsArmed(true);
-        speak("Denge kontrolu aktif.");
+        speak("Denge aktif.");
         return true;
     }
 
@@ -472,9 +482,10 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         static const QRegularExpression pctRe("(yüzde|yuzde|%)\\s*\\S*");
         td.remove(pctRe);
         double secs = moveDefaultSecs_;
+        bool secsExplicit = false;
         if (containsAny(td, {"saniye", "second", "sec"})) {
             const double n = firstNumber(td);
-            if (n > 0) secs = qBound(0.3, n, 8.0);
+            if (n > 0) { secs = qBound(0.3, n, 8.0); secsExplicit = true; }
         }
         if (containsAny(t, {"tam gaz", "full"}))                              { pct = 100; pctExplicit = true; }
         else if (containsAny(t, {"çok hızlı", "cok hizli"}))                  { pct = 90;  pctExplicit = true; }
@@ -486,7 +497,7 @@ bool VoiceAssistant::tryLocalCommand(const QString &t)
         if (!pctExplicit && (dir == "left" || dir == "right"))
             pct = turnDefaultPct_;
 
-        speak(doMove(dir, pct, secs));
+        speak(doMove(dir, pct, secs, pctExplicit, secsExplicit));
         return true;
     }
 
@@ -522,7 +533,9 @@ QString VoiceAssistant::execTool(const QString &name, const QJsonObject &args)
         const double secs = args.contains("duration_seconds")
                               ? qBound(0.3, args.value("duration_seconds").toDouble(), 8.0)
                               : moveDefaultSecs_;
-        return doMove(dir, pct, secs);
+        return doMove(dir, pct, secs,
+                      args.contains("speed_percent"),
+                      args.contains("duration_seconds"));
     }
     if (name == "stop_robot") {
         stopAllMotion();
@@ -551,10 +564,11 @@ QString VoiceAssistant::execTool(const QString &name, const QJsonObject &args)
     return "Unknown tool: " + name;
 }
 
-QString VoiceAssistant::doMove(const QString &direction, int speedPercent, double seconds)
+QString VoiceAssistant::doMove(const QString &direction, int speedPercent, double seconds,
+                               bool sayPct, bool saySecs)
 {
     if (!robot_->getIsArmed())
-        return "Robot su an dengede degil (disarmed), hareket edemem.";
+        return "Robot dengede değil.";
 
     stopAllMotion();
 
@@ -562,7 +576,7 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
     if (direction == "forward") {
         if (voiceMaxVel_ > 0) robot_->setTempMaxVel((float)voiceMaxVel_);
         robot_->setNeedSpeed(moveByteFwd_ * speedPercent / 100);
-        what = "Ileri gidiyorum";
+        what = "İleri gidiyorum";
     } else if (direction == "backward") {
         if (voiceMaxVel_ > 0) robot_->setTempMaxVel((float)voiceMaxVel_);
         robot_->setNeedSpeed(-moveByteFwd_ * speedPercent / 100);
@@ -570,13 +584,13 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
     } else if (direction == "left") {
         robot_->setNeedTurnL(moveByteTurn_ * speedPercent / 100);
         robot_->setNeedTurnR(0);
-        what = "Sola donuyorum";
+        what = "Sola dönüyorum";
     } else if (direction == "right") {
         robot_->setNeedTurnR(moveByteTurn_ * speedPercent / 100);
         robot_->setNeedTurnL(0);
-        what = "Saga donuyorum";
+        what = "Sağa dönüyorum";
     } else {
-        return "Bilinmeyen yon: " + direction;
+        return "Bilinmeyen yön.";
     }
 
     moveStopTimer_->start(int(seconds * 1000));
@@ -587,8 +601,19 @@ QString VoiceAssistant::doMove(const QString &direction, int speedPercent, doubl
                                    : moveByteFwd_ * speedPercent / 100)
                           .arg(speedPercent)
                           .arg(seconds, 0, 'f', 1);
-    return QString("%1, %2 saniye, yuzde %3 hiz.")
-        .arg(what).arg(seconds, 0, 'f', 1).arg(speedPercent);
+
+    // Kisa onay: yalnizca kullanicinin SOYLEDIGI niteleyiciler tekrarlanir.
+    // "sola don" -> "Sola donuyorum." / "1 saniye sola don" -> "... 1 saniye."
+    QString reply = what;
+    if (saySecs) {
+        const QString secStr = (seconds == (int)seconds)
+            ? QString::number((int)seconds)
+            : QString::number(seconds, 'f', 1);
+        reply += QString(", %1 saniye").arg(secStr);
+    }
+    if (sayPct)
+        reply += QString(", yuzde %1").arg(speedPercent);
+    return reply + ".";
 }
 
 void VoiceAssistant::stopAllMotion()
@@ -604,11 +629,11 @@ void VoiceAssistant::stopAllMotion()
 QString VoiceAssistant::statusText() const
 {
     const RobotControl::Telemetry t = robot_->getTelemetry();
-    QString s = QString("Aci %1 derece. ").arg(t.angle, 0, 'f', 1);
-    s += t.armed  ? "Denge aktif. "  : "Denge kapali. ";
-    if (t.fallen)      s += "Robot dusmus durumda. ";
-    if (t.pidLearning) s += "PID ogrenme calisiyor. ";
-    s += QString("PWM sol %1, sag %2.").arg(t.pwmL).arg(t.pwmR);
+    QString s = QString("Açı %1 derece. ").arg(t.angle, 0, 'f', 1);
+    s += t.armed  ? "Denge aktif. "  : "Denge kapalı. ";
+    if (t.fallen)      s += "Robot düşmüş durumda. ";
+    if (t.pidLearning) s += "PID öğrenme çalışıyor. ";
+    s += QString("PWM sol %1, sağ %2.").arg(t.pwmL).arg(t.pwmR);
     return s;
 }
 
@@ -635,13 +660,42 @@ void VoiceAssistant::speakNext()
 
 // TTS başlat. fallbackToDefault=true ise BT/özel cihaz atlanır, varsayılan
 // ses çıkışı (3.5mm/HDMI) kullanılır - hoparlör kapalıysa robot sessiz kalmaz.
-void VoiceAssistant::startSpeaker(const QString &text, bool fallbackToDefault)
+void VoiceAssistant::startSpeaker(const QString &text, bool fallbackToDefault,
+                                  bool avoidGtts)
 {
     speaking_ = true;
     lastSpokenText_  = text;
     lastWasFallback_ = fallbackToDefault;
     lastUsedDevice_  = fallbackToDefault ? QString() : effSpeakerDevice_;
+    lastUsedGtts_    = false;
     const QString dev = lastUsedDevice_;
+
+    // gTTS: Google'in dogal Turkce KADIN sesi (internet gerektirir).
+    // settings.ini [assistant] ttsEngine=gtts ile acilir. Internet yoksa
+    // surec hata verir ve ayni cumle otomatik olarak Piper/espeak'e duser.
+    if (!avoidGtts && ttsEngine_ == "gtts") {
+        lastUsedGtts_ = true;
+        // Donanımda doğrulanmış hat: gtts-cli mp3 üretir, mpg123 -s ham
+        // PCM'e çözer (gTTS mp3'leri 24 kHz mono), aplay BlueALSA'da çalar.
+        // (mpg123'ün -w/-a çıkışları bluealsa ile sorunlu çıktı; -s güvenilir.)
+        const QString aplayDev = dev.isEmpty() ? "" : QString(" -D \"%1\"").arg(dev);
+        const QString cmd = QString("gtts-cli -l tr - | mpg123 -q -s - | "
+                                    "aplay -q%1 -t raw -f S16_LE -r 24000 -c 1")
+                                .arg(aplayDev);
+        speaker_ = new QProcess(this);
+        connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, &VoiceAssistant::onSpeakFinished);
+        speaker_->start("sh", {"-c", cmd});
+        if (speaker_->waitForStarted(2000)) {
+            speaker_->write(text.toUtf8());
+            speaker_->closeWriteChannel();
+            return;
+        }
+        speaker_->deleteLater();
+        speaker_ = nullptr;
+        lastUsedGtts_ = false;
+        // duserek yerel motora devam
+    }
 
     speaker_ = new QProcess(this);
     connect(speaker_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -707,6 +761,16 @@ void VoiceAssistant::onSpeakFinished(int exitCode, QProcess::ExitStatus)
     if (speaker_) {
         speaker_->deleteLater();
         speaker_ = nullptr;
+    }
+
+    // gTTS başarısız olduysa (internet yok / gtts-cli kurulu değil) aynı
+    // cümleyi AYNI cihazda yerel motorla (Piper/espeak) tekrarla.
+    if (exitCode != 0 && lastUsedGtts_) {
+        qDebug().noquote() << "VoiceAssistant: gtts failed"
+                           << (err.isEmpty() ? QString() : "- " + err)
+                           << "- using local TTS engine";
+        startSpeaker(lastSpokenText_, lastWasFallback_, /*avoidGtts=*/true);
+        return;
     }
 
     // BT/özel hoparlörde çalma başarısız olduysa (JBL kapalı, bağlantı yok)

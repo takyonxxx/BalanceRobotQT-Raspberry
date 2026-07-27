@@ -387,6 +387,40 @@ speakerDevice=                   ; optional ALSA device override; empty = auto
 
 Behavior: on startup the assistant runs `bluetoothctl connect <MAC>` and retries every 30 s, so power-cycling the JBL just works. If a reply fails to play on the BT device (speaker off / out of range), the same sentence is **automatically repeated on the default output** (3.5 mm/HDMI) and reconnection is triggered — the robot never goes silent. Expect ~0.2–0.5 s of extra latency on BT audio; the microphone path (webcam) is unaffected.
 
+**Natural Turkish FEMALE voice — the honest picture:** the official Piper catalog has only three Turkish voices (dfki, fahrettin, fettah) and **all three are male**. espeak-ng's `tr+f3` is female but robotic. For a genuinely natural female Turkish voice the practical option is **Google TTS (online)**:
+
+```bash
+sudo apt-get install mpg123
+sudo pip3 install --break-system-packages gTTS   # provides /usr/local/bin/gtts-cli
+
+# Test on the JBL:
+echo "Merhaba, ben denge robotu." | gtts-cli -l tr - | \
+  mpg123 -q -s - | aplay -q -D bluealsa:DEV=F8:5C:7D:82:CE:9B,PROFILE=a2dp -t raw -f S16_LE -r 24000 -c 1
+```
+
+Then in `settings.ini` `[assistant]`: `ttsEngine=gtts`. Trade-offs: requires internet and sends the reply text to Google, and adds ~0.5–1.5 s of network latency. **If the internet drops, the same sentence automatically falls back to the local engine** (Piper if installed, else espeak-ng) — the robot never goes silent. Set `ttsEngine=auto` to go back to fully offline TTS.
+
+**Natural Turkish MALE voice, fully offline (Piper):** install [Piper](https://github.com/rhasspy/piper) once; the firmware **auto-detects** the model file and switches to it, no settings change needed:
+
+```bash
+# 1. Piper binary (aarch64)
+cd /tmp
+wget https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_aarch64.tar.gz
+sudo tar -xzf piper_linux_aarch64.tar.gz -C /opt
+sudo ln -s /opt/piper/piper /usr/local/bin/piper
+
+# 2. Turkish female voice model (~60 MB) into the app folder
+cd ~/BalanceRobotPI
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx.json
+
+# 3. Test it
+echo "Merhaba, ben denge robotu." | piper -m tr_TR-dfki-medium.onnx --output_raw | \
+  aplay -q -r 22050 -f S16_LE -t raw -c 1 -D bluealsa:DEV=F8:5C:7D:82:CE:9B,PROFILE=a2dp
+```
+
+Restart the app — replies now use the natural female voice (adds ~0.5 s per sentence on the Pi 5). Reply wording is intentionally SHORT: qualifiers (duration/speed) are spoken back **only if you said them** — *"sola dön"* → *"Sola dönüyorum."*, *"1 saniye sola dön"* → *"Sola dönüyorum, 1 saniye."*
+
 **Better TTS (optional):** `espeak-ng` is robotic. For a natural Turkish voice install [Piper](https://github.com/rhasspy/piper) and point `piperModel` at a `tr_TR` `.onnx` voice file; the assistant automatically prefers it and falls back to espeak-ng.
 
 **CPU budget:** the assistant thread runs at low priority; Vosk small uses well under one core. Combined with the camera stream, prefer 640×480 video or disable the camera during PID auto-tune — same guidance as before, the 200 Hz balance loop always has priority.
